@@ -24,12 +24,12 @@ Already-settled matters must not be reopened from old summaries: Result/Status, 
 
 ## Recovering removed artifacts
 
-Commit `11493b7` contains every file present before this cleanup, including sixteen intermediate drafts, the EBNF grammar, coverage maps, paragraph audits, and individual check receipts. Retrieve an exact file without changing the working tree:
+Commit `d2cf0c0` contains every file present before this cleanup, including sixteen intermediate drafts, the EBNF grammar, coverage maps, paragraph audits, and individual check receipts. Retrieve an exact file without changing the working tree:
 
 ```sh
-git show 11493b7:spec-draft4-coverage.md
-git show 11493b7:fresh-spec-review.md
-git show 11493b7:stdlib-adoption-check.json
+git show d2cf0c0:spec-draft4-coverage.md
+git show d2cf0c0:fresh-spec-review.md
+git show d2cf0c0:stdlib-adoption-check.json
 ```
 
 This keeps provenance recoverable without making obsolete reports look like current instructions. Historical assertions about shipping, compiler behavior, or test results retain their original evidence limits.

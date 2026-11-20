@@ -39,11 +39,11 @@ The [background documents](background/) preserve the original reference, full sp
 (cd background && shasum -a 256 -c SHA256SUMS)
 ```
 
-Intermediate drafts, the superseded EBNF, overlapping chronological reviews, and one-off verification receipts are retained in Git history rather than the working tree. Commit `11493b7` preserves the complete pre-cleanup collection. For example:
+Intermediate drafts, the superseded EBNF, overlapping chronological reviews, and one-off verification receipts are retained in Git history rather than the working tree. Commit `d2cf0c0` preserves the complete pre-cleanup collection. For example:
 
 ```sh
-git show 11493b7:drafts/16-before-source-based-stdlib-choices.md
-git show 11493b7:stdlib-adoption-check.json
+git show d2cf0c0:drafts/16-before-source-based-stdlib-choices.md
+git show d2cf0c0:stdlib-adoption-check.json
 ```
 
 Historical receipts describe their recorded bytes and checks, not current conformance. A reproducible validation suite belongs in the forthcoming codebook work; the old receipts are not a substitute for one.

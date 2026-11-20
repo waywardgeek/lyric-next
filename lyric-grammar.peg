@@ -7,7 +7,7 @@
 # Syntax rules operate on the token stream described in grammar-review.md;
 # lexical literal scanning uses source modes. No generator has been selected.
 # Semantic resolution/type failure does not retry a different parse.
-# Original EBNF and grammar-check.txt are preserved in Git history (11493b7).
+# Original EBNF and grammar-check.txt are preserved in Git history (d2cf0c0).
 # D1–D5 recommendations are adopted. Unicode version and lone CR remain open; D6 and deferred coverage need review. Name shadowing
 # is rejected semantically; independent scopes/namespaces may reuse names.
 # Generic-before-comparison priority is approved; GenericSuffix encodes its
