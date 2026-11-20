@@ -1,0 +1,29 @@
+{
+  "status": "document and rule-reference checks passed; no Lyric parser/compiler/runtime executed",
+  "files": {
+    "lyric-language-spec.md": "51ea5e5e9d88522206fea743b514a1cc8e34b017b8a1df9d48a1a4e25a339b90",
+    "lyric-grammar.peg": "a8f34f1b71d886fc711440306be2b963e3e1a21b394667209d2222465ccee4c5",
+    "grammar-review.md": "4cea77af85b644bfdea1b5447b279a732799fb9a002caa6e3df130bb9dee9e3e",
+    "README.md": "c617eddad345092dabf8729ffcc6e7d2d0ba61d26ac8392c3be972254973c262"
+  },
+  "conformance_requirements": 40,
+  "grammar_example_expectations": 40,
+  "grammar_unique_rules": 169,
+  "checks": [
+    "19 chapter sequence",
+    "40 numbered conformance requirements",
+    "expected upgraded contract anchors",
+    "grammar definitions unique and all references defined",
+    "dictionary expressions added to ordinary expressions, excluded from direct headers",
+    "40 grammar example identifiers",
+    "frozen predecessor and reconstruction snapshot hashes unchanged",
+    "all original background checksums and original-checkout equality",
+    "Markdown local links/anchors, fences and trailing whitespace"
+  ],
+  "limits": [
+    "Grammar examples are authored expectations, not parser results.",
+    "Nullable repetition and left-recursion checks from peg-check.txt predate this update; not rerun in this receipt.",
+    "No memory-safety proof or performance test.",
+    "Read-only syntax, key-stability enforcement, dictionary-entry validity and streaming signatures remain open."
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "status": "document verification passed; no parser/compiler/runtime tests",
+  "canonical_sha256": "0902593d7004445b9d31ccaeed2732af2c75e09d9a84da3944b185ccea503dbe",
+  "canonical_lines": 2078,
+  "conformance_requirements": 43,
+  "files": {
+    "README.md": "2b5ca29dcf9742e1ec29d6c375bf73b65cfc92f68acdd63becac9c29cb3a325a",
+    "grammar-review.md": "03b540be14cb33668171282a1980577cf8f2cef09e9c645e1a99f5b910e38ba6",
+    "lyric-grammar.peg": "a8f34f1b71d886fc711440306be2b963e3e1a21b394667209d2222465ccee4c5"
+  },
+  "checks": [
+    "19 chapter sequence",
+    "43 consecutive conformance requirements",
+    "stable-storage rule and helper-call anchors",
+    "superseded normative path-reconstruction assertions absent",
+    "frozen predecessor, promotion snapshot and original background hashes preserved",
+    "PEG unchanged; existing ref syntax retained",
+    "local Markdown links/anchors, balanced fences and whitespace"
+  ],
+  "limits": [
+    "No checker implementation, parser execution, safety proof or performance benchmark.",
+    "Read-only spelling and previously listed unresolved contracts remain open.",
+    "Historical comparison and verification receipts describe their recorded versions."
+  ]
+}

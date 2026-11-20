@@ -1,0 +1,37 @@
+{
+  "status": "source-based stdlib choices recorded; document checks passed",
+  "files": {
+    "lyric-language-spec.md": "87b7f9e1210f22715377453bbc956e4f31ea34e9f49ad6018ff815d73b018eeb",
+    "stdlib-adoption.md": "99e2984b7123653ca5777ba1586ca41e37fd209dab9f22995ea29f5f1aa2aa68",
+    "grammar-review.md": "16b1b51bfd6882164d316bfcff2a690ca39af830886afb8250bde68225022a8e",
+    "lyric-grammar.peg": "6ca8ade2f54a97de97f00cb741cee5a6d566d2aaccf0ad9d78746947b4ee5666",
+    "README.md": "e36f16abbd3ac653efdb55413718c365ac549a26dd927a510869bd1ade107b63"
+  },
+  "source_inputs": {
+    "/Users/bill/projects/lyric/stdlib/std.ly": {
+      "sha256": "88c16a079f3b4dce4f0ea9d729b77ec8a82f17e7a9b388a8329c660e8dc1f2e8",
+      "lines": 772
+    },
+    "/Users/bill/projects/lyric/stdlib/string.ly": {
+      "sha256": "f3c53788eb8973d25a0fb2facf9358a4a8de48ddd5efa9e19dc05d4fb2cedaed",
+      "lines": 258
+    }
+  },
+  "conformance_requirements": 59,
+  "grammar_expectations": 60,
+  "checks": [
+    "19 chapter sequence",
+    "59 consecutive conformance requirements",
+    "60 existing grammar expectation identifiers",
+    "173 grammar production lines retained",
+    "resolved string/entry/empty-symbol open claims removed",
+    "adopted library contract anchors present",
+    "frozen predecessor and background checksums preserved",
+    "Markdown links/anchors, fences and whitespace"
+  ],
+  "limits": [
+    "No original stdlib edits, new library implementation, compiler execution or runtime tests.",
+    "Collision and empty-separator findings are source review, not executable reproductions.",
+    "Mutable reference-bearing custom key contracts, general global/shutdown/concurrency rules and broader I/O migration remain open."
+  ]
+}

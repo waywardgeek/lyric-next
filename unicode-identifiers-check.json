@@ -1,0 +1,26 @@
+{
+  "status": "document and grammar-reference verification passed; no lexer/parser execution",
+  "files": {
+    "lyric-language-spec.md": "dd4f74c143fe30cf3cb16f3395f4bf10b42ac4a4e88889af0ce854b3ec541e3c",
+    "lyric-grammar.peg": "b3cf0e122a84206c5ca52b7f65ffe5f41c991a7b633c519636d39a03a594a3d7",
+    "grammar-review.md": "16e26cf1a5d6bcece9d3f485680345a2f5c93653e84996103abd20010a9a0b80",
+    "README.md": "609e45a2cf857c70a25bc2995930b9a3c1f2b88e5b73fd496a803a12e4b2bef2"
+  },
+  "grammar_rules": 170,
+  "grammar_expectations": 45,
+  "conformance_requirements": 45,
+  "checks": [
+    "UTF-8/XID/NFC contract readback",
+    "ASCII identifier restriction removed; numeric ASCII digits retained",
+    "all grammar references defined; unique definitions",
+    "19 chapters and 45 consecutive conformance cases",
+    "45 grammar example identifiers",
+    "frozen predecessor and background hashes preserved",
+    "local links/anchors, balanced fences, whitespace"
+  ],
+  "limits": [
+    "Initial pinned Unicode data version remains to be selected.",
+    "Hard/contextual keyword classification and builtin shadowing remain open.",
+    "No lexer/parser, Unicode-table conformance, nullable-recursion, compiler or runtime tests performed."
+  ]
+}

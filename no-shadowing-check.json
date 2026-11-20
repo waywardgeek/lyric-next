@@ -1,0 +1,19 @@
+{
+  "status": "no-shadowing requirements adopted; document checks passed",
+  "files": {
+    "lyric-language-spec.md": "6f621381aeea662e6fbf0755c0dc1f01358b71dec70eb1955e56c7c8221d4144",
+    "grammar-review.md": "6a112b1f46ba5904bacd3a226294e6a44b700724cb3fd0a02d9268e91f22ee2b",
+    "lyric-grammar.peg": "eeda3c2a3411cb8afbf5a941622087a8df0925982eeb45e343f0351e0086a134",
+    "README.md": "a5d64b4a10d1bc1a3ceec9b532b494b21ec6f737f1c75b37ae44dd865f56fd3b"
+  },
+  "conformance_requirements": 48,
+  "checks": [
+    "19 chapters",
+    "48 consecutive conformance requirements",
+    "shadowing permission removed",
+    "tuple field syntax unchanged",
+    "frozen predecessor verified",
+    "local links/anchors, balanced fences and whitespace"
+  ],
+  "limits": "No parser/compiler execution. Tuple syntax is not changed by this update."
+}

@@ -1,0 +1,15 @@
+{
+  "status": "single .ly source extension adopted; document checks passed",
+  "files": {
+    "lyric-language-spec.md": "6a20277aee3a0dbf485e41615004ee2b73fb802ddefb959b8e0ad21a1dbaa2ae",
+    "README.md": "3e785fecd33b502c03c08beb1f93784167cec66dbf6b319751f27dfb3a2b2608"
+  },
+  "checks": [
+    "source organization uses .ly",
+    "declaration/body matching preserved",
+    "dot-number tuple access preserved",
+    "frozen predecessor and original background hashes unchanged",
+    "links/anchors, fences and whitespace"
+  ],
+  "limits": "No compiler, file migration, or Lyre implementation changes performed."
+}

@@ -1,0 +1,220 @@
+# Lyric PEG grammar — review draft 8 (explicit safe generators).
+# Ordered choice: first syntactically successful alternative wins.
+# Syntax: <- defines, / ordered choice, adjacency sequence, ? optional,
+# * repetition, & positive lookahead; quoted text matches exact tokens.
+# Lexer subrules describe source characters. @Name is a documented external
+# lexical hook, not an unspecified parser escape hatch or a generator API.
+# Syntax rules operate on the token stream described in grammar-review.md;
+# lexical literal scanning uses source modes. No generator has been selected.
+# Semantic resolution/type failure does not retry a different parse.
+# Original EBNF and grammar-check.txt are preserved as historical artifacts.
+# D1–D5 recommendations are adopted. Unicode version and lone CR remain open; D6 and deferred coverage need review. Name shadowing
+# is rejected semantically; independent scopes/namespaces may reuse names.
+# Generic-before-comparison priority is approved; GenericSuffix encodes its
+# angle-list and following call/member boundary with positive lookahead.
+# Header expressions exclude direct records/dictionaries but allow them inside parentheses.
+# No parser execution, performance guarantee, or ambiguity certification claimed.
+
+Ident <- IdentifierSpelling
+IdentifierSpelling <- IdentifierStart (IdentifierContinue)*
+IdentifierStart <- XIDStart / "_"
+IdentifierContinue <- XIDContinue / "_"
+XIDStart <- @XIDStart
+XIDContinue <- @XIDContinue
+Digit <- @Digit
+HexDigit <- Digit / @HexDigit
+Digits <- Digit (Digit / "_" Digit)*
+IntegerLiteral <- Digits
+FloatLiteral <- Digits "." Digits
+ByteLiteral <- "'" (ByteChar / ByteEscape) "'"
+ByteChar <- @ByteChar
+ByteEscape <- "\\" ("n" / "r" / "t" / "\\" / "'" / '"' / "0" / "x" HexDigit HexDigit)
+Escape <- UnicodeEscape / ByteEscape
+UnicodeEscape <- "\\" "u" "{" HexDigit (HexDigit)? (HexDigit)? (HexDigit)? (HexDigit)? (HexDigit)? "}"
+StringLiteral <- '"' (StringChar / Escape)* '"'
+StringChar <- @StringChar
+TripleStringLiteral <- '"""' (TripleChar)* '"""'
+TripleChar <- @TripleChar
+SymbolLiteral <- "`" (SymbolChar)* "`"
+SymbolChar <- @SymbolChar
+FString <- 'f"' (FStringText / Interpolation)* '"'
+FStringText <- FStringChar / Escape / "{{" / "}}"
+FStringChar <- @FStringChar
+Interpolation <- "{" Expr "}"
+LineComment <- "//" (CommentChar)*
+CommentChar <- @CommentChar
+HorizontalSpace <- @HorizontalSpace
+NL <- @NL
+EOF <- @EOF
+Sep <- (NL / ";") (NL / ";")*
+SepOpt <- (NL / ";")*
+NLs <- (NL)*
+MemberSep <- Sep / "," SepOpt
+File <- SepOpt (TopItem (Sep TopItem)* (Sep)?)? EOF
+TopItem <- ImportDecl / TypeAlias / StructDecl / ClassDecl / EnumDecl / InterfaceDecl / ImplDecl / RelationDecl / FunctionDecl / GlobalBinding
+Visibility <- ("pub")?
+ImportDecl <- "import" Ident ("from" StringLiteral)?
+TypeAlias <- Visibility "type" Ident "=" Type
+GlobalBinding <- Visibility ("let" / "var") Ident (":" Type)? "=" Expr
+StructDecl <- Visibility "struct" Ident (TypeParams)? StructBody
+StructBody <- "{" SepOpt (FieldDecl (MemberSep FieldDecl)* (MemberSep)?)? "}"
+ClassDecl <- Visibility ("value")? "class" Ident (TypeParams)? ClassBody
+ClassBody <- "{" SepOpt (ClassMember (MemberSep ClassMember)* (MemberSep)?)? "}"
+ClassMember <- FunctionDecl / FieldDecl
+FieldDecl <- Visibility Ident ":" Type ("=" Expr)?
+EnumDecl <- Visibility "enum" Ident (TypeParams)? EnumBody
+EnumBody <- "{" SepOpt (EnumVariant (MemberSep)?)* "}"
+EnumVariant <- Ident ("(" (VariantFields)? ")")?
+VariantFields <- VariantField ("," VariantField)* (",")?
+VariantField <- Ident ":" Type
+InterfaceDecl <- Visibility "interface" Ident (TypeParams)? ("extends" Capability)? InterfaceBody
+InterfaceBody <- "{" SepOpt (InterfaceMember (Sep InterfaceMember)* (Sep)?)? "}"
+InterfaceMember <- FunctionDecl / InterfaceField / AbstractRelation / CleanupTemplate
+InterfaceField <- "field" Ident "." Ident ":" Type
+CleanupTemplate <- "destructor" RelationKind Ident Block
+FunctionDecl <- Visibility ("safe" / "final")? "func" FunctionName (TypeParams)? Parameters ("->" Type)? (WhereClause)? (Block)?
+FunctionName <- QualifiedName
+Parameters <- "(" (ParameterList)? ")"
+ParameterList <- Parameter ("," Parameter)* (",")?
+Parameter <- "self" / Ident ":" Type
+TypeParams <- "<" TypeParam ("," TypeParam)* ">"
+TypeParam <- Ident (":" QualifiedName)?
+WhereClause <- "where" Requirement ("," Requirement)*
+Requirement <- Ident ":" QualifiedName / Capability
+Capability <- QualifiedName (BindingArgs)?
+RelationDecl <- "relation" Hint Endpoint RelationKind ChildEndpoint
+AbstractRelation <- "relation" Hint Endpoint (RelationKind)? ChildEndpoint
+Hint <- QualifiedName
+RelationKind <- "owns" / "refs"
+Endpoint <- NamedType (":" Ident)?
+ChildEndpoint <- Endpoint / "[" Endpoint "]"
+BindingArgs <- "<" BindingArg ("," BindingArg)* ">"
+BindingArg <- Type (":" Ident)?
+ImplDecl <- "impl" (TypeParams)? QualifiedName BindingArgs (RelationKind)? ImplBody
+ImplBody <- "{" SepOpt (ImplMember (Sep ImplMember)* (Sep)?)? "}"
+ImplMember <- RelationBinding / FieldBinding / MethodBinding
+RelationBinding <- RelationRoles "=" RelationRoles
+RelationRoles <- Endpoint "/" Endpoint
+FieldBinding <- MemberPath "<->" MemberPath
+MethodBinding <- MemberPath "=" (MemberPath / Adapter)
+MemberPath <- Ident "." Ident ("." Ident)*
+Adapter <- "(" (AdapterParams)? ")" "->" Type Block
+AdapterParams <- AdapterParam ("," AdapterParam)* (",")?
+AdapterParam <- "self" / Ident (":" Type)?
+Type <- UnionType
+UnionType <- PrefixType ("|" PrefixType)*
+PrefixType <- ("ref" / "gen") PrefixType / OptionalType
+OptionalType <- TypePrimary ("?")?
+TypePrimary <- FunctionType / ArrayType / ParenthesizedType / NamedType
+NamedType <- QualifiedName (TypeArgs)?
+QualifiedName <- Ident ("." Ident)*
+TypeArgs <- "<" Type ("," Type)* ">"
+ArrayType <- "[" Type "]"
+ParenthesizedType <- "(" Type ("," Type ("," Type)* (",")?)? ")"
+FunctionType <- "fn" "(" (TypeList)? ")" "->" Type
+TypeList <- Type ("," Type)* (",")?
+Block <- "{" SepOpt (Statement (Sep Statement)* (Sep)?)? "}"
+Statement <- LocalBinding / ReturnStmt / YieldStmt / BreakStmt / ContinueStmt / WhileStmt / ForStmt / Block / ExpressionStmt
+LocalBinding <- ("let" / "var") Pattern BindingTail
+BindingTail <- ":" Type ("=" Expr)? (LetElse)? / "=" Expr (LetElse)?
+LetElse <- "else" Block
+ReturnStmt <- "return" (Expr)?
+YieldStmt <- "yield" Expr
+BreakStmt <- "break"
+ContinueStmt <- "continue"
+WhileStmt <- "while" HeaderExpr Block
+ForStmt <- "for" Pattern ("," Ident)? "in" HeaderExpr Block
+ExpressionStmt <- Expr (AssignmentOp Expr)?
+AssignmentOp <- "=" / "+=" / "-=" / "*=" / "/=" / "!+=" / "!-=" / "!*="
+Expr <- LogicalOr
+LogicalOr <- LogicalAnd ("||" LogicalAnd)*
+LogicalAnd <- Equality ("&&" Equality)*
+Equality <- Comparison (("==" / "!=") Comparison)*
+Comparison <- BitOr (("<=" / ">=" / "<" / ">") BitOr)*
+BitOr <- BitXor ("|" BitXor)*
+BitXor <- BitAnd ("^" BitAnd)*
+BitAnd <- Shift ("&" Shift)*
+Shift <- Additive (("<<" / ">>") Additive)*
+Additive <- Multiplicative (("+" / "-" / "!+" / "!-") Multiplicative)*
+Multiplicative <- PrefixExpr (("*" / "/" / "%" / "!*") PrefixExpr)*
+PrefixExpr <- ("-" / "!-" / "!" / "ref") PrefixExpr / PostfixExpr
+PostfixExpr <- Primary (PostfixPart)*
+PostfixPart <- GenericSuffix / CallSuffix / MemberSuffix / IndexSuffix / CastSuffix / VariantTest / "!" / "?"
+CallSuffix <- "(" (ArgumentList)? ")"
+ArgumentList <- Expr ("," Expr)* (",")?
+MemberSuffix <- "." (TupleIndex / Ident)
+TupleIndex <- Digit (Digit)*
+GenericSuffix <- BindingArgs &("(" / ".")
+IndexSuffix <- "[" (Expr (":" (Expr)?)? / ":" (Expr)?) "]"
+CastSuffix <- ("as" / "!as") CastType
+CastType <- PrefixType
+VariantTest <- "is" QualifiedName
+Primary <- IfExpr / MatchExpr / ClosureExpr / UnitExpr / TupleExpr / ParenthesizedExpr / ArrayExpr / DictExpr / RecordExpr / Literal / "self" / Ident
+Literal <- FString / TripleStringLiteral / StringLiteral / ByteLiteral / SymbolLiteral / FloatLiteral / IntegerLiteral / "true" / "false" / "null"
+UnitExpr <- "(" ")"
+ParenthesizedExpr <- "(" Expr ")"
+TupleExpr <- "(" Expr "," Expr ("," Expr)* (",")? ")"
+ArrayExpr <- "[" (ArgumentList)? "]"
+DictExpr <- "{" SepOpt (DictEntries)? "}"
+DictEntries <- DictEntry (MemberSep DictEntry)* (MemberSep)?
+DictEntry <- Expr ":" Expr
+RecordExpr <- NamedType "{" SepOpt (FieldValues)? "}"
+FieldValues <- FieldValue (MemberSep FieldValue)* (MemberSep)?
+FieldValue <- Ident ":" Expr
+ClosureExpr <- "(" (ClosureParams)? ")" "->" Type Block
+ClosureParams <- ClosureParam ("," ClosureParam)* (",")?
+ClosureParam <- Ident ":" Type
+IfExpr <- "if" Condition Block (NLs "else" (IfExpr / Block))?
+Condition <- "let" Pattern "=" HeaderExpr / HeaderExpr
+MatchExpr <- "match" HeaderExpr "{" SepOpt (MatchArm (Sep MatchArm)* (Sep)?)? "}"
+MatchArm <- MatchPatterns ("if" HeaderExpr)? "=>" Block
+MatchPatterns <- Pattern ("|" Pattern)*
+HeaderExpr <- HeaderLogicalOr
+HeaderLogicalOr <- HeaderLogicalAnd ("||" HeaderLogicalAnd)*
+HeaderLogicalAnd <- HeaderEquality ("&&" HeaderEquality)*
+HeaderEquality <- HeaderComparison (("==" / "!=") HeaderComparison)*
+HeaderComparison <- HeaderBitOr (("<=" / ">=" / "<" / ">") HeaderBitOr)*
+HeaderBitOr <- HeaderBitXor ("|" HeaderBitXor)*
+HeaderBitXor <- HeaderBitAnd ("^" HeaderBitAnd)*
+HeaderBitAnd <- HeaderShift ("&" HeaderShift)*
+HeaderShift <- HeaderAdditive (("<<" / ">>") HeaderAdditive)*
+HeaderAdditive <- HeaderMultiplicative (("+" / "-" / "!+" / "!-") HeaderMultiplicative)*
+HeaderMultiplicative <- HeaderPrefixExpr (("*" / "/" / "%" / "!*") HeaderPrefixExpr)*
+HeaderPrefixExpr <- ("-" / "!-" / "!" / "ref") HeaderPrefixExpr / HeaderPostfixExpr
+HeaderPostfixExpr <- HeaderPrimary (PostfixPart)*
+HeaderPrimary <- IfExpr / MatchExpr / ClosureExpr / UnitExpr / TupleExpr / ParenthesizedExpr / ArrayExpr / Literal / "self" / Ident
+Pattern <- "_" / PatternLiteral / NamePattern / TuplePattern
+PatternLiteral <- IntegerLiteral / "-" IntegerLiteral / ByteLiteral / StringLiteral / "true" / "false" / "null"
+NamePattern <- QualifiedName ("(" (PatternList)? ")")?
+PatternList <- Pattern ("," Pattern)* (",")?
+TuplePattern <- "(" Pattern "," Pattern ("," Pattern)* (",")? ")"
+
+# External lexical hooks (the lexer contract remains explicit):
+# @XIDStart: one decoded Unicode scalar with XID_Start in the pinned Unicode version
+# @XIDContinue: one decoded Unicode scalar with XID_Continue in that same version
+# Validate UTF-8 and whole-identifier NFC spelling; reject rather than normalize.
+# Keyword classification consumes the complete identifier; standalone _ is not Ident.
+# @Digit: ASCII 0–9
+# @HexDigit: ASCII A–F or a–f
+# @ByteChar: one unescaped source character encoding exactly one byte, excluding apostrophe, backslash, CR and LF
+# @StringChar: a source character except double quote, backslash, CR and LF
+# @TripleChar: next source character not starting the closing triple quote; adopted raw-content/trim rule D2 applies
+# @SymbolChar: a source character except backtick, CR and LF; no escape processing in this draft (D2)
+# @FStringChar: a source character except double quote, backslash, opening/closing brace, CR and LF
+# @CommentChar: a source character other than CR or LF
+# @HorizontalSpace: space or horizontal tab
+# @NL: one logical newline token after delimiter-aware processing (L3)
+# @EOF: end of source
+
+# Source-wide validation: reject literal Default_Ignorable_Code_Point, Bidi_Control,
+# and Cc except HT/LF/CR under whitespace rules, before skipped comments/raw text
+# can conceal them. This includes BOM. Use the pinned Unicode data version.
+# UnicodeEscape additionally requires a scalar <= U+10FFFF, excluding surrogates.
+# Decoded escape values are string data, never recursively tokenized source.
+
+# Following a member-access dot, decimal digits are a TupleIndex, not a float.
+# Thus nested.0.1 has two member suffixes; expression-position 1.25 is a float.
+# TupleIndex range/receiver type are semantic checks; no bracket tuple indexing.
+
+# safe is contextual before func and semantically restricted to gen-returning
+# declarations. It permits checked current-item destruction, never peer deletion.
