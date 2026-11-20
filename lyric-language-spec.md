@@ -2,7 +2,7 @@
 
 **Draft 4 — reviewed reconstruction, with approved safety and library upgrades.**
 
-This document specifies the current Lyric design. It consolidates the main rules and former appendices into one reading order; subsequent approved upgrades are integrated with their affected contracts. The [canonical specification](lyric-language-spec.md) is the current editing target. The [coverage record](spec-draft4-coverage.md) maps this reconstruction to its frozen Draft 3.3 source and records the review and its limits.
+This document specifies the current Lyric design. It consolidates the main rules and former appendices into one reading order; subsequent approved upgrades are integrated with their affected contracts. The [canonical specification](lyric-language-spec.md) is the current editing target. [Reviews and provenance](reviews/README.md) describe the retained comparisons and how to retrieve the historical reconstruction record from Git.
 
 ## Contents
 
@@ -66,7 +66,7 @@ Self-hosting is useful evidence of capability, not proof of correctness or memor
 
 ### Provenance and deliberate exclusions
 
-The original reference, original full specification, and multi-class interface redesign are preserved unchanged in `background/`. Earlier reconciliation drafts and the frozen Draft 3.3 remain in `drafts/`. Their historical alternatives do not compete with the current rules.
+The original reference, original full specification, and multi-class interface redesign are preserved unchanged in `background/`. Earlier reconciliation drafts, frozen sources, and verification receipts are preserved in Git history at commit `11493b7`. Their historical alternatives do not compete with the current rules.
 
 The current design deliberately uses ordinary constructors instead of attach clauses, explicit `value class` instead of inferred lifetime policy or a root modifier, visible interface requirements instead of privileged hidden Collection contracts, and `ref` instead of a second view type. It does not impose an immutable-only restriction on counted values. There is no new declaration-file extension, manual application structural destructor, finalization-view type, or broad effect-annotation language.
 
@@ -228,7 +228,7 @@ The grammar specifies lexical boundaries, declaration and expression forms, prec
 
 The parser implements the grammar rather than silently defining additional language rules. Maintain accepted and rejected conformance examples tied to grammar rules, including ambiguous-looking boundaries and useful source diagnostics. Update the grammar, explanatory prose, and corresponding tests together when syntax changes. The existence of handwritten parser code is not a substitute for the normative grammar, and a grammar document alone is not proof of parser conformance.
 
-The active consolidated syntax draft is [lyric-grammar.peg](lyric-grammar.peg), with [grammar-review.md](grammar-review.md) documenting lexical conventions, remaining proposed syntax choices, coverage gaps, and example expectations. Generic-first ordering and the concrete D1–D5 rules are approved; explicitly unresolved details and D6 are not approved merely by appearing in the grammar. The [original PEG structural receipt](peg-check.txt) records pre-dictionary production and recursion/repetition checks. The [upgrade receipt](library-upgrades-check.json) records checks on the revised files; neither establishes parser conformance. No Lyric parser or PEG generator has been run. The earlier [EBNF draft](lyric-grammar.ebnf), [original review](drafts/05-ebnf-grammar-review.md), and [EBNF receipt](grammar-check.txt) remain historical artifacts.
+The active consolidated syntax draft is [lyric-grammar.peg](lyric-grammar.peg), with [grammar-review.md](grammar-review.md) documenting lexical conventions, remaining proposed syntax choices, coverage gaps, and example expectations. Generic-first ordering and the concrete D1–D5 rules are approved; explicitly unresolved details and D6 are not approved merely by appearing in the grammar. Historical grammar receipts, the superseded EBNF draft, and its review are preserved in Git history at commit `11493b7`. Their structural checks do not establish parser conformance, and receipts apply only to their recorded revisions. No Lyric parser or PEG generator has been run.
 
 ### Adopted syntax rules and remaining decisions
 
@@ -1946,7 +1946,7 @@ Library containers obey the same lifetime, effect, and relationship rules as use
 
 The inspected original `stdlib/std.ly` and `stdlib/string.ly` provide the baseline for these choices: relation-backed owned entries, interned names with cached hashes, entry-returning dictionary lookup, a byte-array StringBuilder, and byte-oriented string utilities. These are ordinary Lyric libraries, not compiler-privileged object categories. Their implementations must satisfy the same constructor, relation, value, borrow, and effect rules as application code. Effects are inferred from available bodies; public contracts state required behavior rather than prescribing their algorithms.
 
-Porting does not copy every old behavior. In particular, equal hashes cannot substitute for key equality; manual trusted ref/unref operations and permanent classes are not restored; shared array backing on ordinary assignment/parameter passing is not restored; and parent teardown must not pre-detach children before their final hooks. Source-defined behavior is evidence for a contract, not authority to preserve an implementation defect. The comparison and adaptation decisions are recorded in [the stdlib adoption note](stdlib-adoption.md).
+Porting does not copy every old behavior. In particular, equal hashes cannot substitute for key equality; manual trusted ref/unref operations and permanent classes are not restored; shared array backing on ordinary assignment/parameter passing is not restored; and parent teardown must not pre-detach children before their final hooks. Source-defined behavior is evidence for a contract, not authority to preserve an implementation defect. The comparison and adaptation decisions are recorded in [the stdlib adoption note](reviews/stdlib-adoption.md).
 
 ### Core and conversion
 
@@ -2252,7 +2252,7 @@ Self-hosting, fixed-point compilation, and benchmarks supplement these checks. T
 
 ### Evidence boundaries
 
-The new Lyric compiler and concurrent runtime have not been implemented. No PEG engine has executed the grammar examples. Grammar receipts check rule references and recursion/repetition hazards, not accepted-language behavior, semantic safety, or performance.
+The new Lyric compiler and concurrent runtime have not been implemented. No PEG engine has executed the grammar examples. Historical grammar receipts record checks of rule references and, for some revisions, recursion/repetition hazards; they do not establish accepted-language behavior, semantic safety, or performance.
 
 The standalone guarded 64-bit division/remainder C probe is the bounded executable evidence described in Section 14: 271 checks at each of -O0, -O3, and -O3 with undefined-behavior sanitization under Apple Clang 21 on ARM64. It classified failures rather than running Lyric's fatal diagnostic. The local `gcc` command was also Apple Clang; GNU GCC, other targets, shifts, floating-point conversions, and the complete compiler remain unverified.
 
@@ -2280,5 +2280,5 @@ Open decisions are grouped here so a settled semantic rule is not reopened merel
 
 A complete specification must define the syntax, name resolution, typing, evaluation, and cleanup requirements of every supported construct, including its interactions and failure cases. It need not prescribe the algorithms used to implement or check those requirements. Unsupported forms must be rejected rather than emitted as placeholders. Grammar, prose, diagnostics, and accepted/rejected conformance cases must evolve together.
 
-This rewrite organizes the existing design; it does not supply the missing contracts by assertion. KISS governs the number and interaction of mechanisms, not how few words are used to specify them. The preserved originals, frozen draft, and coverage record remain available for checking that simplification has not discarded essential behavior.
+This rewrite organizes the existing design; it does not supply the missing contracts by assertion. KISS governs the number and interaction of mechanisms, not how few words are used to specify them. The preserved originals, retained reviews, and frozen drafts/coverage records in Git history remain available for checking that simplification has not discarded essential behavior.
 

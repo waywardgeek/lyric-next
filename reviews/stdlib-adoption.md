@@ -2,7 +2,7 @@
 
 ## Scope
 
-Bill authorized borrowing, omitting, or modifying the existing Lyric stdlib and updating the new specification. Cadence read all 772 lines of `/Users/bill/projects/lyric/stdlib/std.ly` and all 258 lines of `stdlib/string.ly`. The original sources were inspected, not modified. This is a specification decision record, not a port, compiled test, or claim about generated runtime behavior. The frozen predecessor is [Draft 4 before these choices](drafts/16-before-source-based-stdlib-choices.md); the current requirements are integrated into Sections 4, 13, and 16 of [the specification](lyric-language-spec.md).
+Bill authorized borrowing, omitting, or modifying the existing Lyric stdlib and updating the new specification. Cadence read all 772 lines of `/Users/bill/projects/lyric/stdlib/std.ly` and all 258 lines of `stdlib/string.ly`. The original sources were inspected, not modified. This is a specification decision record, not a port, compiled test, or claim about generated runtime behavior. The frozen predecessor is the version stored at `11493b7:drafts/16-before-source-based-stdlib-choices.md`; the current requirements are integrated into Sections 4, 13, and 16 of [the specification](../lyric-language-spec.md).
 
 Implementation algorithms remain separate from language/library requirements. Source-defined behavior is useful evidence; implementation defects and old compiler assumptions do not become compatibility requirements.
 
@@ -85,4 +85,4 @@ New parse_int/atoi returns Result<i64>, consumes optional sign plus decimal digi
 
 Mutable reference-bearing custom keys need a stable hash/equality contract; unsupported unsafe uses are rejected. Class/primitive extension syntax and generic external-method scope still need their source-level resolution rules. Global initialization, shutdown, concurrent interning, general allocation policy, broad operating-system API migration, and streaming contracts remain separate work. General count limits, array iteration mutation, sorting, and empty pop are not silently settled by these library choices.
 
-The bounded verification receipt is [stdlib-adoption-check.json](stdlib-adoption-check.json). It records source hashes and document checks, not language execution.
+The bounded verification receipt is retained at `11493b7:stdlib-adoption-check.json` in Git history. It records source hashes and document checks, not language execution. See [the review index](README.md) for retrieval instructions.

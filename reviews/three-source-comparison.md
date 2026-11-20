@@ -1,14 +1,16 @@
 # Lyric Draft 4: comparison with the original specification and interface redesign
 
+> Historical review: this compares the exact earlier revisions listed below. Later decisions supersede some findings; see [the review index](README.md).
+
 ## Scope and evidence
 
 This is a fresh three-source document review, performed after Draft 4's requirements-versus-algorithms clarification and concurrent-memory-safety update. All three files were personally read in full in contiguous, untruncated ranges. Targeted searches supplemented those reads; a clipped search was not treated as a complete review. No old compiler source, external worked-example files, or live implementation was audited. No language rules were changed during this comparison.
 
 Source abbreviations and exact reviewed versions:
 
-- **V4**: [current specification](lyric-language-spec.md), 1,932 lines, SHA256 `76d273c6ffa6269795c20d89169895c0b6832f08a5038356076995ddd3343857`.
-- **O**: [original full specification](background/lyric-language-spec.md), 3,450 lines, SHA256 `5ed18282dbf5c9fa931e77181edf5f146ac07259657f2956f3aae4fd70c90dd5`.
-- **R**: [multi-class interface redesign](background/multi-class-interface-redesign.md), 1,834 lines, SHA256 `6db0b9cb4335648b1a699cb51750ff9cdb275c8bae4539cbf7d56745c76815a2`.
+- **V4**: [current specification](../lyric-language-spec.md), 1,932 lines, SHA256 `76d273c6ffa6269795c20d89169895c0b6832f08a5038356076995ddd3343857`.
+- **O**: [original full specification](../background/lyric-language-spec.md), 3,450 lines, SHA256 `5ed18282dbf5c9fa931e77181edf5f146ac07259657f2956f3aae4fd70c90dd5`.
+- **R**: [multi-class interface redesign](../background/multi-class-interface-redesign.md), 1,834 lines, SHA256 `6db0b9cb4335648b1a699cb51750ff9cdb275c8bae4539cbf7d56745c76815a2`.
 
 All three background hashes in `background/SHA256SUMS` were verified. The full original spec and redesign were also compared byte-for-byte with `/Users/bill/projects/lyric/cr/docs/lyric-language-spec.md` and `/Users/bill/projects/lyric/cr/docs/multi-class-interface-redesign.md`; both match exactly. The short original reference was preserved but was not a fourth full-read input to this review. Line references below apply to these versions; later canonical edits will move them. Historical implementation and shipping claims are attributed to the documents, not independently verified here.
 
