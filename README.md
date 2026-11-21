@@ -1,6 +1,6 @@
 # Lyric
 
-Lyric language design and an agentic compiler-construction codebook, developed by Bill Cox and Cadence. The language remains Lyric; this repository is named `lyric2` during development.
+Lyric language design and an agentic compiler-construction codebook, developed by Bill Cox and Cadence. The language remains Lyric; this repository is named `lyric-next` during development.
 
 ## Start here
 
