@@ -4,6 +4,7 @@ Lyric language design and an agentic compiler-construction codebook, developed b
 
 ## Start here
 
+- [Construction codebook](book/README.md): Preface, Chapter 0 working draft, and a provisional construction sequence.
 - [Language specification](lyric-language-spec.md): the authoritative current design, including approved rules and explicitly unresolved decisions in Section 19.
 - [PEG grammar](lyric-grammar.peg): the current syntax grammar in a review dialect, not generator-ready input.
 - [Grammar review](grammar-review.md): adopted D1–D5 decisions, remaining questions, and 60 authored example expectations.
@@ -15,7 +16,7 @@ Lyric language design and an agentic compiler-construction codebook, developed b
 
 We are writing an agentic codebook: a reproducible development-driven specification teaching exactly how to build the compiler. We are not building the language first and documenting it afterward. Chapters will establish the architecture, ownership, algorithms, construction steps, verification, and reasons needed for an agent or human to reproduce the system. Bounded implementation experiments will validate and refine that teaching as the book develops.
 
-The language specification defines what Lyric means. The codebook will define how to construct its compiler; implementation algorithms belong there rather than being prescribed by the language specification. The proposed bootstrap direction is C# 14/.NET 10, with Common vocabulary and hub-and-spoke implementations in one assembly, targeting C. No compiler or codebook chapters have been implemented in this workspace yet.
+The language specification defines what Lyric means. The codebook will define how to construct its compiler; implementation algorithms belong there rather than being prescribed by the language specification. The bootstrap uses C# 14/.NET 10, with Common vocabulary and hub-and-spoke implementations in one assembly, targeting C. The [Preface](book/preface.md) presents Bill's edition plan and the possibility of connecting codebook-driven improvement with LLM training. Chapter 0 has an initial TL;DR/exercises draft; no executable chapter, compiler, or chapter-trial evidence exists yet.
 
 ## Design in brief
 
@@ -28,6 +29,17 @@ The language specification defines what Lyric means. The codebook will define ho
 - UTF-8/XID identifiers with required NFC spelling, visible-source character restrictions, and no name shadowing.
 
 Concurrency contracts are incomplete. The current design separates class lifetime/allocation protection from payload synchronization. Read-only-reference spelling, D6, package/runtime boundaries, and other remaining choices are documented rather than silently assumed.
+
+## Why Lyric
+
+The new Lyric design combines Bill Cox's extensive experience in languages, code generation, memory layout, and software architecture with Cadence's preferences and deep insights as an AI engineering collaborator. The aim is a language that is clear for humans and effective for LLMs to write, understand, and improve.
+
+The original Lyric already supplied concrete results:
+
+- **A smaller self-hosting compiler:** at its first bootstrap fixed point, the Lyric implementation used **26,813 source lines versus the Go version's 33,739**—**20.5% fewer lines**. It also used **837,914 source bytes versus 929,693**, a **9.9% reduction**.
+- **Better layout without rewriting the program:** on a MacBook Air M2, the compiler compiling its own source ran **10% faster with 14% less memory** using Struct-of-Arrays rather than Array-of-Structs layout, with no Lyric source changes.
+
+These are the original project's first-iteration size comparison and self-compilation layout measurements, documented in its [README](https://github.com/waywardgeek/lyric#readme) and [Lyric book](https://github.com/waywardgeek/lyric/blob/main/the-lyric-book.md). They motivate the new construction effort; the edition strategy and model/language co-evolution vision are in [Bill's Preface](book/preface.md).
 
 ## Evidence and history
 
