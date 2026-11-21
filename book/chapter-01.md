@@ -1,0 +1,172 @@
+# Chapter 1 — Read the Source Faithfully
+
+## TL;DR
+
+Build the first executable part of the Lyric compiler: a source reader that strictly decodes UTF-8, rejects forbidden literal characters, and reports precise locations. Its inspection mode exposes what the real reader sees. It does not recognize tokens, check identifiers, parse programs, or generate C.
+
+Use C# 14 and .NET 10 for this edition. Establish the Common/functional-module architecture immediately, with a compilation that owns source files through complete two-way relationships. Build against the public grader contract and pass all 82 retained Chapter 1 cases. The exact command-line and output requirements have one authoritative home in [the grader contract](../graders/README.md).
+
+## Start with bytes, not guesses
+
+A compiler must know exactly what the author supplied. If a text-reading API silently replaces a malformed byte sequence, later phases see a different program. If source locations count UTF-8 bytes as characters, a diagnostic after an accented letter points at the wrong column. If a comment scanner skips forbidden text, a hidden direction-control character can escape validation.
+
+Read the file as bytes and retain that buffer as the authoritative source. Decode it deliberately. A successful decode yields a Unicode scalar and the number of original bytes consumed. A failed decode yields a source diagnostic, not a replacement character.
+
+Three quantities must remain distinct:
+
+- A **byte offset** identifies a position in the original file.
+- A **Unicode scalar** is a code point excluding the surrogate range U+D800–U+DFFF. UTF-8 encodes one scalar in one to four bytes.
+- A **displayed character** may combine several scalars, and its width depends on rendering. The source reader does not attempt to measure terminal cells or grapheme clusters.
+
+Our diagnostic columns count scalars. For example, `é` encoded as U+00E9 occupies two bytes but advances one column; `😀` occupies four bytes and also advances one column. A tab advances one column, regardless of how a terminal displays it. Byte offsets start at zero; lines and columns start at one.
+
+C#'s `char` is a UTF-16 code unit, not a general Unicode scalar. Use a strict scalar decoder such as `Rune.DecodeFromUtf8`, and examine its status. Do not accept the replacement rune it may supply on a failed decode. Both incomplete and invalid sequences are errors when scanning a complete source file.
+
+### Non-canonical UTF-8 is not non-NFC text
+
+An overlong UTF-8 sequence uses more bytes than necessary to encode a value. For example, `C0 AF` is not an alternative legal spelling of `/`. It is malformed UTF-8 and must be rejected. Encoded surrogates, values above U+10FFFF, stray continuation bytes, invalid continuation bytes, and truncated sequences are also malformed.
+
+By contrast, `e` followed by U+0301 COMBINING ACUTE ACCENT is valid UTF-8. This reader accepts it. Later identifier recognition will enforce Lyric's NFC spelling requirement for identifiers; ordinary string and comment contents are not normalized by that rule. Applying NFC to the whole file would silently change text that the language requires us to preserve.
+
+## Construct a small, complete object model
+
+Do not invent the eventual AST or a universal compiler-pass framework. This chapter needs one strong ownership relationship and a few value-like facts.
+
+A **Compilation** owns the source files loaded for its work. Each **SourceFile** retains a reference to that compilation, its supplied path, its original byte buffer, and its logical destruction state. The compilation retains its source collection and its own destruction state. A **Diagnostic** is value-like: an error code, message, byte offset, line, and column. It need not retain a source object or track holders. The driver already knows which source it is reporting on.
+
+Place shared type declarations, persistent fields, and callable signatures in **Common**. Supply matching partial bodies in functional directories. Compile all parts into one assembly. Useful responsibility boundaries are:
+
+- **Model:** construction, attachment, removal, and logical destruction.
+- **Source:** decoding, source-wide character classification, position tracking, and inspection events.
+- **Driver:** arguments, file I/O, console output, and the compilation lifetime.
+
+Functional implementations use Common's declared vocabulary, not another module's implementation-only helpers. The driver is the top-level orchestrator. A generated immutable Unicode table is value data in Common, not a registry of live objects or a substitute for model relationships.
+
+### Make ownership true at both ends
+
+A source constructor takes its strong owning compilation and establishes the relationship through that parent's add operation. Prepare the source's fields before registering it. The add operation refuses a destroyed parent, destroyed source, or existing membership before changing either end. Add to the collection before setting the backlink: a failed collection allocation must not leave a backlink to a membership that never existed.
+
+Removal validates the relationship, removes the collection entry, and clears the source's parent reference before returning. It does not destroy the source. A wrong-parent or duplicate attachment attempt must not quietly reparent an object or leave half a relationship.
+
+Destroying a source calls its parent's remove operation, if attached, and marks its logical lifetime ended. Destroying the compilation closes further attachment and repeatedly destroys a remaining source. Do not pre-remove each source: its destruction owns the complete detach. Make repeated destruction harmless, and refuse scanning a destroyed source.
+
+The driver encloses its work in cleanup that destroys the compilation on success and ordinary errors. .NET garbage collection eventually reclaims memory, but it does not maintain these logical relationships for us. The source buffer is owned by the source and is not mutated after loading; short-lived local references used to transfer or scan it are not additional persistent model relationships.
+
+## Scan in source order
+
+Maintain a byte offset, line, and column as local scan state. At each position:
+
+1. Strictly decode the next scalar from the remaining bytes. If decoding fails, diagnose the starting position of that sequence and stop.
+2. If it is CR, require an immediately following LF byte. Otherwise diagnose lone CR. For CRLF, expose one LF event whose original byte span has length two.
+3. Check the scalar against the source-wide forbidden properties. If forbidden, diagnose it at the current position and stop.
+4. If producing inspection output, emit the accepted scalar with its starting location and original byte length.
+5. Advance the byte offset by the consumed width. LF advances to the next line and resets the column to one; any other accepted scalar advances the column by one.
+
+At the end, emit an end-of-file event with the resulting position. Empty input therefore has an end event at byte zero, line one, column one. A file ending in a newline has its end event at column one of the following line.
+
+CRLF handling is a view of the source, not a buffer rewrite. Keeping its two-byte span means later source ranges can still refer to the original file exactly. LF and CRLF are accepted; lone CR is not.
+
+The first error in byte order wins. In particular, an earlier forbidden scalar is reported before malformed bytes later in the file. Do not pre-decode the entire file through a different mechanism that changes this ordering.
+
+## Pin the character policy
+
+The initial toolchain uses **Unicode 16.0.0**. Classification must not change when the operating system or .NET host updates its Unicode tables.
+
+The public [Unicode data directory](../unicode/README.md) supplies the official files, license, source URLs, and hashes. It is input data students may read, not a reference compiler. Use `DerivedCoreProperties.txt` for Default_Ignorable_Code_Point, `PropList.txt` for Bidi_Control, and `UnicodeData.txt` for General_Category Cc. HT and LF are permitted controls; CR is permitted only within CRLF.
+
+To construct a compact table, read the relevant property records, parse single code points and inclusive `first..last` ranges, and collect the forbidden intervals. Add the control-character entries except HT/LF/CR. Sort intervals by their lower endpoint and merge overlapping or adjacent intervals. The demonstrated Unicode 16.0.0 union has 21 intervals. This count is useful evidence, not a substitute for correct membership or a hidden requirement to use this representation.
+
+A linear search through a small sorted range table is sufficient: stop with no match when the scalar is below the next lower bound; otherwise return a match if it is no greater than that interval's upper bound. A binary search or larger lookup structure is unnecessary here. A checked-in generated table lets ordinary builds work offline without reading the Unicode files at runtime. Keep the provenance and license with the project.
+
+All Unicode 16.0.0 Bidi_Control scalars are also default-ignorable; verify this inclusion when generating a combined table rather than assuming it will hold for every future Unicode release. The diagnostic contract labels controls as `General_Category=Cc` and the other forbidden characters as `Default_Ignorable_Code_Point`.
+
+### Validate before skipping anything
+
+These bans apply everywhere: comments, raw strings, ordinary strings, backtick symbols, and any future syntax. A literal BOM is forbidden even at the start of the file. Do not silently strip it. The source reader does not need to recognize those contexts to enforce the rule; it checks every scalar before later phases can skip text.
+
+Do not broaden the bans to all combining marks, all non-ASCII text, all right-to-left letters, or every unusual code point. Arabic and Hebrew letters remain valid at this layer. Adjacent legal scalars must remain accepted. The public graders test those boundaries as well as rejection.
+
+Visible escape spelling is ordinary source text here. The bytes spelling `\u{202E}` do not contain a literal bidi control. Later string processing may turn that escape into runtime data; the reader must not recursively interpret it as hidden source.
+
+## Make the first errors useful
+
+Inspection is an explicitly bounded operation, not ordinary compilation. `--inspect-source FILE` exposes scalar events and EOF as JSON lines. An unfinished string may pass this mode because its source characters are legal; it must still fail when a later parser checks the program. Keep the mode working as the compiler grows so these tests continue to exercise the real source reader.
+
+Separate success data and diagnostics. Valid inspection writes events to stdout, nothing to stderr, and exits zero. A source error writes no stdout, emits its specified diagnostic on stderr, and exits one. Incorrect invocation exits two. Use the [public contract](../graders/README.md) for exact fields, error codes, messages, and comparison rules; do not infer them from examples alone.
+
+A late source error must not leave earlier scalar events on stdout. Our simple solution is to validate silently, then scan the same immutable bytes again to emit events. Both passes use the same scanner, so validation and inspection cannot drift into separate algorithms. This costs a second linear pass but avoids buffering every event or duplicating normalized source text. There is no demonstrated performance need for more machinery yet.
+
+Diagnostic messages show a visible code point and property, never the forbidden character itself. Quote the supplied filename as a JSON string before placing it in a diagnostic, so an unusual filename cannot inject unescaped controls. Do not echo uncontrolled operating-system error text for file-read failures. An explicitly supplied empty or invalid filename is also a controlled file-read error, not an unhandled host exception. Catch the relevant path and I/O exceptions at the read operation, not every exception in the compiler.
+
+The walkthrough found a small distinction between machine correctness and human readability: .NET's default JSON serializer escaped the plus sign in `U+00E9`. The parsed value was correct, but the output was awkward to inspect. Use readable JSON for scanner-generated keys, numbers, and code-point strings. This does not justify weakening escaping for filenames or dumping raw source text into the output.
+
+## Exercises
+
+Implement this chapter in your assigned solution workspace. Use only this teaching, the language specification, readable graders/Unicode fixtures, and your own work. Do not inspect the reference compiler, its table generator, or private authoring notes. You own implementation changes; report suspected grader defects to the orchestrator rather than editing expected results.
+
+### 1. Build the source reader and command-line interface
+
+Create a C# 14/.NET 10 executable with the architecture, relationships, scanner behavior, and diagnostics described above. A convenient layout is `compiler/` with a single project and Common, Model, Source, and Driver directories. The exact internal type names are not graded output, but the ownership and module rules are requirements.
+
+Support `--unicode-version` and `--inspect-source FILE` exactly as specified in the grader contract. Use actual decoding and property classification, not fixture-specific answers. Do not add tokenization, an AST, code generation, or a general testing framework to this chapter.
+
+### 2. Run the retained graders
+
+Prerequisites are a .NET 10 SDK supporting C# 14, Python 3.10 or newer, the public graders, and their adjacent `unicode/` data directory. The demonstrated environment is SDK 10.0.403 on macOS ARM64. The bootstrap requires no NuGet packages. Use an offline NuGet configuration with cleared package sources; an SDK-only build does not need a network feed.
+
+From your solution workspace, with the project at `compiler/Lyric.csproj`:
+
+```sh
+dotnet build compiler/Lyric.csproj --nologo --tl:off
+python3 "$GRADERS/ch01/grade.py" -- dotnet compiler/bin/Debug/net10.0/Lyric.dll
+```
+
+Set `GRADERS` to the absolute path of the supplied read-only graders directory before running the command. Replace `dotnet` with the installed host's absolute path if necessary. If your project/output path differs, supply the actual executable command after `--`; the grader appends operation arguments. The public grader README documents the complete invocation boundary.
+
+Repeat for Release:
+
+```sh
+dotnet build compiler/Lyric.csproj -c Release --nologo --tl:off
+python3 "$GRADERS/ch01/grade.py" -- dotnet compiler/bin/Release/net10.0/Lyric.dll
+```
+
+Both builds and both grader runs are required. Each grader run must exit zero and report **82 passed; 0 failed**. All Chapter 1 cases are retained; there are no chapter-only tests. Chapter 0 has no executable grader to replay. Future chapters must continue passing these cases through the real inspection mode.
+
+The cases cover accepted output, locations, line endings, malformed encodings, forbidden-property boundaries, source contexts, first-error ordering, and invocation errors. Expected rejection means the correct diagnostic and exit status, not a crash or arbitrary failure. These are representative regression checks, not exhaustive enumeration of every UTF-8 byte sequence.
+
+### 3. Check the model, not just its output
+
+Read your Common declarations and trace construction, refused attachment, removal, source destruction, and compilation destruction. Verify that both relationship ends agree, refused operations leave them unchanged, destroyed objects cannot be reattached, and repeated destruction is harmless. Explain why partial constructors and methods compile into the same objects rather than runtime wrappers.
+
+You may write extra tests for your own confidence. They do not replace the graders or automatically carry forward across executions. Report actual checks and any assistance accurately. Passing CLI tests alone does not establish structural compliance.
+
+## Take it for a Spin
+
+This walkthrough uses local disposable files. It has no credentials, paid calls, or network effects. Build Release first as above. Run these commands from your solution workspace; they assume the output path shown in the exercises. Set `DOTNET` to an absolute host path instead if `dotnet` is not on PATH.
+
+```sh
+export DOTNET="${DOTNET:-dotnet}"
+python3 - <<'PY'
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+
+command = [os.environ['DOTNET'], 'compiler/bin/Release/net10.0/Lyric.dll']
+with tempfile.TemporaryDirectory(prefix='lyric-spin-') as directory:
+    source = Path(directory) / 'example.ly'
+    source.write_bytes('é\r\n温\t😀'.encode('utf-8'))
+    print('Accepted characters and their source positions:', flush=True)
+    subprocess.run(command + ['--inspect-source', str(source)], check=True)
+
+    source.write_bytes(b'// ' + chr(0x202E).encode('utf-8'))
+    print('A forbidden bidi control inside comment-looking text:', flush=True)
+    rejected = subprocess.run(command + ['--inspect-source', str(source)])
+    if rejected.returncode != 1:
+        raise SystemExit('Expected a source diagnostic and exit code 1.')
+PY
+```
+
+The first file produces five scalar events, then EOF. The accented letter begins at byte zero and spans two bytes. CRLF begins at byte two and spans two bytes. The CJK letter begins at byte four, the tab at byte seven, and the emoji at byte eight. EOF is byte twelve, line two, column four. The second file produces `LYC002` for U+202E at byte three, line one, column four, with no scalar events. The temporary directory is removed automatically; no server or background process remains to stop.
+
+Your human collaborator should try this walkthrough before accepting the chapter. An agent demonstration and passing graders are evidence, not a substitute for that use.

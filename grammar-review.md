@@ -14,7 +14,7 @@ No Lyric parser or PEG engine was implemented or run. The historical `peg-check.
 
 ### L1. Identifiers and words
 
-D1's identifier alphabet is approved: UTF-8 source decoded to Unicode scalars, XID_Start or underscore initially, then XID_Continue or underscore. Require NFC spelling and reject non-normalized identifiers with an NFC suggestion instead of rewriting them. Standalone `_` is discard/wildcard, not an ordinary named binding. Names remain case-sensitive; classify ASCII keywords only after consuming the complete identifier. Malformed UTF-8 is diagnosed. The toolchain must pin and report one Unicode data version; initial version selection remains open. String and symbol contents are not normalized by this rule.
+D1's identifier alphabet is approved: UTF-8 source decoded to Unicode scalars, XID_Start or underscore initially, then XID_Continue or underscore. Require NFC spelling and reject non-normalized identifiers with an NFC suggestion instead of rewriting them. Standalone `_` is discard/wildcard, not an ordinary named binding. Names remain case-sensitive; classify ASCII keywords only after consuming the complete identifier. Malformed UTF-8 is diagnosed. The toolchain must pin and report one Unicode data version; the initial version is Unicode 16.0.0. String and symbol contents are not normalized by this rule.
 
 Adopted hard keywords:
 
@@ -48,7 +48,7 @@ Ordinary escaped strings may represent prohibited literal characters as data. Un
 
 The baseline says newlines terminate statements, parentheses/brackets suppress them, and braces retain them. To make nested closures/blocks work inside calls, the adopted D5 rule makes the nearest unmatched delimiter determine newline handling; no particular tracking algorithm is prescribed. A `(`, `[`, or interpolation-expression opening suppresses ordinary newlines; a nested block/record `{` makes them significant again until its close. String contents use their own lexer mode.
 
-For example, a multiline call is one expression, but a closure body passed in that call can contain multiple newline-separated statements. A comment followed by a newline follows the same rule. CRLF is one logical newline; whether lone CR is accepted is a lexical portability choice to finalize.
+For example, a multiline call is one expression, but a closure body passed in that call can contain multiple newline-separated statements. A comment followed by a newline follows the same rule. CRLF is one logical newline; lone CR is rejected.
 
 Logical declaration clauses stay on one line unless inside parentheses/brackets. Angle brackets do not introduce implicit newline continuation. Semicolons explicitly separate statements. A last declaration/statement may be followed directly by `}` or EOF; newline or semicolon separates successive items. This draft does not require a separator between nullary enum variants, preserving `enum Color { Red Green Blue }`. Else may follow a closing brace on the same line or after newlines; a semicolon before else ends the preceding statement and is rejected.
 
@@ -72,7 +72,7 @@ The concrete recommendations in D1–D5 are adopted. Explicitly open details rem
 
 ### D1. Identifier and keyword policy
 
-The Unicode XID alphabet, NFC requirement, and exact case-sensitive spelling in L1 are settled. The listed hard/contextual split is adopted and old hard-keyword exceptions are rejected. Name shadowing is prohibited; selection of the pinned Unicode data version remains open. Cross-script confusables remain distinct; ambiguous name diagnostics expose code points rather than perform fuzzy lookup.
+The Unicode XID alphabet, NFC requirement, and exact case-sensitive spelling in L1 are settled. The listed hard/contextual split is adopted and old hard-keyword exceptions are rejected. Name shadowing is prohibited; the initial pinned Unicode data version is 16.0.0. Cross-script confusables remain distinct; ambiguous name diagnostics expose code points rather than perform fuzzy lookup.
 
 ### D2. Literal edge grammar
 
@@ -228,4 +228,4 @@ These are expectations, not executed parser or lifetime-checker tests. Names do 
 
 The initial EBNF integrity receipt is retained in Git history, not as a current validation artifact. The historical PEG-conversion checks covered nullable-prefix recursion, nonnullable repetition, and defined references at that revision; those results do not certify every subsequent grammar edit. Ordered alternatives were reviewed for shadowing hazards: function types precede named types, closures/records precede their shorter prefixes, floats precede integers, triple strings precede ordinary strings, and type-class where requirements precede bare capability names. This is not a Lyric parser and does not validate G01–G60 as language inputs. Do not report examples as passing tests until a parser actually consumes them.
 
-D1–D5 recommendations are adopted. Two D1–D5 details still need answers: initial Unicode version and lone CR. Empty symbols are valid. Name shadowing is prohibited across declarations visible through unqualified lookup. D6 remains the next numbered syntax review. PEG execution/generator selection and memoization are implementation decisions still open. Once syntax choices are approved, expand missing supported forms and test a parser against these cases. Do not enshrine unrelated draft proposals merely because they make implementation easy.
+D1–D5 recommendations are adopted. The initial Unicode version is 16.0.0; LF and CRLF are accepted and lone CR is rejected. Empty symbols are valid. Name shadowing is prohibited across declarations visible through unqualified lookup. D6 remains the next numbered syntax review. PEG execution/generator selection and memoization are implementation decisions still open. Once syntax choices are approved, expand missing supported forms and test a parser against these cases. Do not enshrine unrelated draft proposals merely because they make implementation easy.

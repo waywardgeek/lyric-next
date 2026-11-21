@@ -5,14 +5,26 @@ This book is being developed with the implementation, not reconstructed after a 
 ## Current drafts
 
 - [Preface](preface.md): Bill's author-voice draft on agentic codebooks, the two-edition/self-hosting plan, and the prospective connection to LLM training.
-- [Chapter 0 — The Compiler We Will Build](chapter-00.md): student-facing orientation and exercises. Not yet an accepted or execution-ready chapter. No implementation, grader run, independent review, student trial, or human walkthrough is claimed.
+- [Chapter 0 — The Compiler We Will Build](chapter-00.md): student-facing orientation and exercises, accepted by Bill. No executable compiler work belongs to Chapter 0.
+- [Chapter 1 — Read the Source Faithfully](chapter-01.md): teaching draft for the working source-reader increment.
+
+## Reference implementation in development
+
+The [Chapter 1 reference increment](../compiler/README.md) now implements strict
+UTF-8 source inspection and the pinned source-character bans. Its [public graders](../graders/README.md)
+pass 82/82 in Debug and Release on the development platform. The single code
+review identified bounded driver/grader corrections, now incorporated and verified.
+The single text review is complete and its documentation corrections incorporated.
+Fresh-student reproduction passed all 82 cases in both Debug and Release without
+implementation assistance; human walkthrough and acceptance remain pending. Development decisions and
+verification limits are recorded in [authoring notes](notes/ch01-development.md).
 
 ## Provisional construction sequence
 
-This is the requested planning sketch, not a fixed chapter contract. Only Chapter 0 has been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
+This is the requested planning sketch, not a fixed chapter contract. Chapters 0 and 1 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 
 1. **Read characters and report errors.** Establish the executable foundation, character parsing, and the error interface together. Independent positive and negative graders must test successful output and illegal-input diagnostics. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup in this small slice.
-2. **Read source faithfully.** Implement UTF-8 handling, source spans, tokenization, and diagnostics against the approved lexical rules. Pin the Unicode data version and settle remaining relevant lexical questions before treating this slice as complete.
+2. **Recognize tokens.** Build on Chapter 1’s UTF-8 validation and source locations to recognize lexical elements and enforce identifier rules. Settle remaining relevant lexical questions before treating this slice as complete.
 3. **Earn a narrow end-to-end compilation path.** Follow the PEG for a small expression/declaration subset; resolve and type-check it; emit and execute C. Negative inputs must be rejected, and unsupported constructs must not slip through as placeholders. Expand syntax and semantics from a working vertical slice rather than assembling an untested full frontend first.
 4. **Build the language's central model.** Add the required type/declaration forms, logical packages, complete relation bindings, construction/destruction, value operations, generics, and multi-class interfaces in bounded chapters. The actual dependency order is development work, not settled by this list.
 5. **Demonstrate lifetime and generator safety.** Develop the separate checker design alongside accepted/rejected examples for stable borrows, cross-call effects, counted releases, and safe generators. Introduce checks with the features they protect, not as an optional final pass after unsafe object programs are already accepted.

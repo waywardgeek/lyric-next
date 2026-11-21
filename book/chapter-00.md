@@ -8,6 +8,32 @@ We will construct a Lyric compiler whose implementation can be reproduced and un
 
 This is a development-driven codebook. Its authors pair-program each working increment with independent graders, then write the teaching and exercises from that experience. Your task as the student is to reproduce the behavior and architecture from the chapter, not copy their solution. The book preserves the reasons as well as the requirements.
 
+### Designed for LLM development, readable by humans
+
+Lyric is intended to evolve with the LLMs that write and develop its programs. Our priority is reliable LLM construction, testing, and revision, while keeping the resulting code understandable to humans. Human readability is a requirement; human typing convenience is not an equal design goal.
+
+This changes the collaboration, not the importance of expertise. A human need not type the implementation to contribute decisive judgment. Reading data structures, module boundaries, APIs, and consequential algorithms lets the human challenge assumptions, recognize missing relationships, and teach what the model has not understood. As the student building this compiler, make that participation possible: use clear names, explicit contracts, readable structure, and comments that explain reasons. LLM-friendly code must not become code that only the model can follow.
+
+For each proposed language feature, ask: **Does it improve reliable LLM development or human understanding enough to justify its complexity?** Familiarity and convenience for manual editing are not sufficient reasons by themselves. Nor does shorter source automatically mean easier development or better understanding. We will evolve the language from experience rather than assume that every simplification improves model performance.
+
+Block comments illustrate this choice. Lyric keeps line comments and omits block comments. An LLM can use either form, but block comments chiefly add authoring convenience, such as wrapping a region of existing text. Line comments already support both brief explanations and readable paragraphs. A second form adds delimiter, nesting, and unterminated-comment rules without adding explanatory power we need. We therefore omit it—not because comments are unimportant, but because one form serves both LLM authorship and human reading. This is a design judgment, not a measured claim about model accuracy.
+
+### When the human is no longer the necessary expert
+
+Human participation is essential to our present collaboration, but we do not assume it must remain essential forever. Bill brings expertise earned through a lifetime of building systems: judgment about what matters, which approaches will fail, and when a plausible solution misses the real problem. An LLM's breadth of knowledge does not yet replace that contribution. We are not at the point where this project can dispense with it.
+
+The human also **becomes an expert in the system we are building**. That expertise is earned during development, not supplied entirely in advance. It includes knowing why the data model has its particular relationships, what alternatives we rejected, which experiments failed, where the implementation is fragile, and what our tests actually establish. Reading a finished patch or hearing a summary of successful results does not reliably transfer that knowledge.
+
+This is why we require pair programming while developing the reference implementation. The LLM explains consequential choices while the human can still question and steer them. They investigate failures together and make the resulting lessons explicit. The human need not type the code, but must have the opportunity to understand and challenge its construction. The purpose is not ceremonial approval of generated work: it is to keep the knowledge gained while coding from disappearing with the agent's working context.
+
+The book preserves that learning beyond either participant's immediate memory. It must teach the reasons, algorithms, relationships, failures, and verification needed to reconstruct the system—not merely list interfaces or describe the final patch. Pair programming develops shared expertise; writing the demonstrated lessons makes that expertise available to the next builder. Neither a conversation record nor a completed chapter alone proves that an LLM has learned to apply the experience reliably to new work.
+
+Our ambition includes crossing that boundary. If LLMs become capable of learning reliably from their own work—turning experiments, failures, and consequences into durable expertise that improves future decisions—the human may no longer be the necessary source of judgment. That could enable a much stronger cycle of recursive self-improvement: better models advancing the language, tools, and learning processes that help build their successors. Such a cycle may eventually move faster than humans can follow. This is a possibility we are building toward, not an accomplished capability or an inevitable outcome of collecting experience.
+
+Bill's commitment is to contribute his expertise for as long as it is needed, not to make human participation a permanent constraint on the language. If that transition is demonstrated, our intention is to revise this book for superintelligent LLM developers, without requiring their language and implementation choices to remain readable by humans. Human-readable source would no longer be an end in itself. Correctness, meaningful verification, and explicit requirements would still matter; removing a readability constraint would not establish those properties automatically.
+
+For this edition, human readability remains required. The future direction does not authorize a builder to declare itself beyond human expertise or silently discard the current instructions. The change belongs in an explicit revision of the book, supported by demonstrated capability.
+
 ### Two specifications, two jobs
 
 The [language specification](../lyric-language-spec.md) defines accepted programs, their meaning, lifetime obligations, and failures. The [PEG grammar](../lyric-grammar.peg) and [grammar review](../grammar-review.md) record syntax and its remaining decisions. An example in a draft is not proof that a parser accepts it.
