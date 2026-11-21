@@ -1,7 +1,7 @@
 # Lyric PEG grammar — review draft 8 (explicit safe generators).
 # Ordered choice: first syntactically successful alternative wins.
 # Syntax: <- defines, / ordered choice, adjacency sequence, ? optional,
-# * repetition, & positive lookahead; quoted text matches exact tokens.
+# * repetition, & positive lookahead, ! negative lookahead; quoted text matches exact tokens.
 # Lexer subrules describe source characters. @Name is a documented external
 # lexical hook, not an unspecified parser escape hatch or a generator API.
 # Syntax rules operate on the token stream described in grammar-review.md;
@@ -24,8 +24,10 @@ XIDContinue <- @XIDContinue
 Digit <- @Digit
 HexDigit <- Digit / @HexDigit
 Digits <- Digit (Digit / "_" Digit)*
-IntegerLiteral <- Digits
-FloatLiteral <- Digits "." Digits
+IntegerLiteral <- Digits (IntegerSuffix)? !IdentifierContinue
+FloatLiteral <- (Digits "." Digits (FloatSuffix)? / Digits FloatSuffix) !IdentifierContinue
+IntegerSuffix <- "u8" / "u16" / "u32" / "u64" / "i8" / "i16" / "i32" / "i64"
+FloatSuffix <- "f32" / "f64"
 ByteLiteral <- "'" (ByteChar / ByteEscape) "'"
 ByteChar <- @ByteChar
 ByteEscape <- "\\" ("n" / "r" / "t" / "\\" / "'" / '"' / "0" / "x" HexDigit HexDigit)
@@ -218,3 +220,7 @@ TuplePattern <- "(" Pattern "," Pattern ("," Pattern)* (",")? ")"
 
 # safe is contextual before func and semantically restricted to gen-returning
 # declarations. It permits checked current-item destruction, never peer deletion.
+
+# Numeric suffixes belong to the literal token; no parser/type lookup is needed.
+# Invalid numeric continuations are diagnostics, not valid-prefix token splitting.
+# Signs remain operator tokens; magnitude/range checks belong to semantics.

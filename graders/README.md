@@ -4,6 +4,16 @@ These graders and their fixtures are readable by students but not student-editab
 They accept a separately supplied compiler command. They do not read its source,
 invoke the table generator, or depend on a reference solution location.
 
+## Run all retained tests
+
+From the repository root, `make test` builds Debug and Release and runs every
+current chapter's retained compiler graders in both configurations, plus the
+comparison-helper self-check. It stops on any failure. It requires Make, .NET 10,
+and Python 3.10+; it does not install tools. For example, use
+`make test DOTNET=/absolute/path/to/dotnet` when the SDK is not on PATH.
+This is automated conformance, not a substitute for structural review or human use.
+The individual commands and contracts remain below and in [Chapter 2](ch02/README.md).
+
 ## Chapter 1
 
 Prerequisites: Python 3.10+; a built implementation supporting the contract below.

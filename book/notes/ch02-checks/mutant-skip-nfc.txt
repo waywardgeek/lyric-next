@@ -1,0 +1,2 @@
+FAIL non-nfc: Expecting value: line 1 column 1 (char 0)
+57/58 token cases passed

@@ -1,0 +1,18 @@
+Typed number, byte-valued string, and interpolation:
+keyword 'let' None None
+identifier 'café' None None
+punctuation '=' None None
+integer '123u16' u16 None
+newline '\n' None None
+string '"\\xFF"' None [255]
+newline '\n' None None
+fstring-start 'f"' None None
+string-text 'value: ' None [118, 97, 108, 117, 101, 58, 32]
+interpolation-start '{' None None
+identifier 'café' None None
+interpolation-end '}' None None
+fstring-end '"' None None
+newline '\n' None None
+end '' None None
+A decomposed identifier must be diagnosed, not silently rewritten:
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-tokens-59onf1vw/example.ly":1:1: error LYC101: Identifier is not NFC; use "caf\u00E9". (byte 0)

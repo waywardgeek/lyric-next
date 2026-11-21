@@ -30,9 +30,19 @@ internal sealed partial class SourceFile
     internal readonly string Path;
     private readonly byte[] Bytes;
     internal bool Destroyed;
+    private readonly List<Token> Tokens = new();
 
     // Sets complete source state, then establishes both ends of strong ownership.
     internal partial SourceFile(Compilation parent, string path, byte[] bytes);
+
+    // Token relationships are maintained at both ends; refusal changes neither.
+    internal partial void AddToken(Token token);
+    internal partial void RemoveToken(Token token);
+
+    // Clears previous tokens and lexes validated bytes. On failure, the caller
+    // emits no tokens. All token objects remain owned until retry or destruction.
+    internal partial Diagnostic? Lex();
+    internal partial void WriteTokens(TextWriter output);
 
     // Detaches from the owner before dropping the source's logical lifetime.
     internal partial void Destroy();

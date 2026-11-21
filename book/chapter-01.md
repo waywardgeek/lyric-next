@@ -142,30 +142,30 @@ You may write extra tests for your own confidence. They do not replace the grade
 
 ## Take it for a Spin
 
-This walkthrough uses local disposable files. It has no credentials, paid calls, or network effects. Build Release first as above. Run these commands from your solution workspace; they assume the output path shown in the exercises. Set `DOTNET` to an absolute host path instead if `dotnet` is not on PATH.
+From the repository root, run:
 
 ```sh
-export DOTNET="${DOTNET:-dotnet}"
-python3 - <<'PY'
-import os
-from pathlib import Path
-import subprocess
-import tempfile
-
-command = [os.environ['DOTNET'], 'compiler/bin/Release/net10.0/Lyric.dll']
-with tempfile.TemporaryDirectory(prefix='lyric-spin-') as directory:
-    source = Path(directory) / 'example.ly'
-    source.write_bytes('é\r\n温\t😀'.encode('utf-8'))
-    print('Accepted characters and their source positions:', flush=True)
-    subprocess.run(command + ['--inspect-source', str(source)], check=True)
-
-    source.write_bytes(b'// ' + chr(0x202E).encode('utf-8'))
-    print('A forbidden bidi control inside comment-looking text:', flush=True)
-    rejected = subprocess.run(command + ['--inspect-source', str(source)])
-    if rejected.returncode != 1:
-        raise SystemExit('Expected a source diagnostic and exit code 1.')
-PY
+make release
+make spin01
 ```
+
+You need Make, the .NET 10 SDK, and Python 3.10+ installed. `make release`
+builds the compiler; `make spin01` also ensures Release is built, then runs the
+[small walkthrough script](../tools/spin01.py). It creates local disposable files,
+shows source positions and an expected rejection, then removes the files. No
+credentials, paid calls, or network services are involved. No tools are installed.
+If `dotnet` is not on PATH, use `make spin01 DOTNET=/absolute/path/to/dotnet`.
+
+To build both Debug and Release and run **all current retained automated tests**:
+
+```sh
+make test
+```
+
+This runs the public graders for every implemented chapter, plus their comparison
+self-check, and stops on the first failure. It is separate from this short
+walkthrough. The chapter exercises retain the explicit grader commands for
+independent implementations and read-only grader workspaces.
 
 The first file produces five scalar events, then EOF. The accented letter begins at byte zero and spans two bytes. CRLF begins at byte two and spans two bytes. The CJK letter begins at byte four, the tab at byte seven, and the emoji at byte eight. EOF is byte twelve, line two, column four. The second file produces `LYC002` for U+202E at byte three, line one, column four, with no scalar events. The temporary directory is removed automatically; no server or background process remains to stop.
 

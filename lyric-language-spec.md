@@ -173,7 +173,11 @@ let special_symbol = sym("name\u{200B}")
 // A literal U+200B or U+202E here would be rejected, even in a comment.
 ```
 
-Numeric base prefixes, numeric type suffixes, and exponent notation remain outside the initial grammar. Adding Unicode string escapes does not add those numeric-literal forms.
+Numeric type suffixes are part of the lexed literal token, recognized without parser or name-resolution feedback. Decimal integers accept `u8`, `u16`, `u32`, `u64`, `i8`, `i16`, `i32`, or `i64`: `123u16` is one integer-literal token with explicit type u16. Floating-point literals accept `f32` or `f64`; both `1.5f32` and `123f32` are single floating-point literal tokens. Suffixes are exact lowercase ASCII spellings, directly adjacent to the digits with no separating underscore or whitespace. A decimal-point literal cannot take an integer suffix.
+
+After the numeric spelling and optional suffix, a Unicode identifier-continuation character (including underscore) is a lexical error, not the start of an adjacent identifier. Thus `123u16name`, `123u128`, `123abc`, `123_u16`, and `1.5u16` are malformed numeric literals; the lexer must not accept a valid prefix and split off the rest. Whitespace can separate a literal from an identifier. Signs remain separate operator tokens: `-128i8` consists of `-` and `128i8`. The lexer preserves the magnitude and explicit suffix without imposing the signed positive-value limit; semantic checking handles representability and the signed-minimum case. A suffix fixes the literal type rather than inviting contextual inference of a different type.
+
+Numeric base prefixes and exponent notation remain outside the initial grammar. Adding suffixes does not implicitly add those forms.
 
 F-string interpolation accepts expressions, not a second restricted expression language. Nested braces belonging to an expression must be parsed correctly. Evaluation follows ordinary left-to-right expression order. Invalid escapes and unterminated literals are diagnostics, not malformed runtime strings.
 
@@ -261,7 +265,7 @@ unit
 
 Larger widths may be added when needed. Foreign interfaces must specify ABI widths explicitly rather than make ordinary code depend silently on C's integer sizes.
 
-Integer literals default to `i32` unless context determines another representable integer type. Float literals default to `f64`. Decimal integers permit underscores. Hexadecimal, octal, binary, exponent, and suffix forms are not initially accepted without an explicit grammar extension.
+Unsuffixed integer literals default to `i32` unless context determines another representable integer type. Unsuffixed float literals default to `f64`. Explicit numeric suffixes select the type as specified in Section 3; representability is checked semantically. Decimal digits permit single underscores between digits. Hexadecimal, octal, binary, and exponent forms remain outside the initial grammar.
 
 `true`, `false`, and `null` have their usual literal meanings. `nil` is not an alternative spelling.
 

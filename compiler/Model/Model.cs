@@ -66,6 +66,10 @@ internal sealed partial class SourceFile
 
         Parent?.RemoveSource(this);
         Destroyed = true;
+        while (Tokens.Count != 0)
+        {
+            Tokens[Tokens.Count - 1].Destroy();
+        }
     }
 }
 

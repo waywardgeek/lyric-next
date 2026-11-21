@@ -136,3 +136,30 @@ acceptance remain pending. No Chapter 2 work has begun.
 Lesson: the chapter transferred enough construction knowledge for this independent
 reconstruction without private implementation help. That is useful evidence from
 one trial, not a guarantee about every student or exhaustive correctness.
+
+
+## Human walkthrough convenience
+
+Bill requested a short Make-based walkthrough and one command for all tests.
+Moved the existing disposable-file demonstration to tools/spin01.py and replaced
+the Chapter 1 embedded Python block with make release / make spin01. The spin
+target builds Release first. Added make test, directly invoking the public
+comparison self-check and all current Chapter 1/2 retained graders in Debug and
+Release, stopping on failure. DOTNET, PYTHON and GRADERS remain overridable.
+No compiler semantics or grader expectations changed; frozen student inputs and
+the passing student's implementation were not touched or rerun.
+
+Executed all three published Make targets successfully: clean builds, expected
+source positions/bidi rejection, and the full cumulative suite in both configs.
+A failing DOTNET command verified nonzero make test exit before compiler graders.
+Lesson: simple human entry points can preserve transparent public test contracts
+and failure propagation without making the reader copy an orchestration script.
+Human walkthrough acceptance remains unobserved.
+
+
+## Human acceptance
+
+Bill reported running the Chapter 1 spin successfully and explicitly stated:
+“CH01 fully accepted.” Chapter 1 human walkthrough and acceptance are complete.
+Chapter 2 remains pending his reading and walkthrough; this does not authorize
+Chapter 3 or a repeat student trial.

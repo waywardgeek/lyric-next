@@ -6,22 +6,34 @@ This book is being developed with the implementation, not reconstructed after a 
 
 - [Preface](preface.md): Bill's author-voice draft on agentic codebooks, the two-edition/self-hosting plan, and the prospective connection to LLM training.
 - [Chapter 0 — The Compiler We Will Build](chapter-00.md): student-facing orientation and exercises, accepted by Bill. No executable compiler work belongs to Chapter 0.
-- [Chapter 1 — Read the Source Faithfully](chapter-01.md): teaching draft for the working source-reader increment.
+- [Chapter 1 — Read the Source Faithfully](chapter-01.md): accepted chapter for the working source-reader increment; Bill completed the walkthrough and fully accepted Chapter 1.
+
+- [Chapter 2 — Recognize Tokens Without Parser Feedback](chapter-02.md): teaching for the verified Unicode and lexer increment; both independent reviews and an unassisted student reconstruction are complete. Bill reviewed and accepted Chapter 2.
 
 ## Reference implementation in development
 
-The [Chapter 1 reference increment](../compiler/README.md) now implements strict
+The [reference implementation](../compiler/README.md) implements strict
 UTF-8 source inspection and the pinned source-character bans. Its [public graders](../graders/README.md)
 pass 82/82 in Debug and Release on the development platform. The single code
 review identified bounded driver/grader corrections, now incorporated and verified.
 The single text review is complete and its documentation corrections incorporated.
 Fresh-student reproduction passed all 82 cases in both Debug and Release without
-implementation assistance; human walkthrough and acceptance remain pending. Development decisions and
+implementation assistance. Bill subsequently ran `make spin01` and fully accepted
+Chapter 1. Development decisions and
 verification limits are recorded in [authoring notes](notes/ch01-development.md).
+
+Chapter 2 adds pinned NFC/XID processing and source-backed tokenization. Both
+configurations pass 58 token cases, 99,826 NFC vectors, all-scalar XID checks, seven
+Unicode-request rejection cases, and the retained Chapter 1 suite. The single code and text reviews are complete, with useful readability feedback
+incorporated. A fresh confined student independently passed the same cumulative
+checks in both configurations without clarification or implementation assistance.
+The student also executed the walkthrough and supplementary lifecycle checks;
+Bill subsequently reviewed and accepted Chapter 2.
+See [Chapter 2 development notes](notes/ch02-development.md) for evidence limits.
 
 ## Provisional construction sequence
 
-This is the requested planning sketch, not a fixed chapter contract. Chapters 0 and 1 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
+This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 2 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 
 1. **Read characters and report errors.** Establish the executable foundation, character parsing, and the error interface together. Independent positive and negative graders must test successful output and illegal-input diagnostics. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup in this small slice.
 2. **Recognize tokens.** Build on Chapter 1’s UTF-8 validation and source locations to recognize lexical elements and enforce identifier rules. Settle remaining relevant lexical questions before treating this slice as complete.
