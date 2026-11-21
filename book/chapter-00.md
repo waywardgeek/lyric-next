@@ -1,12 +1,12 @@
 # Chapter 0 — The Compiler We Will Build
 
-**Working draft: TL;DR and exercises only.** This establishes the proposed construction contract for review. The teaching body, practical walkthrough, and chapter-trial evidence will follow development; they have not been completed. This chapter does not claim an implemented compiler.
+**Working orientation draft.** This chapter explains your construction assignment and how to use the book and its graders. Executable chapters and their verified commands are still being developed.
 
 ## TL;DR
 
 We will construct a Lyric compiler whose implementation can be reproduced and understood from this book. The [Preface](preface.md) explains Bill's motivation, the two-edition plan, and the proposed connection to model training. This chapter establishes the technical construction contract.
 
-This is a development-driven codebook. We specify a small increment, build and test it, investigate what fails, and incorporate the demonstrated design into the chapter. We do not build a finished compiler and ask a later author to reconstruct its reasoning. Nor do we treat an early outline as more authoritative than what development teaches us.
+This is a development-driven codebook. Its authors pair-program each working increment with independent graders, then write the teaching and exercises from that experience. Your task as the student is to reproduce the behavior and architecture from the chapter, not copy their solution. The book preserves the reasons as well as the requirements.
 
 ### Two specifications, two jobs
 
@@ -48,13 +48,41 @@ The edition strategy is described in the Preface. Its implementation milestones 
 
 A fixed point alone does not prove correctness: a compiler can reproduce its own bug. Positive execution tests, negative compilation tests, ownership/lifecycle checks, and human use remain necessary. Conversely, passing a few examples does not establish self-hosting. The book must distinguish each piece of evidence.
 
-### How chapters earn acceptance
+### Your skills and working relationship
 
-Each executable increment starts with requirements and exercises, then develops implementation and graders together. Graders accept an independently supplied implementation and live outside its solution tree. Their requirements are public even when their implementation or fixtures are private. Tests check real behavior; small working fakes may replace external boundaries, but not the implementation under test.
+Use the book's execution skill together with its coding and visible-reasoning skills. Activate their instructions through your agent's skill loader; if it has no loader, have the orchestrator supply them as persistent instructions. Merely reading a skill file is not activation.
 
-After the increment works, the chapter teaches its demonstrated construction, including important failures, reasons, and verification limits. The authoring process includes one code review, one text review, and a fresh student's construction trial, followed by human acceptance and a practical Take it for a Spin walkthrough. A passing student is not automatically rerun to chase cosmetic improvements.
+The **execution skill** guides your chapter scope, implementation work, questions, checks, and completion report. The **coding skill** governs Common, relationships, destruction, and readable teaching code. The **visible-reasoning skill** requires useful explanations of what you will change, why, and what the evidence establishes. Explain engineering decisions, not private internal deliberation.
 
-For this orientation draft there is no implementation grader, student trial, or executable walkthrough yet. Do not manufacture one merely to label the chapter complete. The next executable chapter must supply verified commands, prerequisites, expected behavior, and cleanup steps.
+The **chapter-writing skill** guides the author in developing and teaching a working increment, building independent graders, and helping a fresh student reproduce it. You do not run that authoring process or recruit your own reviewer campaign during a chapter trial. Its result is the chapter and test contract you receive.
+
+Ask the orchestrator when a requirement, test, or diagnostic is unclear. You may inspect your own code and authorized prerequisites, but not an existing target solution or private solution history. The orchestrator may consult an old solution for clarification and explain the requirement and reason; it must not supply that implementation. During your trial you own implementation edits. The orchestrator edits teaching and graders, not your solution.
+
+### Read the tests; build the real behavior
+
+Graders and fixtures live outside your solution tree. You may read their source, invocation flags, input snippets, expected outputs, and comparison rules. They are not secret. You may not edit them to obtain a pass; report a suspected defect to the orchestrator. A corrected grader must be rerun.
+
+All graders for this book are written in languages **other than C# and Lyric**. The same independent tests can therefore accompany both editions. Their public entry points accept your implementation rather than reaching into a reference solution. Shared grader helpers may launch the compiler, enforce timeouts, and compare results; those helpers are readable too and must not conceal extra requirements.
+
+You may write additional tests to diagnose and verify your work. Only the designated graders and their fixtures are preserved across executions. Your diagnostic tests do not automatically become book requirements or substitute for the graders.
+
+A successful command-line case requires **exit code 0 and the specified stdout**, plus any stated stderr or output-artifact conditions. An expected compilation failure requires the specified nonzero exit and diagnostic output. A crash, timeout, or unrelated failure is not a correct rejection. Each grader defines its comparison rules, including formatting and any allowed normalization.
+
+Chapter 1 will introduce character parsing together with the error interface needed to test illegal input. Successful character handling and correct rejection are both part of the assignment; error handling is not deferred until a later chapter.
+
+Some chapters may expose intermediate compiler behavior through documented inspection flags. Use the real component behind those modes, never hardcoded fixture responses or a parallel test implementation. Retain those interfaces as the compiler grows so an early character or lexer check still runs later. A reserved prefix such as `--inspect-` is a possible convention, not yet an adopted command-line interface. Concrete flags and commands will be specified in the executable chapters.
+
+### Pass the cumulative suite
+
+Every grader case is identified as **retained** or **chapter-only**. Retained checks protect behavior as later chapters extend the compiler; they are the default. Chapter-only checks examine a temporary construction milestone and state why they do not apply to later implementations.
+
+To complete chapter N, pass **all retained graders introduced through N, plus its applicable chapter-N-only checks**. Do not rerun obsolete chapter-only checks against later stages or silently drop retained failures. Most checks will be fast enough to run routinely, allowing hundreds of focused checks by the end of the book. Required slow checks remain required and are listed separately.
+
+Passing outputs does not excuse architectural violations. Review Common declarations, ownership, relationship updates, and cleanup as well as behavior. Report the actual commands and outcomes, assistance received, and blocked checks. Do not count an unperformed check as passed.
+
+For a chapter trial, return your result and teaching feedback to the orchestrator; do not start the next chapter without the agreed authority. In an authorized whole-book execution, continue within that scope once the chapter's requirements are met. A passing trial is not automatically repeated after prose changes. Human acceptance and the practical **Take it for a Spin** walkthrough remain distinct from automated grading.
+
+This orientation has no executable grader. Later exercises will provide working directories, prerequisites, exact commands, inputs, expected results, and practical walkthroughs. Do not invent missing commands or claim a compiler exists because this document describes one.
 
 ## Exercises — establish the construction contract
 
@@ -66,7 +94,7 @@ Read the Preface, the language specification's Sections 1, 2, 17, 18, and 19, an
 
 - Which document decides whether a Lyric program is valid, and which document will teach the compiler algorithms.
 - Why an old compiler accepting a construct does not override the new specification.
-- How the technical milestones below support the edition plan in the Preface, without treating an expected outcome as an already demonstrated result.
+- How the technical milestones above support the edition plan in the Preface, without treating an expected outcome as an already demonstrated result.
 - Which remaining initial-scope choices are proposals awaiting acceptance, rather than already tested implementation facts.
 - Why an unresolved feature must be resolved or explicitly excluded from an increment, not implemented by guesswork.
 
@@ -92,8 +120,18 @@ For each statement, identify what would establish it and what would not:
 
 Include at least one case where successful execution is insufficient—for example, a use-after-destruction program that happens not to crash. Tests and a written safety argument have different roles; neither a document hash nor a self-compilation result proves all-program memory safety.
 
-### Completion boundary for this draft
+### 4. Explain the grading boundary
 
-This draft is ready for discussion when its links resolve and its proposed scope, architecture, and exercises agree with the current language design. It is **not an accepted, execution-ready chapter** until Bill approves the construction contract and the chapter-writing process supplies the remaining teaching and applicable verification.
+Explain why each of these is or is not sufficient:
 
-Do not infer permission to start the compiler, launch students/reviewers, install tools, or publish from this draft. The next step is to agree on the first useful executable increment, then draft that increment's TL;DR and exercises before implementation.
+- A compiler exits nonzero on an illegal-character fixture but reports an unrelated exception.
+- The current chapter's checks pass, but an earlier retained case fails.
+- Your own diagnostic test passes, but a required grader has not run.
+- You inspect a fixture and its expected output to clarify a requirement.
+- You inspect an earlier target solution to discover how to implement the requirement.
+
+State who may correct a defective grader and who edits your implementation during a trial. Distinguish a retained regression from a chapter-only milestone check.
+
+### Completion boundary
+
+For this orientation, explain the authority, architecture, and grading rules above to the orchestrator and resolve consequential ambiguities before construction. No compiler implementation or automated pass is claimed by completing these reading exercises. The first executable chapter will supply its concrete interfaces and commands; follow the execution scope you are given rather than treating the provisional book sequence as blanket permission.

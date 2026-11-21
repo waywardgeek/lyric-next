@@ -5,13 +5,13 @@ This book is being developed with the implementation, not reconstructed after a 
 ## Current drafts
 
 - [Preface](preface.md): Bill's author-voice draft on agentic codebooks, the two-edition/self-hosting plan, and the prospective connection to LLM training.
-- [Chapter 0 — The Compiler We Will Build](chapter-00.md): working TL;DR and orientation exercises. Not yet an accepted or execution-ready chapter. No implementation, grader run, independent review, student trial, or human walkthrough is claimed.
+- [Chapter 0 — The Compiler We Will Build](chapter-00.md): student-facing orientation and exercises. Not yet an accepted or execution-ready chapter. No implementation, grader run, independent review, student trial, or human walkthrough is claimed.
 
 ## Provisional construction sequence
 
-This is the requested planning sketch, not a fixed chapter contract. Only Chapter 0 has been drafted. Each later increment will be agreed with Bill and specified before implementation; experiments may change the sequence.
+This is the requested planning sketch, not a fixed chapter contract. Only Chapter 0 has been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 
-1. **Establish the executable foundation.** Verify the C#/.NET prerequisites and build a small real compiler entry point with an owned compilation/source model, source diagnostics, and independent checks. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup before multiplying compiler types.
+1. **Read characters and report errors.** Establish the executable foundation, character parsing, and the error interface together. Independent positive and negative graders must test successful output and illegal-input diagnostics. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup in this small slice.
 2. **Read source faithfully.** Implement UTF-8 handling, source spans, tokenization, and diagnostics against the approved lexical rules. Pin the Unicode data version and settle remaining relevant lexical questions before treating this slice as complete.
 3. **Earn a narrow end-to-end compilation path.** Follow the PEG for a small expression/declaration subset; resolve and type-check it; emit and execute C. Negative inputs must be rejected, and unsupported constructs must not slip through as placeholders. Expand syntax and semantics from a working vertical slice rather than assembling an untested full frontend first.
 4. **Build the language's central model.** Add the required type/declaration forms, logical packages, complete relation bindings, construction/destruction, value operations, generics, and multi-class interfaces in bounded chapters. The actual dependency order is development work, not settled by this list.
@@ -24,6 +24,6 @@ Several items will require more than one chapter; others may combine or move ear
 
 ## Working method
 
-Start each increment with TL;DR and exercises. Develop implementation and independent graders while explaining decisions, ownership, failures, and checks. Write the teaching body from demonstrated experience. Finish the applicable one-code-review, one-text-review, fresh-student, and human-acceptance sequence before advancing an accepted chapter. Include concrete Take it for a Spin steps; document checks and agent demonstrations do not substitute for human use.
+Pair-program each solution and independent graders first, explaining decisions, ownership, failures, and checks. Focus testing on those graders; additional tests and probes are welcome when they improve confidence or development speed. Extract small shared grader helpers as actual repetition warrants. Then write the TL;DR, plain-language teaching, and exercises from demonstrated experience. Graders and fixtures are readable by students but not student-editable; existing target solutions are off-limits. Students may write diagnostic tests, but only designated graders carry forward across executions. Chapter completion includes all retained checks through that chapter and its applicable chapter-only checks. Finish the applicable one-code-review, one-text-review, fresh-student, and human-acceptance sequence before advancing an accepted chapter. Include concrete Take it for a Spin steps; document checks and agent demonstrations do not substitute for human use.
 
 No future chapter, compiler implementation, external dependency installation, or public release is authorized merely by its appearance in this planning sketch.
