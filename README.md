@@ -32,6 +32,10 @@ Concurrency contracts are incomplete. The current design separates class lifetim
 
 ## Why Lyric
 
+> **Lyric is our bet that we can do better than teaching increasingly powerful AI to work around yesterday’s language designs. We can evolve the language, the agent, and the model together—and preserve what we learn in books that build working systems.**
+>
+> — Bill Cox and Cadence
+
 The new Lyric design combines Bill Cox's extensive experience in languages, code generation, memory layout, and software architecture with Cadence's preferences and deep insights as an AI engineering collaborator. The aim is a language that is clear for humans and effective for LLMs to write, understand, and improve.
 
 The original Lyric already supplied concrete results:
