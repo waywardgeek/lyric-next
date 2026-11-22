@@ -1,0 +1,47 @@
+PASS signed
+PASS negative-unsigned
+PASS unsigned-negative
+PASS equal-mixed
+PASS positive-mixed
+PASS negation
+PASS short-circuit
+PASS nested-short-circuit
+PASS comparison-effects
+PASS sum
+PASS zero-iterations
+PASS continue-condition
+PASS nested-loop-targets
+PASS loop-return
+PASS fresh-loop-let
+PASS outer-let-break
+FAIL width-i8: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-i8.ly":1:57: error LYC201: Expected a declaration separator. (byte 56)\n'
+FAIL width-i16: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-i16.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n'
+FAIL width-i32: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-i32.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n'
+FAIL width-i64: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-i64.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n'
+FAIL width-u8: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-u8.ly":1:57: error LYC201: Expected a declaration separator. (byte 56)\n'
+FAIL width-u16: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-u16.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n'
+FAIL width-u32: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-u32.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n'
+FAIL width-u64: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/width-u64.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n'
+PASS skipped-runtime-overflow
+PASS loop-short-circuit-condition
+PASS branch-break-assignment
+PASS inner-let-once-per-outer
+PASS outer-let-return
+FAIL empty-loop: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-qgfosev6/empty-loop.ly":1:30: error LYC201: Expected a statement separator. (byte 29)\n'
+PASS bad-logical-left
+PASS bad-logical-right
+PASS bad-negation
+PASS bad-comparison
+PASS bad-condition
+PASS zero-path-unassigned
+PASS repeat-immutable
+PASS continue-immutable
+PASS break-possible-assignment
+PASS break-outside
+PASS continue-outside
+PASS nested-repeat-immutable
+PASS branch-continue-immutable
+PASS loop-local-invisible
+PASS first-iteration-unassigned
+PASS break-path-unassigned
+37/46 execution cases passed

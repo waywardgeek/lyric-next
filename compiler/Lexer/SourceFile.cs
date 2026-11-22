@@ -15,6 +15,9 @@ internal sealed partial class SourceFile
             throw new InvalidOperationException("Cannot lex a destroyed source.");
         }
 
+        // A new lexical pass replaces the previous parse, including unfinished nodes.
+        ClearSyntax(0);
+
         while (Tokens.Count != 0)
         {
             Tokens[Tokens.Count - 1].Destroy();

@@ -1,0 +1,2 @@
+FAIL left-association: exit=0, stderr='', tree={'kind': 'expression', 'text': None, 'children': [{'kind': 'binary', 'text': '-', 'children': [{'kind': 'integer', 'text': '9', 'children': []}, {'kind': 'binary', 'text': '-', 'children': [{'kind': 'integer', 'text': '3', 'children': []}, {'kind': 'integer', 'text': '1', 'children': []}]}]}]}
+58/59 syntax trees passed

@@ -1,0 +1,2 @@
+PASS realloc refusal -O0
+PASS realloc refusal -O2

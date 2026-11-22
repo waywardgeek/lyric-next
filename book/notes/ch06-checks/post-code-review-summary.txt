@@ -1,0 +1,48 @@
+## post-code-review-cumulative.txt
+Grader comparison self-check passed
+    0 Warning(s)
+    0 Error(s)
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+79/79 semantic cases passed
+75/75 execution cases passed
+250/250 execution cases passed
+    0 Warning(s)
+    0 Error(s)
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+79/79 semantic cases passed
+75/75 execution cases passed
+250/250 execution cases passed
+## post-code-review-peg.txt
+PASS contextual-fn-type
+PASS no-global-let-else
+PASS newline-semicolon
+PASS generic-repeated-calls
+PASS cast-before-comparison
+PASS cast-before-tuple-selector
+PASS variant-before-tuple-selector
+PASS complete-generic-cast
+PASS qualified-cast
+PASS qualified-variant
+PASS nested-generic-rollback
+143/143 grammar fixtures passed
+## post-code-review-spin06.txt
+    let shifted = (bits | 2u8) << 2
+    let low: u8 = (-1i16) !as u8
+    if shifted == 12u8 && low == 255u8 { println("Bits checked") }
+}
+Bits checked
+
+An outer immutable binding cannot be initialized repeatedly.
+func main() { let once: i32; while true { once = 1 } }
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-executable-14zks39t/example.ly":1:43: error LYC314: Loop may assign immutable binding 'once' again. (byte 42)
+Expected static rejection observed.
+
+Temporary source, generated C, and executables removed.

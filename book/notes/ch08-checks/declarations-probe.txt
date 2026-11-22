@@ -1,0 +1,9 @@
+PASS empty-constructor
+PASS nominal-parameter
+PASS forward-nominal
+PASS duplicate-field
+PASS bare-field
+PASS body-not-skipped
+PASS object-field-deferred
+PASS explicit-emission-boundary
+PASS 8 declaration-stage checks

@@ -10,6 +10,15 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        // Layout is a backend choice only. Normalize this one supported option
+        // before the ordinary mode/filename validation; inspection stays unchanged.
+        bool structureOfArrays = args.Length == 3
+            && args[0] == "--emit-c" && args[1] == "--soa";
+        if (structureOfArrays)
+        {
+            args = new[] { args[0], args[2] };
+        }
+
         if (args.Length == 1 && args[0] == "--unicode-version")
         {
             Console.Out.WriteLine(SourceRules.UnicodeVersion);
@@ -21,7 +30,8 @@ internal static class Program
             return InspectUnicode(args[1]);
         }
 
-        if (args.Length != 2 || (args[0] != "--inspect-source" && args[0] != "--inspect-tokens"))
+        if (args.Length != 2 || (args[0] != "--inspect-source" && args[0] != "--inspect-tokens"
+            && args[0] != "--emit-c" && args[0] != "--check" && args[0] != "--check-library" && args[0] != "--inspect-syntax" && args[0] != "--inspect-expression"))
         {
             Console.Error.WriteLine("Usage: Lyric --inspect-source FILE | --unicode-version");
             return 2;
@@ -45,7 +55,26 @@ internal static class Program
 
             SourceFile source = new(compilation, args[1], bytes);
             bool inspectTokens = args[0] == "--inspect-tokens";
-            Diagnostic? diagnostic = inspectTokens ? source.Lex() : source.Scan(null);
+            bool inspectSyntax = args[0] == "--inspect-syntax" || args[0] == "--inspect-expression";
+            Diagnostic? diagnostic;
+            bool emitC = args[0] == "--emit-c";
+            bool check = emitC || args[0] == "--check" || args[0] == "--check-library";
+            if (inspectSyntax || check)
+            {
+                diagnostic = source.Parse(args[0] == "--inspect-expression");
+            }
+            else
+            {
+                diagnostic = inspectTokens ? source.Lex() : source.Scan(null);
+            }
+            if (diagnostic is null && check)
+            {
+                diagnostic = compilation.Check(emitC || args[0] == "--check");
+            }
+            if (diagnostic is null && emitC)
+            {
+                diagnostic = compilation.EmitC(Console.Out, structureOfArrays);
+            }
             if (diagnostic is not null)
             {
                 // JSON quoting makes even an unusual filename safe to display.
@@ -56,7 +85,15 @@ internal static class Program
                 return 1;
             }
 
-            if (inspectTokens)
+            if (check)
+            {
+                return 0;
+            }
+            if (inspectSyntax)
+            {
+                source.WriteSyntax(Console.Out);
+            }
+            else if (inspectTokens)
             {
                 source.WriteTokens(Console.Out);
             }

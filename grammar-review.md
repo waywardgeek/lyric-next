@@ -8,7 +8,7 @@ This is a PEG review dialect over tokens, with source-character lexer subrules a
 
 The grammar is based primarily on the preserved full specification and the decisions now in `lyric-language-spec.md`. Initial inspection of old `parser.ly` and `expr_parser.ly` exposed source comments and a precedence parser, but is not the source of authority for this grammar. In particular, the old expression precedence puts bitwise operations below comparisons; this draft uses our approved corrected ordering. No old compiler implementation or grammar generator was copied.
 
-No Lyric parser or PEG engine was implemented or run. The historical `peg-check.txt` at commit `d2cf0c0` records pre-dictionary structural checks, including defined references, nonnullable repetition, and absence of nullable-prefix left-recursion cycles. These do not establish intended language acceptance or semantic safety. Ordered choice makes parsing priority explicit; it does not prove that a poorly ordered alternative cannot hide a desired form.
+The developer [Peggy checker](tools/peg/README.md) now compiles the canonical grammar and executes it over the real lexer output. All 50 current source fixtures and four malformed-grammar controls pass. This is syntax-recognition evidence, not a completed hand-written parser, semantic validation, or exhaustive ambiguity testing. The historical `peg-check.txt` at commit `d2cf0c0` records pre-dictionary structural checks, including defined references, nonnullable repetition, and absence of nullable-prefix left-recursion cycles. These do not establish intended language acceptance or semantic safety. Ordered choice makes parsing priority explicit; it does not prove that a poorly ordered alternative cannot hide a desired form.
 
 ## Lexical conventions
 
@@ -56,7 +56,7 @@ Logical declaration clauses stay on one line unless inside parentheses/brackets.
 
 Use longest applicable punctuation tokens: notably `!+=`, `!-=`, `!*=` before their shorter forms; `<->` before `<`; and ordinary two-character comparisons/arrows/shifts. `!-` is one token interpreted in prefix or infix position. `!as` is recognized only as the contiguous wrapping-cast operator followed by a word boundary. It is not the prefix of `!assert`. No new `()` token exists.
 
-Within type argument lists, a `>>` token supplies two closing `>` tokens; inside expression shifts it remains `>>`. The parser needs a token view that preserves source offsets and restores any split token during failed speculative parsing. This is ordinary contextual token handling, not inference from identifier capitalization. Whether `>=` may split as a generic close plus assignment is not assumed: write a separator before `=` in that case in this draft.
+Within type and binding argument lists, `TypeClose` can consume either half of a `>>` token as one closing `>`; inside expression shifts the original token must be consumed whole. The canonical `TypeClose <- ">"` marks this contextual boundary for executable adapters and hand-written parsers. The parser needs a token view that preserves source offsets and restores any split token during failed speculative parsing. This is ordinary contextual token handling, not inference from identifier capitalization. Whether `>=` may split as a generic close plus assignment is not assumed: write a separator before `=` in that case in this draft.
 
 ### Tuple field token boundary
 

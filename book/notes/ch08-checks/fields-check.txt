@@ -1,0 +1,22 @@
+FAIL initialized-field
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-8kddejde/case.ly":1:50: error LYC201: Expected \'}\'. (byte 49)\n')
+FAIL mutable-object-parameter
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-8kddejde/case.ly":1:46: error LYC201: Expected a declaration separator. (byte 45)\n')
+PASS both-branches
+PASS one-branch
+PASS early-return
+PASS initialized-return
+PASS read-before-write
+PASS partial-self-copy
+FAIL partial-self-helper
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-8kddejde/case.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n')
+FAIL initialized-self-helper
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-8kddejde/case.ly":1:58: error LYC201: Expected a declaration separator. (byte 57)\n')
+PASS other-object-not-self
+FAIL owned-array-field
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-8kddejde/case.ly":1:60: error LYC201: Expected \'}\'. (byte 59)\n')
+FAIL field-hint
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-8kddejde/case.ly":1:43: error LYC201: Expected \'}\'. (byte 42)\n')
+FAIL unknown-field
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-8kddejde/case.ly":1:27: error LYC201: Expected \'}\'. (byte 26)\n')
+7/14 Chapter 8 checking cases passed

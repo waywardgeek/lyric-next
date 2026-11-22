@@ -1,0 +1,38 @@
+"/Users/bill/.local/share/ensemble-dotnet10/dotnet" build compiler/Lyric.csproj -c Release --nologo --tl:off
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.33
+"python3" tools/spin04.py "/Users/bill/.local/share/ensemble-dotnet10/dotnet"
+Hello world resolves; it is not executed.
+func main() { println("Hello, world!") }
+Check passed (no program execution).
+
+The return type supplies integer context.
+func seven() -> u8 { return 1 + 2 * 3 }
+func main() { seven() }
+Check passed (no program execution).
+
+Only the initialized branch reaches the read.
+func show(flag: bool) {
+    let text: string
+    if flag { return } else { text = "ready" }
+    println(text)
+}
+func main() { show(false) }
+Check passed (no program execution).
+
+One assigning branch is not sufficient:
+func main() {
+    let text: string
+    if true { text = "ready" }
+    println(text)
+}
+
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-semantics-8gmfx0zt/example.ly":4:13: error LYC307: Local 'text' is not definitely assigned. (byte 78)
+Expected rejection observed; temporary files are removed.

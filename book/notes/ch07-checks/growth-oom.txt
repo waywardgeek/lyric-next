@@ -1,0 +1,3 @@
+Traceback (most recent call last):
+  File "<stdin>", line 17, in <module>
+AssertionError: (1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-oom-f7qw8i2m/oom.ly":1:30: runtime error LYR008: out of memory\n  in "grow"\n  in "main"\n', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-oom-f7qw8i2m/oom.ly":1:30: runtime error LYR008: out of memory\n  in grow\n  in main\n')

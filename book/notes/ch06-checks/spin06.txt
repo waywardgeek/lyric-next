@@ -1,0 +1,49 @@
+"/Users/bill/.local/share/ensemble-dotnet10/dotnet" build compiler/Lyric.csproj -c Release --nologo --tl:off
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.37
+"python3" tools/spin06.py "/Users/bill/.local/share/ensemble-dotnet10/dotnet"
+Sum a range with a loop.
+func sum_to(n: i32) -> i32 {
+    var total = 0
+    var i = 1
+    while i <= n { total = total + i; i = i + 1 }
+    return total
+}
+func main() { if sum_to(10) == 55 { println("Sum is 55") } }
+Sum is 55
+
+The skipped operand has no effects.
+func mark() -> bool { print("called "); return true }
+func main() {
+    if false && mark() { print("bad") }
+    if true || mark() { print("skipped ") }
+    if true && mark() { println("done") }
+}
+skipped called done
+
+Continue reevaluates the condition; break exits the loop.
+func main() {
+    var i = 0
+    while i < 10 {
+        i = i + 1
+        if i < 3 { continue }
+        print("reached three")
+        break
+    }
+    println("")
+}
+reached three
+
+An outer immutable binding cannot be initialized repeatedly.
+func main() { let once: i32; while true { once = 1 } }
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-executable-ii6txwxh/example.ly":1:43: error LYC314: Loop may assign immutable binding 'once' again. (byte 42)
+Expected static rejection observed.
+
+Temporary source, generated C, and executables removed.

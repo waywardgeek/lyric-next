@@ -1,0 +1,200 @@
+"python3" "graders/ch01/check_comparisons.py"
+Grader comparison self-check passed
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Debug/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.32
+PASS version
+PASS usage-0
+PASS usage-1
+PASS usage-2
+PASS usage-3
+PASS missing-file
+PASS empty-path
+PASS diagnostic-unusual-filename
+PASS empty
+PASS ascii
+PASS newlines
+PASS tabs-scalars
+PASS combining-not-normalized
+PASS rtl-letters
+PASS visible-escape-text
+PASS bom-not-stripped-from-spelling
+PASS utf8-width-boundaries
+PASS allowed-property-neighbors
+PASS malformed-0
+PASS malformed-1
+PASS malformed-2
+PASS malformed-3
+PASS malformed-4
+PASS malformed-5
+PASS malformed-6
+PASS malformed-7
+PASS malformed-8
+PASS malformed-9
+PASS malformed-10
+PASS malformed-11
+PASS malformed-12
+PASS malformed-13
+PASS malformed-14
+PASS malformed-15
+PASS malformed-16
+PASS malformed-17
+PASS forbidden-0000
+PASS forbidden-0008
+PASS forbidden-000B
+PASS forbidden-000C
+PASS forbidden-000E
+PASS forbidden-001F
+PASS forbidden-007F
+PASS forbidden-009F
+PASS forbidden-00AD
+PASS forbidden-034F
+PASS forbidden-061C
+PASS forbidden-115F
+PASS forbidden-1160
+PASS forbidden-17B4
+PASS forbidden-17B5
+PASS forbidden-180B
+PASS forbidden-180F
+PASS forbidden-200B
+PASS forbidden-200D
+PASS forbidden-200F
+PASS forbidden-202A
+PASS forbidden-202E
+PASS forbidden-2060
+PASS forbidden-206F
+PASS forbidden-3164
+PASS forbidden-FE00
+PASS forbidden-FE0F
+PASS forbidden-FEFF
+PASS forbidden-FFA0
+PASS forbidden-FFF0
+PASS forbidden-FFF8
+PASS forbidden-1BCA0
+PASS forbidden-1BCA3
+PASS forbidden-1D173
+PASS forbidden-1D17A
+PASS forbidden-E0000
+PASS forbidden-E0100
+PASS forbidden-E0FFF
+PASS forbidden-in-comment
+PASS forbidden-in-string
+PASS forbidden-in-raw
+PASS forbidden-in-symbol
+PASS lone-cr-at-end
+PASS lone-cr-before-text
+PASS lone-cr-double
+PASS earliest-error
+
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+77/77 semantic cases passed
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.04
+PASS version
+PASS usage-0
+PASS usage-1
+PASS usage-2
+PASS usage-3
+PASS missing-file
+PASS empty-path
+PASS diagnostic-unusual-filename
+PASS empty
+PASS ascii
+PASS newlines
+PASS tabs-scalars
+PASS combining-not-normalized
+PASS rtl-letters
+PASS visible-escape-text
+PASS bom-not-stripped-from-spelling
+PASS utf8-width-boundaries
+PASS allowed-property-neighbors
+PASS malformed-0
+PASS malformed-1
+PASS malformed-2
+PASS malformed-3
+PASS malformed-4
+PASS malformed-5
+PASS malformed-6
+PASS malformed-7
+PASS malformed-8
+PASS malformed-9
+PASS malformed-10
+PASS malformed-11
+PASS malformed-12
+PASS malformed-13
+PASS malformed-14
+PASS malformed-15
+PASS malformed-16
+PASS malformed-17
+PASS forbidden-0000
+PASS forbidden-0008
+PASS forbidden-000B
+PASS forbidden-000C
+PASS forbidden-000E
+PASS forbidden-001F
+PASS forbidden-007F
+PASS forbidden-009F
+PASS forbidden-00AD
+PASS forbidden-034F
+PASS forbidden-061C
+PASS forbidden-115F
+PASS forbidden-1160
+PASS forbidden-17B4
+PASS forbidden-17B5
+PASS forbidden-180B
+PASS forbidden-180F
+PASS forbidden-200B
+PASS forbidden-200D
+PASS forbidden-200F
+PASS forbidden-202A
+PASS forbidden-202E
+PASS forbidden-2060
+PASS forbidden-206F
+PASS forbidden-3164
+PASS forbidden-FE00
+PASS forbidden-FE0F
+PASS forbidden-FEFF
+PASS forbidden-FFA0
+PASS forbidden-FFF0
+PASS forbidden-FFF8
+PASS forbidden-1BCA0
+PASS forbidden-1BCA3
+PASS forbidden-1D173
+PASS forbidden-1D17A
+PASS forbidden-E0000
+PASS forbidden-E0100
+PASS forbidden-E0FFF
+PASS forbidden-in-comment
+PASS forbidden-in-string
+PASS forbidden-in-raw
+PASS forbidden-in-symbol
+PASS lone-cr-at-end
+PASS lone-cr-before-text
+PASS lone-cr-double
+PASS earliest-error
+
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+77/77 semantic cases passed

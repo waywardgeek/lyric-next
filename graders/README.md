@@ -9,7 +9,7 @@ invoke the table generator, or depend on a reference solution location.
 From the repository root, `make test` builds Debug and Release and runs every
 current chapter's retained compiler graders in both configurations, plus the
 comparison-helper self-check. It stops on any failure. It requires Make, .NET 10,
-and Python 3.10+; it does not install tools. For example, use
+Python 3.10+, and the C toolchain described in the [Chapter 6 contract](ch06/README.md); it does not install tools. The separate retained PEG comparison also requires the established Node/Peggy setup. For example, use
 `make test DOTNET=/absolute/path/to/dotnet` when the SDK is not on PATH.
 This is automated conformance, not a substitute for structural review or human use.
 The individual commands and contracts remain below and in [Chapter 2](ch02/README.md).

@@ -1,0 +1,13 @@
+FAIL alias-preview-widen-scalar-inferred: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-a8kudnlc/alias-preview-widen-scalar-inferred.ly":1:85: error LYC304: Expected u16, got i32. (byte 84)\n'
+PASS alias-preview-widen-scalar-annotated
+FAIL alias-preview-widen-element-inferred: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-a8kudnlc/alias-preview-widen-element-inferred.ly":1:90: error LYC304: Expected u16, got i32. (byte 89)\n'
+PASS alias-preview-widen-element-annotated
+FAIL alias-preview-overflow-scalar-inferred-i64: wrong execution: 0, b'', b''
+FAIL alias-preview-overflow-scalar-inferred-u16: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-a8kudnlc/alias-preview-overflow-scalar-inferred-u16.ly":1:87: error LYC304: Expected u16, got i32. (byte 86)\n'
+PASS alias-preview-overflow-scalar-annotated-i64
+PASS alias-preview-overflow-scalar-annotated-u16
+FAIL alias-preview-overflow-element-inferred-i64: wrong execution: 0, b'', b''
+FAIL alias-preview-overflow-element-inferred-u16: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-a8kudnlc/alias-preview-overflow-element-inferred-u16.ly":1:92: error LYC304: Expected u16, got i32. (byte 91)\n'
+PASS alias-preview-overflow-element-annotated-i64
+PASS alias-preview-overflow-element-annotated-u16
+6/12 execution cases passed

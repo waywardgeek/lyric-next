@@ -1,0 +1,11 @@
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+/Users/bill/projects/lyric-next/compiler/Emission/Compilation.cs(16,64): error CS1066: The default value specified for parameter 'structureOfArrays' will have no effect because it applies to a member that is used in contexts that do not allow optional arguments [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+
+Build FAILED.
+
+/Users/bill/projects/lyric-next/compiler/Emission/Compilation.cs(16,64): error CS1066: The default value specified for parameter 'structureOfArrays' will have no effect because it applies to a member that is used in contexts that do not allow optional arguments [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+    0 Warning(s)
+    1 Error(s)
+
+Time Elapsed 00:00:01.06

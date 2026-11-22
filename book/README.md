@@ -10,6 +10,16 @@ This book is being developed with the implementation, not reconstructed after a 
 
 - [Chapter 2 — Recognize Tokens Without Parser Feedback](chapter-02.md): teaching for the verified Unicode and lexer increment; both independent reviews and an unassisted student reconstruction are complete. Bill reviewed and accepted Chapter 2.
 
+- [Chapter 3 — Parse the Language](chapter-03.md): full-parser teaching and public tree contracts. Both independent reviews are incorporated. A fresh student passed all cumulative Debug/Release checks and the PEG comparison, with runtime setup assistance only. Ready for Bill’s walkthrough and acceptance.
+
+- [Chapter 4 — Give the Program Meaning](chapter-04.md): draft teaching for the verified first semantic increment. Both configurations pass the 79 semantic cases and retained earlier suites. The single code and text reviews are incorporated. A fresh student passed all cumulative Debug/Release checks, the separate PEG comparison, and the scripted walkthrough without requirement clarification or implementation assistance. Human walkthrough and acceptance remain pending.
+
+- [Chapter 5 — Run the Program](chapter-05.md): reference C emission and execution implemented; 75 retained Chapter 5 cases pass in both configurations alongside retained checks. The scripted walkthrough is verified. The single code and text reviews are incorporated; fresh-student reconstruction passed all required cumulative checks, the separate PEG comparison, and the scripted walkthrough; human acceptance remains pending. Bill authorized advancing with the Chapter 4 human walkthrough deferred.
+
+- [Chapter 6 — Expressions and Control Flow](chapter-06.md): expanded reference implementation and teaching complete through both reviews and fresh-student reconstruction. The reference and independent student each pass 250 Chapter 6 cases in both configurations, all retained checks, the separate PEG comparison, and the scripted walkthrough. The student needed runtime setup assistance only; human walkthrough and acceptance remain pending.
+
+- [Chapter 7 — Arrays, Ownership, and Stable References](chapter-07.md): teaching for the implemented array and reference increment. The single code review is incorporated. All 102 Chapter 7 cases and retained earlier suites pass in Debug and Release, plus the separate 143-case PEG comparison and scripted walkthrough. The earlier 90-case sanitizer run passed. Both single reviews are incorporated; a fresh confined student independently passed all required cumulative checks, PEG143, and the scripted walkthrough without implementation assistance or grader changes. Human walkthrough and acceptance remain pending.
+
 ## Reference implementation in development
 
 The [reference implementation](../compiler/README.md) implements strict
@@ -28,21 +38,26 @@ Unicode-request rejection cases, and the retained Chapter 1 suite. The single co
 incorporated. A fresh confined student independently passed the same cumulative
 checks in both configurations without clarification or implementation assistance.
 The student also executed the walkthrough and supplementary lifecycle checks;
-Bill subsequently reviewed and accepted Chapter 2.
+Bill subsequently reviewed and accepted Chapter 2 and confirmed running `make spin02`.
 See [Chapter 2 development notes](notes/ch02-development.md) for evidence limits.
+
+## Agreed next increments
+
+See [the next-increment roadmap](roadmap.md) for the approved Chapter 8 scope and the interfaces → multi-class interfaces → relationships dependency spine. It supersedes the broad sketch below where more specific.
 
 ## Provisional construction sequence
 
-This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 2 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
+This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 7 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 
 1. **Read characters and report errors.** Establish the executable foundation, character parsing, and the error interface together. Independent positive and negative graders must test successful output and illegal-input diagnostics. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup in this small slice.
 2. **Recognize tokens.** Build on Chapter 1’s UTF-8 validation and source locations to recognize lexical elements and enforce identifier rules. Settle remaining relevant lexical questions before treating this slice as complete.
-3. **Earn a narrow end-to-end compilation path.** Follow the PEG for a small expression/declaration subset; resolve and type-check it; emit and execute C. Negative inputs must be rejected, and unsupported constructs must not slip through as placeholders. Expand syntax and semantics from a working vertical slice rather than assembling an untested full frontend first.
-4. **Build the language's central model.** Add the required type/declaration forms, logical packages, complete relation bindings, construction/destruction, value operations, generics, and multi-class interfaces in bounded chapters. The actual dependency order is development work, not settled by this list.
-5. **Demonstrate lifetime and generator safety.** Develop the separate checker design alongside accepted/rejected examples for stable borrows, cross-call effects, counted releases, and safe generators. Introduce checks with the features they protect, not as an optional final pass after unsafe object programs are already accepted.
-6. **Make the compiler-oriented library usable.** Adapt the retained stdlib design, verify collision handling and cleanup, and supply the file/process operations the compiler needs. Keep source-level contracts distinct from runtime/native boundaries.
-7. **Subsequent execution and self-hosting.** Follow the edition strategy in the [Preface](preface.md). Run shared conformance checks and establish controlled repeated-stage/fixed-point evidence. Preserve the architecture through the rewrite; translating output alone is insufficient. This is a later execution milestone, not a requirement to finish a Lyric port before the first book exists.
-8. **Human use and crossover.** Exercise the result on real tasks. Record every correction and its reason in crossover teaching, then repair the construction chapters that should have prevented it before another full execution.
+3. **Parse the full current grammar.** Build the shared syntax tree, follow PEG ordered choices, and verify recognition, tree structure, diagnostics, and cleanup. Later chapters will add resolution, type checking, and C emission incrementally; parsing a construct does not implement its semantics.
+4. **Resolve names and check the first programs.** Chapter 4 builds scopes, symbols, typed facts, calls, contextual integer arithmetic, local initialization, and statement-branch joins. Chapter 5 adds C emission and execution, and Chapter 6 expands integer expressions and control flow.
+5. **Extend the language's central model.** Add the required type/declaration forms, logical packages, complete relation bindings, construction/destruction, value operations, generics, and multi-class interfaces in bounded chapters. The actual dependency order is development work, not settled by this list.
+6. **Demonstrate lifetime and generator safety.** Develop the separate checker design alongside accepted/rejected examples for stable borrows, cross-call effects, counted releases, and safe generators. Introduce checks with the features they protect, not as an optional final pass after unsafe object programs are already accepted.
+7. **Make the compiler-oriented library usable.** Adapt the retained stdlib design, verify collision handling and cleanup, and supply the file/process operations the compiler needs. Keep source-level contracts distinct from runtime/native boundaries.
+8. **Subsequent execution and self-hosting.** Follow the edition strategy in the [Preface](preface.md). Run shared conformance checks and establish controlled repeated-stage/fixed-point evidence. Preserve the architecture through the rewrite; translating output alone is insufficient. This is a later execution milestone, not a requirement to finish a Lyric port before the first book exists.
+9. **Human use and crossover.** Exercise the result on real tasks. Record every correction and its reason in crossover teaching, then repair the construction chapters that should have prevented it before another full execution.
 
 Several items will require more than one chapter; others may combine or move earlier. Concurrency, shared-library unloading, escaping closures, and broad library expansion are not proposed prerequisites for the first single-threaded self-hosting milestone.
 

@@ -1,0 +1,11 @@
+FAIL integer-literal: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/integer-literal.ly":1:24: error LYC306: Unsupported semantic construct: Array. (byte 23)\n'
+FAIL empty-context: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/empty-context.ly":1:23: error LYC306: Unsupported semantic construct: ArrayType. (byte 22)\n'
+FAIL bool-elements: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/bool-elements.ly":1:24: error LYC306: Unsupported semantic construct: Array. (byte 23)\n'
+FAIL byte-string-alias: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/byte-string-alias.ly":1:38: error LYC301: Unknown name \'len\'. (byte 37)\n'
+FAIL nested-literal: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/nested-literal.ly":1:25: error LYC306: Unsupported semantic construct: Array. (byte 24)\n'
+FAIL array-return: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/array-return.ly":1:19: error LYC306: Unsupported semantic construct: ArrayType. (byte 18)\n'
+FAIL copy-independent: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/copy-independent.ly":1:24: error LYC306: Unsupported semantic construct: Array. (byte 23)\n'
+FAIL nested-copy-independent: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/nested-copy-independent.ly":1:25: error LYC306: Unsupported semantic construct: Array. (byte 24)\n'
+FAIL negative-index: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/negative-index.ly":1:30: error LYC306: Unsupported semantic construct: Array. (byte 29)\n'
+FAIL past-end-index: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-h6atfulk/past-end-index.ly":1:30: error LYC306: Unsupported semantic construct: Array. (byte 29)\n'
+0/10 execution cases passed

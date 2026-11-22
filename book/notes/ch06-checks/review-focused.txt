@@ -1,0 +1,13 @@
+PASS assignment-rhs-return-excluded
+PASS if-typed-neighbor-left
+PASS if-typed-neighbor-right
+PASS if-typed-neighbor-local
+PASS if-annotated-width-left
+PASS if-annotated-width-right
+PASS if-annotated-width-local
+PASS if-statement-transfer-return
+PASS if-statement-transfer-break
+PASS if-statement-transfer-continue
+PASS assignment-rhs-double-write
+PASS assignment-rhs-one-arm-write
+12/12 execution cases passed

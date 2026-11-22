@@ -1,0 +1,28 @@
+PASS signed
+PASS negative-unsigned
+PASS unsigned-negative
+PASS equal-mixed
+PASS positive-mixed
+PASS negation
+PASS short-circuit
+PASS nested-short-circuit
+PASS comparison-effects
+FAIL sum: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/sum.ly":4:13: error LYC306: Unsupported semantic construct: While. (byte 73)\n'
+FAIL zero-iterations: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/zero-iterations.ly":1:21: error LYC306: Unsupported semantic construct: While. (byte 20)\n'
+FAIL continue-condition: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/continue-condition.ly":4:11: error LYC306: Unsupported semantic construct: While. (byte 98)\n'
+FAIL nested-loop-targets: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/nested-loop-targets.ly":3:13: error LYC306: Unsupported semantic construct: While. (byte 40)\n'
+FAIL loop-return: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/loop-return.ly":2:11: error LYC306: Unsupported semantic construct: While. (byte 31)\n'
+FAIL fresh-loop-let: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/fresh-loop-let.ly":3:13: error LYC306: Unsupported semantic construct: While. (byte 40)\n'
+FAIL outer-let-break: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/outer-let-break.ly":3:11: error LYC306: Unsupported semantic construct: While. (byte 42)\n'
+PASS bad-logical-left
+PASS bad-logical-right
+PASS bad-negation
+PASS bad-comparison
+FAIL bad-condition: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/bad-condition.ly":1:21: error LYC306: Unsupported semantic construct: While. (byte 20)\n'
+FAIL zero-path-unassigned: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/zero-path-unassigned.ly":1:33: error LYC306: Unsupported semantic construct: While. (byte 32)\n'
+FAIL repeat-immutable: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/repeat-immutable.ly":1:33: error LYC306: Unsupported semantic construct: While. (byte 32)\n'
+FAIL continue-immutable: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/continue-immutable.ly":1:33: error LYC306: Unsupported semantic construct: While. (byte 32)\n'
+FAIL break-possible-assignment: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/break-possible-assignment.ly":1:33: error LYC306: Unsupported semantic construct: While. (byte 32)\n'
+FAIL break-outside: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/break-outside.ly":1:1: error LYC306: Unsupported semantic construct: Break. (byte 0)\n'
+FAIL continue-outside: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-112h98xm/continue-outside.ly":1:1: error LYC306: Unsupported semantic construct: Continue. (byte 0)\n'
+13/27 execution cases passed

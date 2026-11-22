@@ -1,0 +1,10 @@
+FAIL signed: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/signed.ly":1:49: error LYC306: Unsupported semantic construct: Binary. (byte 48)\n'
+FAIL negative-unsigned: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/negative-unsigned.ly":1:68: error LYC306: Unsupported semantic construct: Binary. (byte 67)\n'
+FAIL unsigned-negative: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/unsigned-negative.ly":1:68: error LYC306: Unsupported semantic construct: Binary. (byte 67)\n'
+FAIL equal-mixed: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/equal-mixed.ly":1:51: error LYC306: Unsupported semantic construct: Binary. (byte 50)\n'
+FAIL positive-mixed: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/positive-mixed.ly":1:85: error LYC306: Unsupported semantic construct: Binary. (byte 84)\n'
+FAIL negation: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/negation.ly":1:18: error LYC306: Unsupported semantic construct: Unary. (byte 17)\n'
+FAIL short-circuit: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/short-circuit.ly":4:13: error LYC306: Unsupported semantic construct: Binary. (byte 120)\n'
+FAIL nested-short-circuit: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/nested-short-circuit.ly":3:18: error LYC306: Unsupported semantic construct: Unary. (byte 111)\n'
+FAIL comparison-effects: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-ke5_624c/comparison-effects.ly":3:26: error LYC306: Unsupported semantic construct: Binary. (byte 119)\n'
+0/9 execution cases passed

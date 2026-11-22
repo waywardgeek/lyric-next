@@ -1,0 +1,2 @@
+Expected rejection, observed exit: 0
+stdout: b'' stderr: b''

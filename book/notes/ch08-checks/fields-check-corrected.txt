@@ -1,0 +1,15 @@
+PASS initialized-field
+PASS mutable-object-parameter
+PASS both-branches
+PASS one-branch
+PASS early-return
+PASS initialized-return
+PASS read-before-write
+PASS partial-self-copy
+PASS partial-self-helper
+PASS initialized-self-helper
+PASS other-object-not-self
+PASS owned-array-field
+PASS field-hint
+PASS unknown-field
+14/14 Chapter 8 checking cases passed

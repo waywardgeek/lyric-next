@@ -1,0 +1,11 @@
+/Users/bill/projects/lyric-next/compiler/Semantics/Check.cs(471,77): error CS1061: 'HashSet<((SemanticSymbol Root, int Depth) Changed, (SemanticSymbol Root, int Depth) Used)>' does not contain a definition for 'ToArray' and no accessible extension method 'ToArray' accepting a first argument of type 'HashSet<((SemanticSymbol Root, int Depth) Changed, (SemanticSymbol Root, int Depth) Used)>' could be found (are you missing a using directive or an assembly reference?) [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+/Users/bill/projects/lyric-next/compiler/Semantics/Check.cs(477,68): error CS1061: 'HashSet<(SemanticSymbol Root, int Depth)>' does not contain a definition for 'ToArray' and no accessible extension method 'ToArray' accepting a first argument of type 'HashSet<(SemanticSymbol Root, int Depth)>' could be found (are you missing a using directive or an assembly reference?) [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+
+Build FAILED.
+
+/Users/bill/projects/lyric-next/compiler/Semantics/Check.cs(471,77): error CS1061: 'HashSet<((SemanticSymbol Root, int Depth) Changed, (SemanticSymbol Root, int Depth) Used)>' does not contain a definition for 'ToArray' and no accessible extension method 'ToArray' accepting a first argument of type 'HashSet<((SemanticSymbol Root, int Depth) Changed, (SemanticSymbol Root, int Depth) Used)>' could be found (are you missing a using directive or an assembly reference?) [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+/Users/bill/projects/lyric-next/compiler/Semantics/Check.cs(477,68): error CS1061: 'HashSet<(SemanticSymbol Root, int Depth)>' does not contain a definition for 'ToArray' and no accessible extension method 'ToArray' accepting a first argument of type 'HashSet<(SemanticSymbol Root, int Depth)>' could be found (are you missing a using directive or an assembly reference?) [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+    0 Warning(s)
+    2 Error(s)
+
+Time Elapsed 00:00:00.90

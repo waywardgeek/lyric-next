@@ -1,11 +1,11 @@
-# Lyric PEG grammar — review draft 8 (explicit safe generators).
+# Lyric PEG grammar — review draft 9 (explicit contextual type closes).
 # Ordered choice: first syntactically successful alternative wins.
 # Syntax: <- defines, / ordered choice, adjacency sequence, ? optional,
 # * repetition, & positive lookahead, ! negative lookahead; quoted text matches exact tokens.
 # Lexer subrules describe source characters. @Name is a documented external
 # lexical hook, not an unspecified parser escape hatch or a generator API.
 # Syntax rules operate on the token stream described in grammar-review.md;
-# lexical literal scanning uses source modes. No generator has been selected.
+# lexical literal scanning uses source modes. tools/peg uses Peggy for syntax checks.
 # Semantic resolution/type failure does not retry a different parse.
 # Original EBNF and grammar-check.txt are preserved in Git history (d2cf0c0).
 # D1–D5 recommendations are adopted. Unicode 16.0.0 and LF/CRLF-only line endings are adopted; D6 and deferred coverage need review. Name shadowing
@@ -13,7 +13,8 @@
 # Generic-before-comparison priority is approved; GenericSuffix encodes its
 # angle-list and following call/member boundary with positive lookahead.
 # Header expressions exclude direct records/dictionaries but allow them inside parentheses.
-# No parser execution, performance guarantee, or ambiguity certification claimed.
+# Executed through tools/peg with the real lexer; see its bounded fixture evidence.
+# This does not establish semantic validity, performance, or ambiguity certification.
 
 Ident <- IdentifierSpelling
 IdentifierSpelling <- IdentifierStart (IdentifierContinue)*
@@ -79,7 +80,7 @@ FunctionName <- QualifiedName
 Parameters <- "(" (ParameterList)? ")"
 ParameterList <- Parameter ("," Parameter)* (",")?
 Parameter <- "self" / Ident ":" Type
-TypeParams <- "<" TypeParam ("," TypeParam)* ">"
+TypeParams <- "<" TypeParam ("," TypeParam)* TypeClose
 TypeParam <- Ident (":" QualifiedName)?
 WhereClause <- "where" Requirement ("," Requirement)*
 Requirement <- Ident ":" QualifiedName / Capability
@@ -90,7 +91,7 @@ Hint <- QualifiedName
 RelationKind <- "owns" / "refs"
 Endpoint <- NamedType (":" Ident)?
 ChildEndpoint <- Endpoint / "[" Endpoint "]"
-BindingArgs <- "<" BindingArg ("," BindingArg)* ">"
+BindingArgs <- "<" BindingArg ("," BindingArg)* TypeClose
 BindingArg <- Type (":" Ident)?
 ImplDecl <- "impl" (TypeParams)? QualifiedName BindingArgs (RelationKind)? ImplBody
 ImplBody <- "{" SepOpt (ImplMember (Sep ImplMember)* (Sep)?)? "}"
@@ -110,7 +111,11 @@ OptionalType <- TypePrimary ("?")?
 TypePrimary <- FunctionType / ArrayType / ParenthesizedType / NamedType
 NamedType <- QualifiedName (TypeArgs)?
 QualifiedName <- Ident ("." Ident)*
-TypeArgs <- "<" Type ("," Type)* ">"
+TypeArgs <- "<" Type ("," Type)* TypeClose
+# A type close may consume one half of >>; ordinary shifts consume it whole.
+# This contextual token view preserves locations and is restored on backtracking.
+# >= is never split. The lexer output remains unchanged.
+TypeClose <- ">"
 ArrayType <- "[" Type "]"
 ParenthesizedType <- "(" Type ("," Type ("," Type)* (",")?)? ")"
 FunctionType <- "fn" "(" (TypeList)? ")" "->" Type

@@ -1,0 +1,12 @@
+PASS ref-scalar-parameter
+PASS ref-fixed-alias
+PASS ref-forward-helper
+PASS ref-scalar-overlap
+PASS ref-scalar-value-return
+PASS ref-scalar-annotated
+PASS ref-missing-marker
+PASS ref-immutable-storage
+PASS ref-uninitialized-storage
+PASS ref-no-widening
+PASS ref-no-var-alias
+11/11 execution cases passed

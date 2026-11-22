@@ -1,0 +1,9 @@
+  Determining projects to restore...
+  Restored /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch03-mutant-14ue12k2/compiler/Lyric.csproj (in 23 ms).
+  Lyric -> /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch03-mutant-14ue12k2/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.63

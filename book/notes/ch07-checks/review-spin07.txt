@@ -1,0 +1,48 @@
+"/Users/bill/.local/share/ensemble-dotnet10/dotnet" build compiler/Lyric.csproj -c Release --nologo --tl:off
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.44
+"python3" tools/spin07.py "/Users/bill/.local/share/ensemble-dotnet10/dotnet"
+Grow, sum, copy, and update only the copy through a reference helper.
+func change(a: ref [i32]) { a[0] = 99; a.push(6) }
+func main() {
+    var numbers: [i32] = []
+    var i = 1
+    while i <= 5 { numbers.push(i); i += 1 }
+    var total = 0
+    var index = 0u64
+    while index < len(numbers) { total += numbers[index]; index += 1u64 }
+    var copy = numbers
+    change(ref copy)
+    if total == 15 { println("Sum is 15") }
+    if numbers[0] == 1 && len(numbers) == 5u64 { println("Original unchanged") }
+    if copy[0] == 99 && len(copy) == 6u64 { println("Copy changed") }
+}
+Sum is 15
+Original unchanged
+Copy changed
+
+A fresh element reference after growth is valid.
+func main() {
+    var a = [1]
+    let old = ref a[0]
+    old = 7
+    a.push(2)
+    let fresh = ref a[0]
+    fresh += 1
+    if a[0] == 8 { println("Fresh reference works") }
+}
+Fresh reference works
+
+An old element reference cannot be used after potentially relocating growth.
+func main() { var a = [1]; let slot = ref a[0]; a.push(2); slot = 7 }
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-arrays-2ivwycvb/example.ly":1:60: error LYC326: Borrowed storage may have been invalidated. (byte 59)
+Expected static rejection observed.
+
+Temporary source, generated C, and executables removed.

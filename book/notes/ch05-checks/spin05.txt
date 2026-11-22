@@ -1,0 +1,31 @@
+"/Users/bill/.local/share/ensemble-dotnet10/dotnet" build compiler/Lyric.csproj -c Release --nologo --tl:off
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.13
+"python3" tools/spin05.py "/Users/bill/.local/share/ensemble-dotnet10/dotnet"
+Our first executable.
+func main() { println("Hello, Ken and Tom!") }
+Hello, Ken and Tom!
+
+Arguments produce their effects left to right.
+func first() -> string { print("A"); return "one" }
+func second() -> string { print("B"); return "two" }
+func consume(a: string, b: string) { print(a); println(b) }
+func main() { consume(first(), second()) }
+ABonetwo
+
+Runtime overflow fails before an invalid C operation.
+func calc(a: i8, b: i8) -> i8 { return a + b }
+func main() { calc(127i8, 1i8) }
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-executable-i_lc9eiy/example.ly":1:42: runtime error LYR001: integer overflow in i8 addition
+  in "calc"
+  in "main"
+Expected runtime failure observed.
+
+Temporary source, generated C, and executables removed.

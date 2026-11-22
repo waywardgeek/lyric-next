@@ -1,0 +1,26 @@
+PASS length-u64
+PASS integer-literal
+PASS empty-context
+PASS bool-elements
+PASS byte-string-alias
+PASS nested-literal
+PASS array-return
+PASS copy-independent
+PASS nested-copy-independent
+PASS parameter-copy
+PASS nested-replacement
+PASS self-assignment
+PASS string-copy
+PASS conditional-array
+PASS early-return-array
+PASS loop-array-exits
+PASS short-circuit-array
+PASS array-element-order
+PASS negative-index
+PASS past-end-index
+PASS length-no-narrow
+PASS immutable-element
+PASS immutable-nested
+PASS noninteger-index
+PASS scalar-length
+25/25 execution cases passed

@@ -1,0 +1,4 @@
+PASS loop-condition-write-break
+PASS loop-condition-write-false
+PASS loop-condition-immutable-repeat
+3/3 execution cases passed

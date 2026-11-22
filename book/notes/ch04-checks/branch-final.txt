@@ -1,0 +1,16 @@
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Debug/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.86
+77/77 semantic cases passed
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.47
+77/77 semantic cases passed

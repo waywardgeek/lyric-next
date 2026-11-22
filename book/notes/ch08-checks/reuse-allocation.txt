@@ -1,0 +1,5 @@
+PASS aos -O0 allocation calls [3, 3]
+PASS aos -O2 allocation calls [3, 3]
+PASS soa -O0 allocation calls [2, 2]
+PASS soa -O2 allocation calls [2, 2]
+4/4 free-slot allocation comparisons passed

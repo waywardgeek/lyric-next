@@ -1,0 +1,1 @@
+PASS scalar emission unchanged, invalid option combinations rejected, class boundary preserved

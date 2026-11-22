@@ -1,0 +1,2 @@
+FAIL unsupported-class: exit=0, stdout='', stderr=''
+78/79 semantic cases passed

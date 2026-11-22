@@ -1,0 +1,2 @@
+FAIL ref-conditional-preview: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-gdxvmkdo/ref-conditional-preview.ly":1:54: error LYC306: Unsupported semantic construct: TypePrefix. (byte 53)\n'
+0/1 execution cases passed

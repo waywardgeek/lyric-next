@@ -1,0 +1,6 @@
+PASS loop-condition-write-break
+PASS loop-condition-write-false
+PASS loop-condition-break-assigned
+PASS loop-condition-immutable-repeat
+PASS loop-condition-break-unassigned
+5/5 execution cases passed

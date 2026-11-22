@@ -18,6 +18,7 @@ internal sealed partial class Compilation
         // List growth can fail; establish the backlink only after it succeeds.
         Sources.Add(source);
         source.Parent = this;
+        ClearAnalysis();
     }
 
     internal partial void RemoveSource(SourceFile source)
@@ -28,6 +29,7 @@ internal sealed partial class Compilation
             throw new InvalidOperationException("Source does not belong to this compilation.");
         }
 
+        ClearAnalysis();
         Sources.RemoveAt(index);
         source.Parent = null;
     }
@@ -39,6 +41,7 @@ internal sealed partial class Compilation
             return;
         }
 
+        ClearAnalysis();
         Destroyed = true;
         while (Sources.Count != 0)
         {
@@ -66,6 +69,7 @@ internal sealed partial class SourceFile
 
         Parent?.RemoveSource(this);
         Destroyed = true;
+        ClearSyntax(0);
         while (Tokens.Count != 0)
         {
             Tokens[Tokens.Count - 1].Destroy();
@@ -82,5 +86,38 @@ internal sealed partial class Diagnostic
         ByteOffset = byteOffset;
         Line = line;
         Column = column;
+    }
+}
+
+internal sealed partial class SourceFile
+{
+    internal partial System.ReadOnlySpan<byte> LiteralBytes(int offset, int length)
+    {
+        // Tokens are in source order. Exact-span lookup avoids a second decoded
+        // literal store while keeping this temporary access independent of indices.
+        int lower = 0;
+        int upper = Tokens.Count - 1;
+        while (lower <= upper)
+        {
+            int middle = lower + (upper - lower) / 2;
+            Token token = Tokens[middle];
+            if (token.ByteOffset < offset)
+            {
+                lower = middle + 1;
+            }
+            else if (token.ByteOffset > offset)
+            {
+                upper = middle - 1;
+            }
+            else
+            {
+                if (token.ByteLength != length || token.Value is null)
+                {
+                    break;
+                }
+                return token.Value;
+            }
+        }
+        throw new System.InvalidOperationException("No decoded literal at this source span.");
     }
 }

@@ -1,0 +1,30 @@
+"/Users/bill/.local/share/ensemble-dotnet10/dotnet" build compiler/Lyric.csproj -c Release --nologo --tl:off
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/ensemble-edition3-cadence/data/agents/Cadence/children/lyric-ch03-student-01/workspace/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.32
+"python3" tools/spin03.py "/Users/bill/.local/share/ensemble-dotnet10/dotnet"
+Hello world syntax (not execution):
+file
+  function
+    name: 'main'
+    parameters
+    block
+      expression-statement
+        call
+          name: 'print'
+          string: '"Hello, world!"'
+Multiplication groups inside addition:
+expression
+  binary: '+'
+    integer: '1'
+    binary: '*'
+      integer: '2'
+      integer: '3'
+An unfinished expression must fail without a partial tree:
+"/Users/bill/ensemble-edition3-cadence/data/agents/Cadence/children/lyric-ch03-student-01/lyric-syntax-ouvmygn7/example.ly":1:4: error LYC201: Expected an expression. (byte 3)

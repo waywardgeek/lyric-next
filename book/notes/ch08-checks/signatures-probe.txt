@@ -1,0 +1,15 @@
+PASS constructor-result
+PASS missing-receiver
+PASS late-receiver
+PASS empty-constructor
+PASS nominal-parameter
+PASS forward-nominal
+PASS duplicate-field
+PASS bare-field
+PASS body-not-skipped
+PASS object-field-deferred
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/book/notes/ch08-checks/declarations-probe.py", line 31, in <module>
+    assert result.returncode == 1 and not result.stdout and b'Class storage emission is not implemented yet.' in result.stderr, result
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: CompletedProcess(args=['/Users/bill/.local/share/ensemble-dotnet10/dotnet', 'compiler/bin/Debug/net10.0/Lyric.dll', '--emit-c', '/Users/bill/ensemble-edition3-cadence/tmp/tmpp121anex/probe.ly'], returncode=1, stdout=b'', stderr=b'"/Users/bill/ensemble-edition3-cadence/tmp/tmpp121anex/probe.ly":1:16: error LYC327: An infallible constructor body must return unit. (byte 15)\n')

@@ -1,0 +1,64 @@
+PASS signed
+PASS negative-unsigned
+PASS unsigned-negative
+PASS equal-mixed
+PASS positive-mixed
+PASS negation
+PASS short-circuit
+PASS nested-short-circuit
+PASS comparison-effects
+PASS sum
+PASS zero-iterations
+PASS continue-condition
+PASS nested-loop-targets
+PASS loop-return
+PASS fresh-loop-let
+PASS outer-let-break
+PASS width-i8
+PASS width-i16
+PASS width-i32
+PASS width-i64
+PASS width-u8
+PASS width-u16
+PASS width-u32
+PASS width-u64
+PASS skipped-runtime-overflow
+PASS loop-short-circuit-condition
+PASS branch-break-assignment
+PASS inner-let-once-per-outer
+PASS outer-let-return
+PASS empty-loop
+FAIL division-i8: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-i8.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 35)\n'
+FAIL division-i16: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-i16.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 37)\n'
+FAIL division-i32: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-i32.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 37)\n'
+FAIL division-i64: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-i64.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 37)\n'
+FAIL division-u8: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-u8.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 35)\n'
+FAIL division-u16: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-u16.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 37)\n'
+FAIL division-u32: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-u32.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 37)\n'
+FAIL division-u64: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/division-u64.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 37)\n'
+FAIL signed-division-i8: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/signed-division-i8.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 48)\n'
+FAIL signed-division-i16: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/signed-division-i16.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 51)\n'
+FAIL signed-division-i32: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/signed-division-i32.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 51)\n'
+FAIL signed-division-i64: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/signed-division-i64.ly":2:10: error LYC306: Unsupported semantic construct: Binary. (byte 51)\n'
+FAIL constant-minimum-remainder: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/constant-minimum-remainder.ly":1:25: error LYC306: Unsupported semantic construct: Binary. (byte 24)\n'
+PASS bad-logical-left
+PASS bad-logical-right
+PASS bad-negation
+PASS bad-comparison
+PASS bad-condition
+PASS zero-path-unassigned
+PASS repeat-immutable
+PASS continue-immutable
+PASS break-possible-assignment
+PASS break-outside
+PASS continue-outside
+PASS nested-repeat-immutable
+PASS branch-continue-immutable
+PASS loop-local-invisible
+PASS first-iteration-unassigned
+PASS break-path-unassigned
+FAIL constant-zero-division: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/constant-zero-division.ly":1:25: error LYC306: Unsupported semantic construct: Binary. (byte 24)\n'
+FAIL constant-zero-remainder: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/constant-zero-remainder.ly":1:25: error LYC306: Unsupported semantic construct: Binary. (byte 24)\n'
+FAIL constant-division-overflow: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/constant-division-overflow.ly":1:30: error LYC306: Unsupported semantic construct: Binary. (byte 29)\n'
+FAIL constant-computed-negation-overflow: wrong rejection: 1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-9bxul8a2/constant-computed-negation-overflow.ly":1:23: error LYC306: Unsupported semantic construct: Unary. (byte 22)\n'
+46/63 execution cases passed

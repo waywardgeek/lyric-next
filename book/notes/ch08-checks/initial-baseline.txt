@@ -1,0 +1,7 @@
+FAIL constructor-field: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-zndn0pyt/constructor-field.ly":1:7: error LYC306: Unsupported semantic construct: Class. (byte 6)\n'
+FAIL shared-identity: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-zndn0pyt/shared-identity.ly":1:7: error LYC306: Unsupported semantic construct: Class. (byte 6)\n'
+FAIL method: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-zndn0pyt/method.ly":1:7: error LYC306: Unsupported semantic construct: Class. (byte 6)\n'
+FAIL ordinary-final: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-zndn0pyt/ordinary-final.ly":1:7: error LYC306: Unsupported semantic construct: Class. (byte 6)\n'
+FAIL counted-scope-final: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-zndn0pyt/counted-scope-final.ly":1:13: error LYC306: Unsupported semantic construct: Class. (byte 12)\n'
+FAIL counted-alias-final-once: emission failed: exit 1, b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-execute-zndn0pyt/counted-alias-final-once.ly":1:13: error LYC306: Unsupported semantic construct: Class. (byte 12)\n'
+0/6 execution cases passed

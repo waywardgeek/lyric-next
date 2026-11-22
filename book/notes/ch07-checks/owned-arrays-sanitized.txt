@@ -1,0 +1,19 @@
+PASS length-u64 O0/O2 sanitizers and zero outstanding allocations
+PASS integer-literal O0/O2 sanitizers and zero outstanding allocations
+PASS empty-context O0/O2 sanitizers and zero outstanding allocations
+PASS bool-elements O0/O2 sanitizers and zero outstanding allocations
+PASS byte-string-alias O0/O2 sanitizers and zero outstanding allocations
+PASS nested-literal O0/O2 sanitizers and zero outstanding allocations
+PASS array-return O0/O2 sanitizers and zero outstanding allocations
+PASS copy-independent O0/O2 sanitizers and zero outstanding allocations
+PASS nested-copy-independent O0/O2 sanitizers and zero outstanding allocations
+PASS parameter-copy O0/O2 sanitizers and zero outstanding allocations
+PASS nested-replacement O0/O2 sanitizers and zero outstanding allocations
+PASS self-assignment O0/O2 sanitizers and zero outstanding allocations
+PASS string-copy O0/O2 sanitizers and zero outstanding allocations
+PASS conditional-array O0/O2 sanitizers and zero outstanding allocations
+PASS early-return-array O0/O2 sanitizers and zero outstanding allocations
+PASS loop-array-exits O0/O2 sanitizers and zero outstanding allocations
+PASS short-circuit-array O0/O2 sanitizers and zero outstanding allocations
+PASS array-element-order O0/O2 sanitizers and zero outstanding allocations
+18/18 ownership probes passed

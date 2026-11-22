@@ -1,0 +1,2 @@
+PASS length-u64 
+PASS length-no-narrow "/Users/bill/ensemble-edition3-cadence/tmp/tmpjd6hz5mq/length-no-narrow.ly":1:28: error LYC304: Expected i32, got u64. (byte 27)

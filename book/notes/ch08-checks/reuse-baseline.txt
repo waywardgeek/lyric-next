@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 72, in <module>
+    main()
+    ~~~~^^
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 58, in main
+    assert compiled.returncode == 0 and not compiled.stderr, (name, layout, compiled.stderr)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('destroy-reconstruct', 'aos', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-layout-wtiyyx4a/destroy-reconstruct.ly":7:91: error LYC306: Class destruction emission is not implemented yet. (byte 269)\n')

@@ -1,0 +1,43 @@
+PASS initialized-field
+PASS mutable-object-parameter
+PASS both-branches
+PASS one-branch
+PASS early-return
+PASS initialized-return
+PASS read-before-write
+PASS partial-self-copy
+PASS partial-self-helper
+PASS initialized-self-helper
+PASS other-object-not-self
+PASS owned-array-field
+PASS field-hint
+PASS unknown-field
+PASS constructor-call
+PASS method-call
+PASS returned-handle
+PASS constructor-arity
+PASS no-constructor
+PASS no-reinitialization
+PASS method-ref-offset
+PASS method-borrow-effect
+PASS partial-self-method
+FAIL destroy-last-use
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:56: error LYC329: No instance method \'destroy\' exists on C. (byte 55)\n')
+FAIL destroy-stale-field
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:78: error LYC329: No instance method \'destroy\' exists on C. (byte 77)\n')
+FAIL destroy-stale-alias
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:91: error LYC329: No instance method \'destroy\' exists on C. (byte 90)\n')
+FAIL destroy-twice
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:56: error LYC329: No instance method \'destroy\' exists on C. (byte 55)\n')
+FAIL destroy-fresh-object
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:78: error LYC329: No instance method \'destroy\' exists on C. (byte 77)\n')
+FAIL destroy-does-not-revive-alias
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:89: error LYC329: No instance method \'destroy\' exists on C. (byte 88)\n')
+FAIL destroy-helper-effect
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:68: error LYC329: No instance method \'destroy\' exists on C. (byte 67)\n')
+FAIL destroy-helper-internal-use
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:81: error LYC329: No instance method \'destroy\' exists on C. (byte 80)\n')
+FAIL destroy-conditional-effect
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-dt_qyqgk/case.ly":1:91: error LYC329: No instance method \'destroy\' exists on C. (byte 90)\n')
+PASS growth-keeps-handle
+24/33 Chapter 8 checking cases passed

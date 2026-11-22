@@ -1,0 +1,257 @@
+[
+  {
+    "id": "empty-file",
+    "source": "",
+    "accept": true
+  },
+  {
+    "id": "comment-only",
+    "source": "// hello\n",
+    "accept": true
+  },
+  {
+    "id": "global-arithmetic",
+    "source": "let answer = 1 + 2 * 3\n",
+    "accept": true
+  },
+  {
+    "id": "unicode-name",
+    "source": "let café = 123u16\n",
+    "accept": true
+  },
+  {
+    "id": "function",
+    "source": "func add(a: i32, b: i32) -> i32 {\nreturn a + b\n}\n",
+    "accept": true
+  },
+  {
+    "id": "function-declaration",
+    "source": "func work()\n",
+    "accept": true
+  },
+  {
+    "id": "unit-body",
+    "source": "func work() { return }",
+    "accept": true
+  },
+  {
+    "id": "array-and-tuple",
+    "source": "let pair = ([1, 2,], ())",
+    "accept": true
+  },
+  {
+    "id": "record",
+    "source": "let p = Point { x: 1, y: 2 }",
+    "accept": true
+  },
+  {
+    "id": "dictionary",
+    "source": "let d = {\"one\": 1, \"two\": 2}",
+    "accept": true
+  },
+  {
+    "id": "interpolation",
+    "source": "let s = f\"value: {1 + 2}\"",
+    "accept": true
+  },
+  {
+    "id": "nested-interpolation",
+    "source": "let s = f\"outer {f\"inner {x}\"}\"",
+    "accept": true
+  },
+  {
+    "id": "escaped-interpolation-brace",
+    "source": "let s = f\"{{x}}\"",
+    "accept": true
+  },
+  {
+    "id": "raw-string",
+    "source": "let s = \"\"\"\ntext\n\"\"\"",
+    "accept": true
+  },
+  {
+    "id": "if-header",
+    "source": "func work() { if ready { return } else { return } }",
+    "accept": true
+  },
+  {
+    "id": "struct",
+    "source": "struct Point {\nx: i32\ny: i32\n}",
+    "accept": true
+  },
+  {
+    "id": "generic-call",
+    "source": "let x = a<b>(c)",
+    "accept": true
+  },
+  {
+    "id": "generic-type",
+    "source": "let x: Box<i32> = value",
+    "accept": true
+  },
+  {
+    "id": "nested-generic-spaced",
+    "source": "let x: Box<Box<i32> > = value",
+    "accept": true
+  },
+  {
+    "id": "nested-generic-adjacent",
+    "source": "let x: Box<Box<i32>> = value",
+    "accept": true
+  },
+  {
+    "id": "shift",
+    "source": "let x = a >> 2",
+    "accept": true
+  },
+  {
+    "id": "tuple-selector",
+    "source": "let x = nested.0.1",
+    "accept": true
+  },
+  {
+    "id": "multiline-call",
+    "source": "let x = work(\n1,\n2\n)",
+    "accept": true
+  },
+  {
+    "id": "grouped-comparison",
+    "source": "let x = (a < b) > c",
+    "accept": true
+  },
+  {
+    "id": "cast-bitwise",
+    "source": "let x = y as u32 | z",
+    "accept": true
+  },
+  {
+    "id": "wrapping-operators",
+    "source": "let x = !-a !+ b !* c",
+    "accept": true
+  },
+  {
+    "id": "missing-operand",
+    "source": "let x = 1 +",
+    "accept": false
+  },
+  {
+    "id": "unclosed-group",
+    "source": "let x = (1 + 2",
+    "accept": false
+  },
+  {
+    "id": "extra-token",
+    "source": "let x = 1 2",
+    "accept": false
+  },
+  {
+    "id": "keyword-name",
+    "source": "let return = 1",
+    "accept": false
+  },
+  {
+    "id": "missing-binding-value",
+    "source": "let x =",
+    "accept": false
+  },
+  {
+    "id": "empty-interpolation",
+    "source": "let x = f\"{}\"",
+    "accept": false
+  },
+  {
+    "id": "missing-comma",
+    "source": "let x = work(1 2)",
+    "accept": false
+  },
+  {
+    "id": "brace-next-line",
+    "source": "func work()\n{ return }",
+    "accept": false
+  },
+  {
+    "id": "expression-not-top-level",
+    "source": "1 + 2",
+    "accept": false
+  },
+  {
+    "id": "bad-suffix",
+    "source": "let x = 1u17",
+    "accept": false,
+    "phase": "lexer"
+  },
+  {
+    "id": "decomposed-identifier",
+    "source": "let café = 1",
+    "accept": false,
+    "phase": "lexer"
+  },
+  {
+    "id": "expression-entry",
+    "source": "1 + 2 * (3 - 4)",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "expression-entry-trailing-junk",
+    "source": "1 + 2 3",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "triple-generic-adjacent",
+    "source": "let x: Box<Box<Box<i32>>> = value",
+    "accept": true
+  },
+  {
+    "id": "quadruple-generic-adjacent",
+    "source": "let x: Box<Box<Box<Box<i32>>>> = value",
+    "accept": true
+  },
+  {
+    "id": "nested-generic-call",
+    "source": "let x = make<Box<i32>>()",
+    "accept": true
+  },
+  {
+    "id": "failed-generic-restores-shift",
+    "source": "let x = a < b >> c",
+    "accept": true
+  },
+  {
+    "id": "failed-nested-generic-restores-shift",
+    "source": "let x = a < Box<T>> c",
+    "accept": true
+  },
+  {
+    "id": "comparison-after-shift",
+    "source": "let x = a >> b > c",
+    "accept": true
+  },
+  {
+    "id": "extra-type-close",
+    "source": "let x: Box<i32>> = value",
+    "accept": false,
+    "errorByte": 15
+  },
+  {
+    "id": "space-not-shift",
+    "source": "let x = a > > b",
+    "accept": false
+  },
+  {
+    "id": "greater-equal-not-type-close",
+    "source": "let x: Box<i32>=value",
+    "accept": false
+  },
+  {
+    "id": "greater-equal-comparison",
+    "source": "let x = a >= b",
+    "accept": true
+  },
+  {
+    "id": "triple-shift-rejected",
+    "source": "let x = a >>> b",
+    "accept": false
+  }
+]

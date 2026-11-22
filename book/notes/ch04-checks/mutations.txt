@@ -1,0 +1,47 @@
+definite-union BUILD
+  Determining projects to restore...
+  Restored /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch04-mutants-6gumbr14/definite-union/Lyric.csproj (in 23 ms).
+  Lyric -> /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch04-mutants-6gumbr14/definite-union/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.03
+
+definite-union GRADER exit=1
+FAIL branch-one: exit=0, stdout='', stderr=''
+76/77 semantic cases passed
+
+possible-no-union BUILD
+  Determining projects to restore...
+  Restored /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch04-mutants-6gumbr14/possible-no-union/Lyric.csproj (in 24 ms).
+  Lyric -> /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch04-mutants-6gumbr14/possible-no-union/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.64
+
+possible-no-union GRADER exit=1
+FAIL branch-possible: exit=0, stdout='', stderr=''
+76/77 semantic cases passed
+
+skip-constant-overflow BUILD
+  Determining projects to restore...
+  Restored /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch04-mutants-6gumbr14/skip-constant-overflow/Lyric.csproj (in 24 ms).
+  Lyric -> /Users/bill/ensemble-edition3-cadence/tmp/lyric-ch04-mutants-6gumbr14/skip-constant-overflow/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.80
+
+skip-constant-overflow GRADER exit=1
+FAIL arithmetic-default-overflow: exit=0, stdout='', stderr=''
+FAIL arithmetic-overflow: exit=0, stdout='', stderr=''
+FAIL arithmetic-no-rescue: exit=0, stdout='', stderr=''
+FAIL arithmetic-nested-overflow: exit=0, stdout='', stderr=''
+73/77 semantic cases passed

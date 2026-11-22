@@ -1,0 +1,810 @@
+[
+  {
+    "id": "empty-file",
+    "source": "",
+    "accept": true
+  },
+  {
+    "id": "comment-only",
+    "source": "// hello\n",
+    "accept": true
+  },
+  {
+    "id": "global-arithmetic",
+    "source": "let answer = 1 + 2 * 3\n",
+    "accept": true
+  },
+  {
+    "id": "unicode-name",
+    "source": "let caf\u00e9 = 123u16\n",
+    "accept": true
+  },
+  {
+    "id": "function",
+    "source": "func add(a: i32, b: i32) -> i32 {\nreturn a + b\n}\n",
+    "accept": true
+  },
+  {
+    "id": "function-declaration",
+    "source": "func work()\n",
+    "accept": true
+  },
+  {
+    "id": "unit-body",
+    "source": "func work() { return }",
+    "accept": true
+  },
+  {
+    "id": "array-and-tuple",
+    "source": "let pair = ([1, 2,], ())",
+    "accept": true
+  },
+  {
+    "id": "record",
+    "source": "let p = Point { x: 1, y: 2 }",
+    "accept": true
+  },
+  {
+    "id": "dictionary",
+    "source": "let d = {\"one\": 1, \"two\": 2}",
+    "accept": true
+  },
+  {
+    "id": "interpolation",
+    "source": "let s = f\"value: {1 + 2}\"",
+    "accept": true
+  },
+  {
+    "id": "nested-interpolation",
+    "source": "let s = f\"outer {f\"inner {x}\"}\"",
+    "accept": true
+  },
+  {
+    "id": "escaped-interpolation-brace",
+    "source": "let s = f\"{{x}}\"",
+    "accept": true
+  },
+  {
+    "id": "raw-string",
+    "source": "let s = \"\"\"\ntext\n\"\"\"",
+    "accept": true
+  },
+  {
+    "id": "if-header",
+    "source": "func work() { if ready { return } else { return } }",
+    "accept": true
+  },
+  {
+    "id": "struct",
+    "source": "struct Point {\nx: i32\ny: i32\n}",
+    "accept": true
+  },
+  {
+    "id": "generic-call",
+    "source": "let x = a<b>(c)",
+    "accept": true
+  },
+  {
+    "id": "generic-type",
+    "source": "let x: Box<i32> = value",
+    "accept": true
+  },
+  {
+    "id": "nested-generic-spaced",
+    "source": "let x: Box<Box<i32> > = value",
+    "accept": true
+  },
+  {
+    "id": "nested-generic-adjacent",
+    "source": "let x: Box<Box<i32>> = value",
+    "accept": true
+  },
+  {
+    "id": "shift",
+    "source": "let x = a >> 2",
+    "accept": true
+  },
+  {
+    "id": "tuple-selector",
+    "source": "let x = nested.0.1",
+    "accept": true
+  },
+  {
+    "id": "multiline-call",
+    "source": "let x = work(\n1,\n2\n)",
+    "accept": true
+  },
+  {
+    "id": "grouped-comparison",
+    "source": "let x = (a < b) > c",
+    "accept": true
+  },
+  {
+    "id": "cast-bitwise",
+    "source": "let x = y as u32 | z",
+    "accept": true
+  },
+  {
+    "id": "wrapping-operators",
+    "source": "let x = !-a !+ b !* c",
+    "accept": true
+  },
+  {
+    "id": "missing-operand",
+    "source": "let x = 1 +",
+    "accept": false
+  },
+  {
+    "id": "unclosed-group",
+    "source": "let x = (1 + 2",
+    "accept": false
+  },
+  {
+    "id": "extra-token",
+    "source": "let x = 1 2",
+    "accept": false
+  },
+  {
+    "id": "keyword-name",
+    "source": "let return = 1",
+    "accept": false
+  },
+  {
+    "id": "missing-binding-value",
+    "source": "let x =",
+    "accept": false
+  },
+  {
+    "id": "empty-interpolation",
+    "source": "let x = f\"{}\"",
+    "accept": false
+  },
+  {
+    "id": "missing-comma",
+    "source": "let x = work(1 2)",
+    "accept": false
+  },
+  {
+    "id": "brace-next-line",
+    "source": "func work()\n{ return }",
+    "accept": false
+  },
+  {
+    "id": "expression-not-top-level",
+    "source": "1 + 2",
+    "accept": false
+  },
+  {
+    "id": "bad-suffix",
+    "source": "let x = 1u17",
+    "accept": false,
+    "phase": "lexer"
+  },
+  {
+    "id": "decomposed-identifier",
+    "source": "let cafe\u0301 = 1",
+    "accept": false,
+    "phase": "lexer"
+  },
+  {
+    "id": "expression-entry",
+    "source": "1 + 2 * (3 - 4)",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "expression-entry-trailing-junk",
+    "source": "1 + 2 3",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "triple-generic-adjacent",
+    "source": "let x: Box<Box<Box<i32>>> = value",
+    "accept": true
+  },
+  {
+    "id": "quadruple-generic-adjacent",
+    "source": "let x: Box<Box<Box<Box<i32>>>> = value",
+    "accept": true
+  },
+  {
+    "id": "nested-generic-call",
+    "source": "let x = make<Box<i32>>()",
+    "accept": true
+  },
+  {
+    "id": "failed-generic-restores-shift",
+    "source": "let x = a < b >> c",
+    "accept": true
+  },
+  {
+    "id": "failed-nested-generic-restores-shift",
+    "source": "let x = a < Box<T>> c",
+    "accept": true
+  },
+  {
+    "id": "comparison-after-shift",
+    "source": "let x = a >> b > c",
+    "accept": true
+  },
+  {
+    "id": "extra-type-close",
+    "source": "let x: Box<i32>> = value",
+    "accept": false,
+    "errorByte": 15
+  },
+  {
+    "id": "space-not-shift",
+    "source": "let x = a > > b",
+    "accept": false
+  },
+  {
+    "id": "greater-equal-not-type-close",
+    "source": "let x: Box<i32>=value",
+    "accept": false
+  },
+  {
+    "id": "greater-equal-comparison",
+    "source": "let x = a >= b",
+    "accept": true
+  },
+  {
+    "id": "triple-shift-rejected",
+    "source": "let x = a >>> b",
+    "accept": false
+  },
+  {
+    "id": "hello-world",
+    "source": "func main() { print(\"Hello, world!\") }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "all-top-items",
+    "source": "import io from \"io\"\npub type Count = u64\npub struct Point<T> { pub x: T; y: T }\npub value class Box<T> { value: T\npub func get(self) -> T { return self.value }\n}\npub enum Result<T> { Ok(value: T), Err(status: Status), }\npub interface Readable<T> extends Collection<T> { func get(self) -> T }\nrelation DoublyLinked Graph:nodes owns [Node:graph]\nimpl Readable<Node> refs { N.get = Node.read }\npub func main() { print(\"hello\") }\npub let limit: Count = 1\nvar ready = true",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "qualified-generic-function",
+    "source": "pub func Node.map<T:Value, U>(self, x: T,) -> U where T:Value, Convert<T,U> { return convert<U>(x) }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "safe-final-functions",
+    "source": "safe func walk(self) -> gen Node { yield self }\nfinal func Node.finish(self) { return }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "function-type-trailing",
+    "source": "type Handler = fn(i32, string,) -> Result<unit>",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "types",
+    "source": "type All = ref gen [(A, B,)]? | fn() -> Result<unit>\ntype Tuple = (A, B)\ntype Group = (A)\ntype Array = [A | B]\ntype Qualified = a.b.Box<Outer<Inner<T>>>\ntype Optional = T?",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "empty-constructs",
+    "source": "struct S {}\nclass C {}\nenum E {}\ninterface I {}\nimpl I<C> {}",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "contextual-field",
+    "source": "class X { safe: i32\nfinal: bool\nvalue: string\nfunc f() }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "interface-contract",
+    "source": "interface Collection<P, C> extends Base<P:parent,C:child> {\nfield P.children: [C]\nrelation DoublyLinked P:children owns [C:parent]\nrelation Single P:weak C:holder\ndestructor owns P { return }\nsafe func iter(self) -> gen C\n}",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "impl-bindings",
+    "source": "impl<T> Collection<Graph:nodes,Node:graph> owns {\nP:children/C:parent = Graph:nodes/Node:graph\nP.children <-> Graph.nodes\nC.add = Node.add\nC.get = (self, x: i32, y,) -> i32 { return x + y }\n}",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "relation-roles-generics",
+    "source": "relation Single Mod.Graph<T>:outgoing refs Edge<U>:source",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "locals-and-control",
+    "source": "func work() {\nlet x = 1\nvar y: i32\ny += x\nwhile ready { break }\nfor Some(item), index in items.iter() { continue }\nfor (a, b) in pairs { yield a }\nlet Ok(value) = load() else { return }\nreturn\n}",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "assignment-operators",
+    "source": "func f() { a = 1; a += 1; a -= 1; a *= 1; a /= 1; a !+= 1; a !-= 1; a !*= 1 }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "tuple-pattern",
+    "source": "func f() { let (a, (b, c),) = value; let _: i32 = 2 }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "literal-patterns",
+    "source": "func f() { match x {\n-1 | 0 | 'a' => { 1 }\n\"yes\" | true | false | null => { 2 }\nSome(x, _) if ready => { x }\n(a, b) => { a }\n} }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "if-let",
+    "source": "let x = if let Some(y) = value { y } else if ready { 1 } else { 0 }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "if-newline-else",
+    "source": "func f() { if ready { 1 }\nelse { 2 }\nprint(3) }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "if-no-else-keeps-separator",
+    "source": "func f() { if ready { 1 }\nprint(3) }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "header-parenthesized-record",
+    "source": "func f() { if (Point { x: 1 }) { return }; while ({\"a\": 1}) { break } }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "header-call-record",
+    "source": "func f() { if test(Point { x: 1 }, {}) { return } }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "closure",
+    "source": "let f = (x: i32, y: i32,) -> i32 { return x + y }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "empty-closure",
+    "source": "let f = () -> unit { return }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "closure-nested-call",
+    "source": "let x = apply((x: i32) -> i32 {\nlet y = x + 1\nreturn y\n}, 2)",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "tuple-trailing",
+    "source": "(1, 2,)",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "nested-arrays",
+    "source": "[[], [1, 2,], ()]",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "dictionary-separators",
+    "source": "{\"a\": 1\n\"b\": 2; \"c\": 3,}",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "record-separators",
+    "source": "Point<T> { x: 1\ny: 2; z: 3,}",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "dictionary-as-statement",
+    "source": "func f() { {\"a\": 1} }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "empty-block-priority",
+    "source": "func f() { {} }",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "index-slices",
+    "source": "a[0].b[:][1:][ :2][1:2]",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "variant-test",
+    "source": "x is Result.Ok",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "ref-prefix",
+    "source": "ref a[0] + b",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "postfix-chain",
+    "source": "a!?.b()",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "cast-optional",
+    "source": "x as T?",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "cast-propagation",
+    "source": "(x as T)?",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "cast-grouped-union",
+    "source": "x as (A | B)",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "cast-member-boundary",
+    "source": "(x as T).member",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "generic-role-binding",
+    "source": "Collection<Node:outgoing, Edge:source>.count(node)",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "generic-repetition",
+    "source": "f<A><B>()",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "all-binary-levels",
+    "source": "a || b && c == d < e | f ^ g & h >> i + j * k",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "all-literals",
+    "source": "[1, 1.5, 1f32, \"x\", \"\"\" x \"\"\", `sym`, 'a', true, false, null]",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "fstring-nested-block",
+    "source": "f\"value={if yes { 1 } else { 2 }}\"",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "fstring-empty",
+    "source": "f\"\"",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "semicolons-newlines",
+    "source": ";;\nfunc f() {\n;1\n;\n}\n;",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "no-single-tuple",
+    "source": "(1,)",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "no-empty-index",
+    "source": "x[]",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "no-unclosed-slice",
+    "source": "x[1:",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "no-empty-generic",
+    "source": "f<>()",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "no-trailing-angle",
+    "source": "f<T,>()",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "no-ref-pattern",
+    "source": "func f() { let ref x = a }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-raw-pattern",
+    "source": "func f() { match x { \"\"\"x\"\"\" => {} } }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-float-pattern",
+    "source": "func f() { match x { 1.5 => {} } }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-else-semicolon",
+    "source": "let x = if ready { 1 }; else { 2 }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-header-dict",
+    "source": "func f() { if {\"a\": 1} { return } }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-direct-header-record",
+    "source": "func f() { if Point { x: 1 } { return } }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-match-comma",
+    "source": "let x = match y { A => {}, B => {} }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-missing-variant-field-type",
+    "source": "enum E { A(value) }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-visibility-import",
+    "source": "pub import io",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-visibility-relation",
+    "source": "pub relation Single A owns B",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-visibility-impl",
+    "source": "pub impl I<T> {}",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-two-modifiers",
+    "source": "safe final func f()",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-struct-method",
+    "source": "struct S { func f() }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-untyped-parameter",
+    "source": "func f(x) {}",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-type-unit-parens",
+    "source": "type X = ()",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-interface-comma",
+    "source": "interface I { func f(), func g() }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-impl-comma",
+    "source": "impl I<T> { A.f = B.f, A.g = B.g }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-bare-method-binding",
+    "source": "impl I<T> { a = b }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-missing-relation-kind",
+    "source": "relation Single A B",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-empty-where",
+    "source": "func f() where {}",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-raw-import",
+    "source": "import x from \"\"\"x\"\"\"",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-top-expression",
+    "source": "print(\"hi\")",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-return-stray-plus",
+    "source": "func f() { return + }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-unclosed-block",
+    "source": "func f() {",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-function-brace-next-line",
+    "source": "func f()\n{}",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-trailing-type-param",
+    "source": "func f<T,>() {}",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-pattern-single-tuple",
+    "source": "func f() { let (x,) = y }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-closure-missing-type",
+    "source": "let f = (x) -> i32 { return x }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-extra-close",
+    "source": "let x: Box<i32>> = y",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-greater-equal-close",
+    "source": "let x: Box<i32>=y",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-assignment-expression",
+    "source": "a = b",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "contextual-gen-type",
+    "source": "type X = gen",
+    "accept": true
+  },
+  {
+    "id": "contextual-gen-optional",
+    "source": "type X = gen?",
+    "accept": true
+  },
+  {
+    "id": "contextual-fn-type",
+    "source": "type X = fn",
+    "accept": true
+  },
+  {
+    "id": "no-global-let-else",
+    "source": "let x = value else {}",
+    "accept": false
+  },
+  {
+    "id": "newline-semicolon",
+    "source": "func f() { 1\n;\n}",
+    "accept": true
+  },
+  {
+    "id": "generic-repeated-calls",
+    "source": "f<A>()<B>()",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "cast-before-comparison",
+    "source": "x as T < y",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "cast-before-tuple-selector",
+    "source": "x as T.0",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "variant-before-tuple-selector",
+    "source": "x is T.0",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "complete-generic-cast",
+    "source": "x as T<U>",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "qualified-cast",
+    "source": "x as pkg.T",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "qualified-variant",
+    "source": "x is pkg.T",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "nested-generic-rollback",
+    "source": "f<A<B>> c",
+    "accept": true,
+    "expression": true
+  }
+]

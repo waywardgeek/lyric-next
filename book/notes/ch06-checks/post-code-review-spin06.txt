@@ -1,0 +1,67 @@
+"/Users/bill/.local/share/ensemble-dotnet10/dotnet" build compiler/Lyric.csproj -c Release --nologo --tl:off
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.44
+"python3" tools/spin06.py "/Users/bill/.local/share/ensemble-dotnet10/dotnet"
+Sum a range with a loop.
+func sum_to(n: i32) -> i32 {
+    var total = 0
+    var i = 1
+    while i <= n { total += i; i += 1 }
+    return total
+}
+func main() { if sum_to(10) == 55 { println("Sum is 55") } }
+Sum is 55
+
+The skipped operand has no effects.
+func mark() -> bool { print("called "); return true }
+func main() {
+    if false && mark() { print("bad") }
+    if true || mark() { print("skipped ") }
+    if true && mark() { println("done") }
+}
+skipped called done
+
+Continue reevaluates the condition; break exits the loop.
+func main() {
+    var i = 0
+    while i < 10 {
+        i = i + 1
+        if i < 3 { continue }
+        print("reached three")
+        break
+    }
+    println("")
+}
+reached three
+
+A conditional produces a value; only its selected branch runs.
+func label(n: i32) -> string {
+    return if n % 2 == 0 { "even" } else { "odd" }
+}
+func main() { println(label(10)); println(label(7)) }
+even
+odd
+
+Wrapping and modular conversion use explicit fixed-width rules.
+func main() {
+    var bits: u8 = 255u8
+    bits !+= 2u8
+    let shifted = (bits | 2u8) << 2
+    let low: u8 = (-1i16) !as u8
+    if shifted == 12u8 && low == 255u8 { println("Bits checked") }
+}
+Bits checked
+
+An outer immutable binding cannot be initialized repeatedly.
+func main() { let once: i32; while true { once = 1 } }
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-executable-14zks39t/example.ly":1:43: error LYC314: Loop may assign immutable binding 'once' again. (byte 42)
+Expected static rejection observed.
+
+Temporary source, generated C, and executables removed.

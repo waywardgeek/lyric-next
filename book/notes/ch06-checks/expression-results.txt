@@ -1,0 +1,10 @@
+PASS signed
+PASS negative-unsigned
+PASS unsigned-negative
+PASS equal-mixed
+PASS positive-mixed
+PASS negation
+PASS short-circuit
+PASS nested-short-circuit
+PASS comparison-effects
+9/9 execution cases passed

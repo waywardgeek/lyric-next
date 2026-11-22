@@ -1,0 +1,9 @@
+{
+  "name": "lyric-peg-check",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Independent execution of Lyric's canonical PEG syntax rules",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": { "peggy": "5.1.1" }
+}
