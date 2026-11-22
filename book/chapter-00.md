@@ -92,6 +92,15 @@ All graders for this book are written in languages **other than C# and Lyric**. 
 
 You may write additional tests to diagnose and verify your work. Only the designated graders and their fixtures are preserved across executions. Your diagnostic tests do not automatically become book requirements or substitute for the graders.
 
+Diagnostic scaffolding must obey the language being tested. If a lifecycle probe
+embeds source using an invented keyword or builtin, its parse failure says nothing
+about the semantic behavior you intended to test. Check that the input reaches
+the intended phase, distinguish a harness assertion or setup failure from the
+specified rejection, and preserve the failed diagnostic when correcting it.
+Likewise, unchanged input hashes establish provenance, not compiler correctness;
+CLI results and direct relationship/refusal/destruction checks provide different
+evidence.
+
 A successful command-line case requires **exit code 0 and the specified stdout**, plus any stated stderr or output-artifact conditions. An expected compilation failure requires the specified nonzero exit and diagnostic output. A crash, timeout, or unrelated failure is not a correct rejection. Each grader defines its comparison rules, including formatting and any allowed normalization.
 
 Chapter 1 will introduce character parsing together with the error interface needed to test illegal input. Successful character handling and correct rejection are both part of the assignment; error handling is not deferred until a later chapter.

@@ -181,6 +181,15 @@ DOTNET=dotnet node tools/peg/test.mjs graders/ch03/cases.json
 
 Substitute your SDK path for `dotnet` when required. Passing means all authored expectations pass, not merely that the parsers agree. Resource-limit cases intentionally are not PEG language-rejection fixtures.
 
+Validate this actual offline workload early; `node --version` does not exercise
+all JavaScript/OpenSSL initialization or library access. In a confined workspace,
+ask the orchestrator about missing runtime libraries or configuration instead of
+installing dependencies, widening access, or changing host configuration. Use the
+provided environment and direct Node command if the system Make launcher strips
+required loader variables. Keep the explicit `graders/ch03/cases.json` argument:
+the smaller development fixture default is not the required 143-case comparison.
+Verify the reported inventory, not just a zero exit status.
+
 Completion requires those checks, architecture/lifecycle review, and the practical walkthrough below. Human acceptance remains distinct from automated results. Do not begin type checking or code generation to make this syntax chapter appear more complete.
 
 ## Take it for a Spin

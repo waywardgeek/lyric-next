@@ -32,6 +32,12 @@ This storage policy is for ordinary dynamic arrays. Later class storage uses ind
 
 The earlier scalar enum and special byte-array entry cannot express `[i32]` and `[[bool]]`. Replace that representation with an explicitly value-like immutable type consisting of a scalar kind and a nonnegative array nesting depth. Depth zero means the scalar itself. Adding an array layer increments depth; selecting an element decrements it, and requires a positive depth.
 
+Audit every consumer of the old enum, including switches, constant patterns,
+helper enumeration, and default-value assumptions. A successful declaration
+change does not establish that checking and emission use the new type consistently.
+Keep kind and depth authoritative in this one value rather than maintaining an
+old enum-based classification beside it.
+
 Structural equality is sufficient for this vocabulary. `string` and `[u8]` are the same type value. There is no mutable type registry, identity ownership, or holder backlink to maintain for these values. Continue declaring shared fields and callable signatures in Common and implementing operations in Semantics. Enumerate the predefined types deliberately rather than attempting enum enumeration on the new type representation.
 
 Numeric predicates must require depth zero before examining the scalar kind. Otherwise an array of signed integers could accidentally satisfy an integer operation. Integer width and range operations continue to reject noninteger types. Arrays convert only to the identical array type; do not silently introduce recursive element conversion for an already existing array value.
@@ -146,6 +152,13 @@ The descriptor storage remains valid across its payload growth. The old element 
 Keep definite-assignment checking and borrow invalidation analysis separate. The former asks whether storage was initialized; the latter asks whether selected storage may have ceased to be valid before a use. Both consume the same resolved symbols and checked syntax.
 
 Build a temporary control-flow graph with events for acquisition, use, and backing invalidation, plus control joins and call obligations. A selected path consists of its authoritative root symbol and nesting depth. A root descriptor is depth zero; each indexing step increases depth. Aliases resolve to the original selected path, not to a new owning root.
+
+Preserve the earlier expression-depth guarantees in this new pass too. Walk long
+expression spines, including nested short-circuit operators, with staged explicit
+work stacks rather than adding recursive traversal hidden inside the graph builder.
+Parsing and ordinary checking can both succeed while a later recursive pass still
+overflows. Executing a few pointer examples successfully also does not establish
+borrow safety: rejection and control-flow checks must exercise invalidation paths.
 
 This first abstraction deliberately does not distinguish sibling indices. Paths at the same root and depth may overlap. It can reject safe operations on distinct nested children. State that precision limit honestly rather than turn it into a language-level ban or claim complete acceptance of all safe programs.
 
