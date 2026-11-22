@@ -62,6 +62,18 @@ free-slot reuse without depending on private generated names or exposing indices
 in Lyric. It does not establish leak freedom or shutdown storage reclamation.
 Temporary files are removed; `CC` and the prerequisites above apply.
 
+### Retained class-doubling policy check
+
+`allocation.py` also runs 257 simultaneously live one-scalar-field objects, without
+source-level array allocations, in both layouts at O0/O2. The generated program
+must exit 0, write no stdout, and report exactly `19\n` allocation calls for AoS
+or `20\n` for SoA on stderr. Ten metadata growths cover capacities 1 through 512.
+SoA adds ten field-buffer growths; AoS adds four directory growths and five
+64-record chunks. Stable check identifier: `class-doubling-growth` (retained).
+This deliberately checks the documented bootstrap allocator policy, not private
+helper names, peak resident memory, demand paging, or benchmark performance.
+An intentional allocator-policy change requires updating this contract explicitly.
+
 ## Final-hook contract
 
 A class has at most one final hook, taking only `self` and returning unit. Source

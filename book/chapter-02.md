@@ -1,5 +1,19 @@
 # Chapter 2 — Recognize Tokens Without Parser Feedback
 
+Parser generators are not the only tools whose tradeoffs change when an AI can write the implementation. The same question applies to Lex and Flex: do we want generated code, or do we want straightforward code that implements a precise specification?
+
+For lexers, this argument is older. I remember people advocating hand-written lexers back in the 1980s. Efficiency was one reason. A scanner is a hot loop, and writing it yourself lets you control exactly what happens for each input byte. Another reason was simply that a lexer for a modest language could often be written in a day or two. If the implementation is that small, how much machinery do we need to avoid writing it?
+
+That does not mean every hand-written lexer beats every generated scanner. Flex can produce efficient scanners, and bad manual code is still bad code. The point is that a lexer is often small enough to understand and tune directly. We do not have to make it mysterious.
+
+AI makes the choice easier for me. I want readable scanning code with explicit state, not an extra framework between the language rules and the loop that reads the source. The model can write the routine parts. We can spend our attention on the rules that are easy to get subtly wrong.
+
+And there are plenty of those. Is `123u16name` a number followed by an identifier, or one malformed numeric spelling? Does a newline matter inside a block nested within parentheses? Does a brace produced by a string escape start interpolation? Which location do we report after a multibyte character? A generated scanner does not relieve us of deciding these things. Neither does an LLM.
+
+So we write this lexer directly, but we do not let its implementation invent the language. The specification defines the rules. Public tests check exact tokens, original byte spans, decoded values, and failures. Unicode properties come from pinned data, not whatever the host library happens to recognize this year.
+
+Writing the scanning loop is the easy part. Knowing exactly what it must recognize—and proving what our checks actually cover—is the work worth keeping.
+
 ## TL;DR
 
 Turn Chapter 1's validated source into tokens. Keep original bytes authoritative, attach each token to its source, and retain exact spans rather than copying spelling. Recognize Unicode identifiers, typed numbers, operators, comments, and literals without asking a parser what the characters mean. A small lexical mode stack handles interpolation and significant newlines. Pin identifier properties and normalization to Unicode 16.0.0. Reject non-NFC identifiers with a suggestion; never silently rewrite them.

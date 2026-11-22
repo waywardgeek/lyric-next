@@ -1,5 +1,23 @@
 # Chapter 6 — Expressions and Control Flow
 
+I want Lyric to win the benchmarks that matter: average real applications, with real memory usage. Not tiny, hand-tuned demonstrations designed to make a language look fast. If we build a language that wins those demonstrations and loses on the programs people actually write, we have missed the point.
+
+Structure-of-arrays storage is a large part of my bet. When a program processes a few fields across many objects, it should not have to drag every other field through the cache with them. That advantage matters when the data stops fitting in cache. Not every access pattern favors SoA, but I expect it to give us an important advantage in real applications. If we do well enough on the rest of the language, at least in unsafe mode, I expect us to win realistic benchmarks. That is the goal, not a result we have already measured.
+
+“Do well enough” requires vigilance. We cannot give away that advantage one convenient language feature or unnecessary operation at a time. Performance has to remain part of the design conversation throughout this book.
+
+Clang gives us wonderful controls for expressing what we want. Its checked-arithmetic builtins compute an integer result and tell us whether it overflowed. We can branch to our own handler, report the Lyric source location, and show the active call trace. We do not have to choose between unchecked arithmetic and a trap that tells the programmer almost nothing. Nor do we have to reinvent overflow detection when the compiler already knows how to lower it efficiently.
+
+But choosing C also forces uncomfortable decisions. Why should shifting an integer by its width or more be undefined behavior? I would rather have an obvious, defined answer than leave a hole in the language. C does not give us that answer, and making one portable can require extra work around the shift. We want fast shifts. Lyric therefore rejects invalid counts in safe mode, but does not repair or normalize them in unsafe mode. There, an invalid count inherits unchecked C behavior. It is not a clever way to obtain zero or a masked count.
+
+The same discipline applies to other checks. Safe mode checks ordinary integer overflow, conversion ranges, division by zero, and shift counts; when arrays arrive, it checks their bounds too. Unsafe mode removes those checks. It does not remove the type system, ownership rules, or static lifetime analysis. It does not remove explicit assertions or the allocation-size and allocation-failure checks needed to manage storage. “Unsafe” is a specific contract, not an instruction to throw away everything we know about the program.
+
+Here is the future I want: an LLM examines every place in a Lyric codebase where one of those removable checks could fail, follows the relevant control flow and inputs, and establishes why it cannot. Not just for the benchmark input. For the program's supported inputs and operating conditions. If a sufficiently capable system can establish that for the whole program, we should be able to ship unsafe mode to production without giving up safety. The justification has to hold; a model's confidence alone is not enough. We do not have that capability established today.
+
+That is a different ambition from asking programmers to turn off checks and hope. We build the checked behavior first, make its requirements explicit, and leave room for better tools to establish when the checks are unnecessary.
+
+AI changes everything.
+
 ## TL;DR
 
 Retain Chapter 5 assertions in every mode: `assert(bool) -> unit` evaluates once and fails with located `LYR010` and the active trace on false. Optimization and `--unsafe` must not remove assertions.

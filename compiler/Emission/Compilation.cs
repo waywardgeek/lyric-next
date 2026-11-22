@@ -233,6 +233,27 @@ internal sealed partial class Compilation
                     array->capacity = capacity;
                 }
 
+                /* Class buffers double independently of ordinary array policy.
+                   Growth is requested only after their old slot capacity is used.
+                   Do not initialize spare slots: untouched pages may remain lazy.
+                   Reuse the checked allocator rather than duplicate realloc/errors. */
+                static void ly_class_reserve(ly_array *array, uint64_t required, size_t stride,
+                    const char *file, int line, int column)
+                {
+                    if (required <= array->capacity)
+                    {
+                        return;
+                    }
+                    uint64_t limit = SIZE_MAX / stride;
+                    uint64_t capacity = array->capacity > limit - array->capacity
+                        ? limit : array->capacity + array->capacity;
+                    if (capacity < required)
+                    {
+                        capacity = required;
+                    }
+                    ly_array_reserve(array, capacity, stride, file, line, column);
+                }
+
                 /* Only initialized elements are traversed; spare slots never own
                    children. Resetting after release makes moved/empty slots safe. */
                 static void ly_array_drop(ly_array *array, unsigned depth)
@@ -474,12 +495,12 @@ internal sealed partial class Compilation
             Line("    ly_array_failure(file, line, column, \"LYR007: class allocation size overflow\");");
             Line("}");
             Line($"index = {name}_next;");
-            Line($"ly_array_reserve(&{name}_slots, index + 1, sizeof({name}_slot), file, line, column);");
+            Line($"ly_class_reserve(&{name}_slots, index + 1, sizeof({name}_slot), file, line, column);");
             if (structureOfArrays)
             {
                 foreach (SemanticSymbol field in fields)
                 {
-                    Line($"ly_array_reserve(&{Name(field)}_storage, index + 1, sizeof({CType(field.Type!.Value)}), file, line, column);");
+                    Line($"ly_class_reserve(&{Name(field)}_storage, index + 1, sizeof({CType(field.Type!.Value)}), file, line, column);");
                 }
             }
             else
@@ -487,7 +508,7 @@ internal sealed partial class Compilation
                 Line("if (index % 64 == 0)");
                 Line("{");
                 indentation += 1;
-                Line($"ly_array_reserve(&{name}_chunks, index / 64 + 1, sizeof({name}_record *), file, line, column);");
+                Line($"ly_class_reserve(&{name}_chunks, index / 64 + 1, sizeof({name}_record *), file, line, column);");
                 Line($"ly_array chunk = ly_array_new(64, sizeof({name}_record), file, line, column);");
                 Line($"(({name}_record **){name}_chunks.data)[index / 64] = chunk.data;");
                 indentation -= 1;

@@ -1,5 +1,33 @@
 # Chapter 8 — Classes, Lifetimes, and Two Storage Layouts
 
+This chapter introduces some of the secret sauce I expect Lyric to use to win application-level benchmarks. Not a clever expression optimization. Not a benchmark trick. We are going to change how ordinary programs store and allocate their objects.
+
+C++ lets you customize memory allocation. In my experience, most application code does not. The facility exists, but getting the benefit requires somebody to design the allocator, integrate it, and keep using it correctly. I want that work built into Lyric's normal class storage, not reserved for the programmer who has time to replace the defaults.
+
+Lyric keeps storage for each class together and reuses freed object slots through a per-class free list. In this chapter, the array-of-structures layout uses slab-like chunks; the structure-of-arrays layout uses separate field buffers. Both reuse slots rather than send every object creation and destruction through the general-purpose allocator. The layouts differ, but the policy is deliberate: class storage is the default, not an optional optimization project for every application.
+
+In theory, retaining freed slots could waste memory. In practice, I have yet to run into an application where these free lists increased memory consumption—and I have been using this approach since 1990, across roughly two million lines of code I have written. Memory grows over time. It is what I keep seeing in real systems. Storage released by one object is useful for the next object of that class.
+
+That experience does not make retained memory free. A class's high-water allocation can outlive the workload that needed it. An especially clear case is when we no longer need any instances of that class. Returning that storage is a separate lifecycle problem; reusing individual slots does not solve it.
+
+There is another capability I want later: dynamic class extensions. Being able to extend every existing object of a given type on the fly is tremendously useful. Trust me, I want it. We do not need it for self-hosting, and it is not yet part of the language specification. We will not quietly turn that future idea into a requirement for this chapter.
+
+SoA has an apparent disadvantage beside our chunked AoS allocator: its field arrays need room to grow. For these class backing arrays, our growth policy is simple: double the capacity, subject to checked allocation limits. That is not a change to the growth policy of ordinary Lyric arrays. But does reserving twice the space mean using twice the physical memory? Not necessarily. Virtual memory gives us an important advantage here.
+
+Large allocations can reserve address space without immediately acquiring a private physical page for every page in that range. Linux's glibc allocator uses anonymous mappings for sufficiently large allocations; Apple's allocator and virtual-memory system also support demand-zero allocation. The exact allocator policy and page-fault mechanism differ. The useful principle is the same: untouched spare pages need not consume their full capacity in resident physical memory. We must preserve that advantage by not eagerly initializing spare slots or copying unused capacity during growth. Initialize objects when they become live, not merely because we reserved room for them.
+
+That is why I do not regard doubling capacity as automatically doubling the memory bill. It is not a claim that SoA has zero overhead: page rounding, allocator metadata, previously touched storage, and moving a growing buffer still matter. Our earlier macOS sparse-mapping experiment demonstrated virtual reservation and selective access, not the resident-memory cost of this class allocator. We need to measure the allocator we actually ship.
+
+The other half of the story is what each cache line contains. AoS puts one object's fields together. SoA puts the same field from successive objects together. Accessing two fields of a 1 KiB object does not load the whole object, but it can fetch cache lines containing mostly fields we do not need. Repeat that across many objects and we spend bandwidth carrying the wrong data. With SoA, those lines can instead contain the field values we are about to process. When we need most fields of one object together, AoS can be the better fit. This is why we build both layouts.
+
+Compact object references are another opportunity. When a class's population fits, a 32-bit slot index can replace a 64-bit pointer, letting more references fit in memory and cache. That saving is available to either indexed layout; it complements SoA rather than defining it. Configurable compact reference widths are planned work, not a feature implemented by this chapter.
+
+The allocation strategy goes beyond object slots. Our planned performance storage also keeps dynamic-array payloads for a particular field of a particular class together in a field-specific heap. If we are working through those arrays, why scatter them among allocations belonging to unrelated classes? Group the related data and give the cache a better chance of carrying what the program will use next, rather than unrelated junk. Access patterns and packing still determine the benefit, but this is exactly the sort of application-level locality I want the language to provide without hand-tuning every program.
+
+Those field-specific payload heaps come after bootstrap; this chapter still uses separate C allocations for array payloads. Here we build the class storage, SoA layout, reusable slots, and lifetime rules that make the next steps possible. Object identity must survive backing-storage growth. A pointer into storage that moves must not. Fast allocation is not much use if we cannot tell the difference.
+
+I want Lyric to become the world's fastest language for most complex applications. These are some of the design choices behind that ambition. We still have to earn the result on real programs, but we are not leaving their memory layout to chance.
+
 ## TL;DR
 
 Extend your Chapter 7 compiler with standalone ordinary classes and counted `value class` objects. Add constructors, explicitly qualified fields and methods, ordinary destruction, destructor-only final hooks, and arrays containing object handles. Generate both chunked array-of-structures storage (AoS) and growable structure-of-arrays storage (SoA). The choice changes representation, not source acceptance or object identity.
@@ -84,6 +112,8 @@ Use per-class generated metadata with a high-water slot count, a free-list head,
 For AoS, generate a record type containing all fields and a growable directory of separately allocated fixed chunks. This implementation uses 64 records per chunk. A handle selects `chunk = index / 64` and `position = index % 64`. The directory may move, but existing chunks do not. Never compact live object slots.
 
 For SoA, generate one growable field buffer per field. The same index selects its entry in every buffer. Reallocation may move a field buffer. Owned array fields contain descriptors in this buffer; their element payloads remain separately allocated by the Chapter 7 array machinery.
+
+Class metadata, SoA field buffers, and the AoS chunk directory double their capacity when full, clamping the preferred capacity to the allocation-size limit. Ordinary source-level arrays retain their separate approximately 50% growth policy. Implement the class policy by computing the doubled request and passing it to the existing checked reservation helper; do not duplicate allocation failure handling. A first allocation requests at least the required count. Never initialize spare class slots: initialize only the selected object slot. Growth occurs after the previous buffer capacity has been used, so the allocator is not asked to copy an untouched spare half. This preserves an opportunity for demand paging, not a guaranteed resident-memory bound.
 
 Allocation first pops a free slot. Otherwise it uses the next high-water slot, grows metadata and the required payload storage, and advances the high-water count only after successful allocation. AoS allocates a new chunk only at a chunk boundary. Reused slots do not consume new high-water positions. Preserve allocation-size and out-of-memory checks.
 
@@ -268,3 +298,8 @@ The single finalization occurs when the helper's remaining holders are released.
 The second example borrows a scalar field, allocates another object of that class, and then attempts to write through the old borrow. It must report `LYC326` at that later write and print `Expected static rejection observed.` Both layouts reject it, even though this AoS allocator happens not to move its chunks. Move the write before the allocation in a disposable copy to explore last-use acceptance.
 
 Read the printed programs and explain which objects are shared, which array slots are independent, and why an index handle survives allocation while a selected field pointer may not. The scripted walkthrough has passed; your own use and acceptance remain separate from that automated evidence.
+
+### Sources for the virtual-memory discussion
+
+- [Linux malloc documentation](https://man7.org/linux/man-pages/man3/malloc.3.html): glibc's large-allocation mapping policy is an allocator implementation detail, not a universal C or Linux guarantee.
+- [Apple, Tips for Allocating Memory](https://developer.apple.com/library/archive/documentation/Performance/Conceptual/ManagingMemory/Articles/MemoryAlloc.html): archived explanation of demand-zero large allocations and lazy initialization with `calloc`. Its historical thresholds and page-size examples are not current platform requirements.

@@ -78,7 +78,27 @@ def main():
                     counts.append(int(result.stderr))
                 assert counts[0] > 0 and counts[0] == counts[1], (layout, optimization, counts)
                 print('PASS', layout, optimization, 'allocation calls', counts)
-    print('4/4 free-slot allocation comparisons passed')
+                # Keep all objects live: growth must follow class doubling, not
+                # ordinary-array 50% growth. No source-level array adds allocations.
+                source.write_text(CLASS + """func main() {
+ var i = 0
+ while i < 257 { let c = Counter(i); assert(c.read() == i); i = i + 1 }
+}
+""")
+                emitted = run(compiler + options + [str(source)])
+                assert (emitted.returncode, emitted.stderr) == (0, b''), emitted
+                cfile.write_text(PREFIX + emitted.stdout.decode() + SUFFIX)
+                built = run(shlex.split(os.environ.get('CC', 'cc')) +
+                            ['-std=c11', optimization, str(cfile), '-o', str(executable)])
+                assert built.returncode == 0, built.stderr
+                result = run([str(executable)])
+                # Metadata grows at capacities 1..512 (10 calls). SoA adds
+                # 10 field growths. AoS adds 4 directory growths and 5 chunks.
+                expected = 20 if layout == 'soa' else 19
+                assert (result.returncode, result.stdout, result.stderr) == (
+                    0, b'', f'{expected}\n'.encode()), (layout, optimization, result)
+                print('PASS', layout, optimization, 'class growth calls', expected)
+    print('4/4 free-slot allocation and 4/4 class growth comparisons passed')
 
 
 if __name__ == '__main__':

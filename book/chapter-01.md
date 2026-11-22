@@ -1,5 +1,35 @@
 # Chapter 1 — Read the Source Faithfully
 
+The character encoding wars took decades to run their course. Microsoft gave us a particularly weird corner of the battlefield: `WCHAR`, `TCHAR`, `wchar_t`, narrow APIs, wide APIs, and macros to pretend we had not just doubled the problem. Those were not three successive spellings of the same solution. They were different pieces of machinery we had to understand before we could get on with our work.
+
+To be fair to Microsoft, Windows committed to Unicode before UTF-8 existed. Sixteen-bit UCS-2 looked like a sensible way to represent the world’s characters. Microsoft got there early, and then had to preserve the APIs it had shipped. The historical choice makes sense. Living with the consequences was still a pain.
+
+Meanwhile, C and C++ could not even promise that a byte had eight bits. Yes, really. `sizeof(char)` is guaranteed to be 1, but that means one *byte*, and the number of bits in that byte is implementation-defined. If you think that sounds nutty, you are in good company. The property we actually want is `CHAR_BIT == 8`.
+
+They also left the signedness of plain `char` up to the implementation. On the familiar eight-bit, signed-`char` machines, a byte with its high bit set becomes a negative `char`. Promote it to an `int`, and it stays negative. That is not what you want to use as an index into a character table. Converting it to `uint8_t` is defined; accidentally promoting it before you do that is the trap.
+
+Unicode arrived slowly, and the early hope that sixteen bits could hold all the world's characters did not last. UTF-16 accommodated the larger repertoire with surrogate pairs: some characters need two sixteen-bit code units. It still works, but “wide character” does not mean “one whole character.” UTF-32 can hold a Unicode scalar in one code unit, but even that does not make one code point equal one character on the screen. The apparently simple problem keeps sprouting qualifications.
+
+Ken Thompson and Rob Pike designed UTF-8 in 1992 and presented it publicly at the Winter USENIX conference in January 1993. It gave us a much better migration path. ASCII kept its old representation. Existing byte-oriented interfaces could carry the new text, and a C `char*` could still point to it. Editors and Unix tools could gain Unicode support without replacing every byte interface with a wide-character interface. That did not make every old text algorithm correct, but it meant we did not have to rewrite the world before using the world's languages.
+
+And if you think all this sounds excessive, IBM kept EBCDIC alive for decades too long. I remember Emilia Käsper, a major OpenSSL contributor, pointing out a spelling error in an English identifier encoded as hexadecimal EBCDIC beside a line of code I was submitting. A spelling error. In hex. In EBCDIC. Apparently being a major OpenSSL contributor requires that sort of superpower. These crazy encodings did not help.
+
+Programming languages can move even more slowly. Python did not support non-ASCII identifiers until Python 3. Plenty of us were still dealing with Python 2 around its retirement in 2020. Supporting Unicode text and letting programmers use their own language to name things turned out to be separate battles.
+
+Then came [Trojan Source](https://trojansource.codes/). Unicode includes bidirectional formatting controls for mixing left-to-right and right-to-left text. Those controls are not Arabic letters, and Arabic and Hebrew text are not the problem. The problem is allowing invisible formatting instructions to make source code appear in a different order from the order the compiler reads. Malicious code can look like a comment, or a security check can appear to exist when it does not. The bytes have not been overwritten. The reviewer's view has been manipulated.
+
+Editors, repository viewers, and compilers have added defenses. I do not want the correctness of our source review to depend on which viewer somebody happens to use. Lyric rejects literal bidi controls and other forbidden invisible characters throughout the source file, including comments and strings. If a program needs such a character as data, it can spell it visibly with an escape. This does not solve every look-alike-character attack, but it closes a door we have no reason to leave open.
+
+Languages still go to great lengths to make UTF-8 just one supported encoding. Get over it. UTF-8 won.
+
+Lyric is all-in on UTF-8 source. Its `string` type is a transparent alias for `[u8]`, an array of unsigned eight-bit integers, not a separate wide-character universe. The compiler rejects malformed UTF-8, including overlong sequences. Those are not legal alternative encodings. Unicode normalization is a different issue: later we require NFC spelling for identifiers, not silently normalize every string and comment.
+
+Runtime strings can contain arbitrary bytes. That is deliberate. A cryptographic key is not text, and binary I/O must not reject it for failing a UTF-8 check. I have seen too much C++ code funnel binary data through something called a string. OpenSSL's byte-oriented key interfaces have the right idea: bytes and lengths. Converting string storage to unsigned bytes is not inherently undefined behavior; confusing text operations, signed characters, embedded zero bytes, and binary data is the practical hazard. Lyric does not need a conversion between `string` and `[u8]` at all. They are the same type.
+
+For Lyric's C backend, we choose targets with eight-bit bytes and the exact-width integer types we need. We are not spending this project accommodating every historical machine the C standard permits.
+
+So we begin with bytes, give them one unambiguous source encoding, and refuse to let invisible text change the program somebody thinks they are reviewing.
+
 ## TL;DR
 
 Build the first executable part of the Lyric compiler: a source reader that strictly decodes UTF-8, rejects forbidden literal characters, and reports precise locations. Its inspection mode exposes what the real reader sees. It does not recognize tokens, check identifiers, parse programs, or generate C.
@@ -170,3 +200,17 @@ independent implementations and read-only grader workspaces.
 The first file produces five scalar events, then EOF. The accented letter begins at byte zero and spans two bytes. CRLF begins at byte two and spans two bytes. The CJK letter begins at byte four, the tab at byte seven, and the emoji at byte eight. EOF is byte twelve, line two, column four. The second file produces `LYC002` for U+202E at byte three, line one, column four, with no scalar events. The temporary directory is removed automatically; no server or background process remains to stop.
 
 Your human collaborator should try this walkthrough before accepting the chapter. An agent demonstration and passing graders are evidence, not a substitute for that use.
+
+
+## Sources for the opening
+
+- [Rob Pike's UTF-8 history](https://www.cl.cam.ac.uk/~mgk25/ucs/utf-8-history.txt), including the September 1992 correspondence.
+- [Winter 1993 USENIX proceedings](https://www.usenix.org/conference/usenixwinter1993conference), listing Pike and Thompson's “Hello World” presentation.
+- Raymond Chen, [“The sad history of Unicode printf-style format specifiers in Visual C++”](https://devblogs.microsoft.com/oldnewthing/20190830-00/?p=102823), explains Windows' early UCS-2 commitment and its first-mover disadvantage.
+- [RFC 2044](https://www.rfc-editor.org/info/rfc2044/) documented UTF-8 in 1996; [RFC 2277](https://www.rfc-editor.org/info/rfc2277/) established the January 1998 IETF policy requiring UTF-8 support for text in protocols entering its standards process. Documentation, public presentation, and protocol policy are distinct milestones.
+- C++ working draft: [`sizeof`](https://eel.is/c++draft/expr.sizeof), [byte definition](https://eel.is/c++draft/intro.memory), and [plain character types](https://eel.is/c++draft/basic.fundamental).
+- Microsoft: [character types](https://learn.microsoft.com/en-us/cpp/cpp/char-wchar-t-char16-t-char32-t) and [surrogates and supplementary characters](https://learn.microsoft.com/en-us/windows/win32/intl/surrogates-and-supplementary-characters).
+- [PEP 3131: Supporting Non-ASCII Identifiers](https://peps.python.org/pep-3131/), adopted for Python 3.0.
+- [Trojan Source](https://trojansource.codes/), Nicholas Boucher and Ross Anderson's attack description and defenses.
+
+The OpenSSL/EBCDIC story is the author's recollection.

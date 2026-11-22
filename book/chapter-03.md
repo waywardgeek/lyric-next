@@ -1,5 +1,33 @@
 # Chapter 3 — Parse the Language
 
+Parsing has a crazy history. Much of the foundational work happened in the 1960s. In 1975, Stephen C. Johnson at Bell Labs published *Yacc: Yet Another Compiler-Compiler*. Even then, apparently, we had enough compiler-compilers to need a joke about it.
+
+Yacc's LALR(1) parsers became important tools. But being able to look at a shift/reduce or reduce/reduce conflict and quickly see how to fix the grammar remained a specialized skill. I happen to be good at it. I wrote many such parsers over my career. That does not mean I think everybody else should have to acquire the same expertise before designing a useful input language.
+
+In my experience, most software engineers have never learned to use Yacc, a newer parser generator, or an abstract syntax tree library. These tools have powered important compilers without becoming everyday skills for the typical programmer. Using a JSON library is not the same thing as knowing how to construct a parser.
+
+So we put everything in JSON, or some variation of it. I think avoiding the cost of designing and maintaining a parser is part of that story. Sometimes JSON is exactly right. Sometimes we are making people read a data interchange format because nobody wants to own a better syntax.
+
+LLMs have learned from enormous amounts of source code. Ask one to write a parser without insisting on a particular tool, and in my experience you get recursive descent. When I built the first Lyric compiler with Claude Opus 4.6—the one that became self-hosting in nine days—I asked it to read the PEG parser from my earlier language, [Rune](https://github.com/google/rune), and build a PEG-based parser for Lyric.
+
+It wrote recursive descent instead. Whatever.
+
+That experience helped change how I think about the problem. I still want a precise grammar. I do not necessarily want a parser generator to write the production parser.
+
+I am firmly in the PEG camp. Parsing Expression Grammars, formalized by Bryan Ford in 2004, read much more like instructions for recursive descent than a set of productions you must persuade an LR machine to accept without conflicts. Try this alternative first; if it fails, restore the position and try the next. That makes sense to regular programmers. The order is part of the language definition, not a hint the implementation can ignore.
+
+PEGs have serious theory behind them too. My objection is not to computer science. It is to making every programmer wrestle with machinery that does not resemble the program they are trying to write. A PEG gives me a specification I can read, discuss, and turn into straightforward code.
+
+AI changes the economics. A major reason to use a parser generator was to avoid the labor of writing and maintaining recursive descent. But if an LLM can write that code quickly, explain it, and update it when the grammar changes, why force it through a generator? Spend the effort on a clear specification and convincing checks instead.
+
+In my opinion, the era of parser generators as the default way to build the production parser is ending. The grammar is not going away. The generator gets a different job: checking the implementation rather than being the implementation.
+
+That is the approach here. Lyric has an authoritative PEG specification. We build readable recursive-descent code and use Peggy to generate a separate recognizer from the grammar. The model compares the rules with its code; executable tests compare acceptance and rejection against the recognizer and against explicit expected outcomes. Separate tree tests check that accepted programs have the right structure. Our recognizer shares the compiler's lexer, so it is an independent syntax check, not an independent check of tokenization.
+
+Agreement on tested inputs is not a proof that two parsers accept exactly the same language. But it gives us something much better than asking an LLM whether its parser looks correct and accepting “yes.”
+
+Keep the specification. Automate the checking. Let the model write the boring code.
+
 ## TL;DR
 
 Turn Chapter 2's tokens into a syntax tree for the complete current grammar. Parse hello world, arithmetic, declarations, types, interfaces, relations, patterns, and control flow. Preserve the written structure; do not resolve names, check types or lifetimes, or execute the program yet.
@@ -203,3 +231,10 @@ make spin03
 This builds Release and uses temporary `.ly` files to show hello world's tree, arithmetic precedence, and a located rejection of an unfinished expression. It does not execute Lyric or require Peggy, network access, credentials, or paid services. Temporary files are removed automatically. Set `DOTNET` or `PYTHON` on the Make command line if needed.
 
 Look for `main`, the ordinary `print` call, and its string argument in the first tree. In the arithmetic tree, multiplication must be beneath addition. The final example must report an error, not print a partial tree. Edit your own source file and inspect it directly with `dotnet compiler/bin/Release/net10.0/Lyric.dll --inspect-syntax your-file.ly` when you want to explore further.
+
+
+## Sources for the opening
+
+- Stephen C. Johnson, *Yacc: Yet Another Compiler-Compiler*, Bell Laboratories Computing Science Technical Report 32 (1975); [report text](https://www.cs.utexas.edu/~novak/yaccpaper.htm).
+- Bryan Ford, [*Parsing Expression Grammars: A Recognition-Based Syntactic Foundation*](https://bford.info/pub/lang/peg/), POPL 2004.
+- [Rune](https://github.com/google/rune), the author's earlier language. The first-Lyric development account and assessment of everyday parsing expertise are the author's experience; the prediction about parser generators is his opinion.

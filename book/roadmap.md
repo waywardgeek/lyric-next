@@ -1,6 +1,6 @@
 # Agreed next construction increments
 
-This is the dependency spine agreed with Bill after Chapter 7, not a fixed table of contents or authorization to skip verification. Chapter 8 is authorized for implementation. Later chapter boundaries will follow demonstrated increments.
+This is the dependency spine agreed with Bill, not a fixed table of contents or authorization to skip verification. Chapter 8 is complete through reviews and independent reconstruction; Bill accepted it and reports running `spin08`. Bill has prioritized accelerating multi-class interfaces and approved Chapters 9 and 10 below. Later relationship chapter boundaries remain provisional.
 
 ## Chapter 8 — Standalone classes and lifetime policies
 
@@ -8,9 +8,29 @@ Implement ordinary classes and reference-counted `value class` objects, construc
 
 Use chunked nonmoving AoS with free-slot reuse; allocate from the last chunk's unused slots before adding another chunk. SoA uses growable per-field arrays. Object handles are indices. Potential class-storage growth invalidates still-needed field borrows conservatively in both layouts; ordinary handles survive growth, not destruction. Analyze class accesses using the existing storage-selection/effect model, rather than generating allocator syntax for a second analysis pass. Final hooks and generated counted releases have visible transitive effects. Initial backend uses immediate retain/release and scope cleanup; language-wide counted-finalization timing remains broader.
 
-## Interfaces, then cooperating types
+## IR, then accelerated multi-class interfaces
 
-Next teach ordinary interfaces and the generic specialization needed for a useful algorithm. Interface conformance requires behavior, not implicit storage injection or runtime wrappers. Then extend the same mechanism to multi-class interfaces and explicit participant mappings; start with an example that does not secretly require persistent relationships.
+The agreed architecture introduces an IR for explicit execution and ownership
+operations before C emission. Semantic resolution selects complete interface
+bindings; specialization/IR construction lowers abstract operations to concrete
+calls and storage, and generated bodies participate in effect/lifetime checks.
+The C emitter does not resolve interfaces. See the [IR and interface design
+record](notes/ir-interface-design.md) for decisions, reasons and open details.
+
+The agreed next boundary is **Chapter 9 for the IR refactor**, followed by
+**Chapter 10 combining necessary generic-function specialization, ordinary
+interfaces and multi-class interfaces**. Keep Chapter 5 in its current position:
+early executable behavior earns the later refactor, whose runtime helpers and
+retained behavioral checks remain useful. Do not require a comprehensive
+optimization suite or a separate ordinary-interface chapter before cooperating
+types. This records the agreed sequence; implementation has not started.
+
+Start with a method-based example that does not require persistent relationships.
+Nullable references, Result/Status/propagation and generators are prerequisites
+for later relationship features, not for that first multi-class contract.
+Interface conformance requires behavior, not implicit storage injection or runtime
+wrappers. Preserve all participant and endpoint-role mappings in binding and
+specialization identity from the start.
 
 ## Relationship prerequisites and the graph
 

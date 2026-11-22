@@ -20,7 +20,7 @@ Authoring collaboration follows the [recorded agreements](notes/authoring.md).
 
 - [Chapter 6 — Expressions and Control Flow](chapter-06.md): expanded reference implementation and teaching complete through both reviews and fresh-student reconstruction. The reference and independent student each pass 250 Chapter 6 cases in both configurations, all retained checks, the separate PEG comparison, and the scripted walkthrough. The student needed runtime setup assistance only; Bill has accepted Chapter 6 and closed it out.
 
-- [Chapter 7 — Arrays, Ownership, and Stable References](chapter-07.md): teaching for the implemented array and reference increment. The single code review is incorporated. All 102 Chapter 7 cases and retained earlier suites pass in Debug and Release, plus the separate 143-case PEG comparison and scripted walkthrough. The earlier 90-case sanitizer run passed. Both single reviews are incorporated; a fresh confined student independently passed all required cumulative checks, PEG143, and the scripted walkthrough without implementation assistance or grader changes. Human walkthrough and acceptance remain pending.
+- [Chapter 7 — Arrays, Ownership, and Stable References](chapter-07.md): teaching for the implemented array and reference increment. The single code review is incorporated. All 102 Chapter 7 cases and retained earlier suites pass in Debug and Release, plus the separate 143-case PEG comparison and scripted walkthrough. The earlier 90-case sanitizer run passed. Both single reviews are incorporated; a fresh confined student independently passed all required cumulative checks, PEG143, and the scripted walkthrough without implementation assistance or grader changes. Bill has read and accepted Chapter 7 and reports running `make spin07`.
 
 The historical completion results above predate the newly approved assertion
 and capacity contracts. Their construction requirements are integrated into
@@ -52,7 +52,13 @@ See [Chapter 2 development notes](notes/ch02-development.md) for evidence limits
 
 See [the next-increment roadmap](roadmap.md) for the approved Chapter 8 scope and the interfaces → multi-class interfaces → relationships dependency spine. It supersedes the broad sketch below where more specific.
 
-- [Chapter 8 — Classes, Lifetimes, and Two Storage Layouts](chapter-08.md): reference implementation and teaching complete through the single code and text reviews and fresh independent reconstruction. Both configurations pass all retained checks, including 154 static class cases and 212 layout executions, plus allocation/ownership checks, PEG143, and the scripted walkthrough. The student received a grader correction and constructor-scope clarification, but no implementation assistance; see the [reconstruction report](notes/ch08-student-report.md). Human walkthrough and acceptance remain pending.
+- [Chapter 8 — Classes, Lifetimes, and Two Storage Layouts](chapter-08.md): reference implementation and teaching complete through the single code and text reviews and fresh independent reconstruction. Both configurations pass all retained checks, including 154 static class cases and 212 layout executions, plus allocation/ownership checks, PEG143, and the scripted walkthrough. The student received a grader correction and constructor-scope clarification, but no implementation assistance; see the [reconstruction report](notes/ch08-student-report.md). Bill has read and accepted Chapter 8 and reports running `make spin08`.
+
+The agreed next chapters are **Chapter 9: explicit execution and ownership IR**,
+then **Chapter 10: generic specialization and multi-class interfaces**. Chapter 5
+stays where it is to provide early executable behavior. See the [design
+record](notes/ir-interface-design.md) for the semantic-resolution/IR/C-emission
+boundary. These chapters are planned, not implemented.
 
 ## Provisional construction sequence
 

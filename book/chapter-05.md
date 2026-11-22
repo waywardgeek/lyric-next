@@ -1,5 +1,35 @@
 # Chapter 5 — Run the Program
 
+By the time an LLM can autonomously build an optimizing frontend competitive with the engineering we get from Clang, I expect it will no longer need me in the loop. At that point, all bets are off. It may replace this compiler, this specification, or the language itself with something better that we cannot predict. I am not designing a speculative backend migration for that world. For as long as the human—me—is required, C is our backend.
+
+The world believes very strongly in many things that are false. I only know what some of them are. One is the idea that a serious new programming language should target LLVM IR rather than C, and that doing so is automatically the performance-conscious choice.
+
+That advice leaves out an enormous amount of work.
+
+LLVM is not a magic box that turns any correct intermediate representation into the best possible machine code. The shape of the input matters. So do the facts the frontend communicates about that input. Clang has spent years learning how to express C and C++ in a form the LLVM optimizer understands. If we bypass Clang and generate LLVM IR ourselves, producing equally useful input becomes our problem.
+
+You do not have to take my word for that. LLVM's own frontend performance guide says that “surprisingly small changes in the source IR can have a large effect on the generated code.” It also says that “the further your IR gets from what Clang might emit, the less likely it is to be effectively optimized.” Its advice includes writing a small C program and looking at what Clang generates.
+
+At that point I have a question: why not just emit the C?
+
+Not to sound too much like Claude Opus, but I learned this the hard way. My earlier language, [Rune](https://github.com/google/rune), followed the standard advice and targeted LLVM IR. Rune had structure-of-arrays storage, efficient object creation and destruction, and no garbage collector. Those were supposed to be performance advantages. Yet it did not win the benchmarks I ran. My diagnosis was that the LLVM IR I was generating was letting the design down. A good memory layout does not rescue optimizer input that fails to expose its advantages.
+
+I also regretted not having a useful intermediate representation of my own when I wrote that generator. Too much work was happening at the point where I was trying to spell the backend output. That is a separate lesson, and we will use it too.
+
+The problem is not that direct LLVM IR makes fast code impossible. Clearly it does not. The problem is that choosing LLVM IR does not give a new compiler the engineering already embodied in Clang's frontend. I do not want to spend this project rebuilding that work merely to reach the starting line.
+
+For Lyric, we will write C.
+
+This is not a temporary shortcut until we get around to a “real” backend. C is the backend for the useful life of this human-guided project. We deliberately accommodate its constraints, express our semantics correctly, and let an established compiler do the work it already knows how to do.
+
+We also choose an actual compiler, not an imaginary lowest common denominator. Our initial tested toolchain is Apple Clang on ARM64. Its checked-arithmetic builtins give us a direct way to request an integer result and an overflow flag without first performing undefined signed arithmetic. GCC has comparable builtins; this is not a claim that Clang uniquely provides them or that we have measured it beating GCC. In fact, the local command named `gcc` was Apple Clang too. A different executable name is not a different compiler experiment.
+
+Choosing C does not mean outsourcing the whole optimizer. Clang does not automatically know that a retain followed by a release represents an unnecessary temporary owner, or that an array copy can safely become a move. Those are Lyric facts. We will give them an explicit IR and optimize them before emitting C. The division of labor is deliberate: Lyric handles its ownership, value semantics, and layouts; Clang handles the established C compilation pipeline.
+
+First, though, we need a program that runs. This chapter emits C directly from checked source. Later, Chapter 9 moves the execution and ownership decisions into our IR while preserving the behavior we establish here. We keep the working backend and its tests; we replace the scaffolding that no longer serves us.
+
+I want Lyric to win on real programs. Generating C is not an apology for that ambition. It is part of the plan.
+
 ## TL;DR
 
 Turn the checked Chapter 4 subset into a real executable. Add `--emit-c FILE`, which checks an executable and writes one self-contained C11 translation unit. Compile that output with a C compiler and run it. The Lyric compiler does not launch another compiler itself.
@@ -14,7 +44,7 @@ The preceding chapter can establish that a call resolves, its arguments fit, and
 
 C is our intended long-term performance backend, not a temporary convenience on the way to emitting LLVM IR. Our ambition is for Lyric in structure-of-arrays (SoA) mode to be the fastest language for most real projects. The compiler should make efficient layouts available to ordinary application code, rather than require programmers to handcraft specialized representations. C programmers can write SoA themselves, but that does not make it the normal way applications are built. Representative applications are the important test: winning a small benchmark with expert-tuned code is not the same as making everyday programs fast. Later chapters build the class layouts; this chapter establishes execution, not those performance results.
 
-Emitting C also uses the C compiler's frontend lowering before its optimizer and machine-code backend. Direct LLVM IR bypasses Clang's C frontend; producing equally effective optimizer input then becomes our responsibility. Bill's experience with Rune motivates this choice: he reports that its SoA implementation lost benchmarks because of its LLVM-IR emission route, rather than its layout strategy. We choose C to exploit the established compilation pipeline, not merely to save implementation effort. This chapter does not measure the relative performance of those routes or assign a numerical share of Clang's optimizations to its frontend.
+Direct LLVM IR bypasses Clang's C frontend; producing equally effective optimizer input then becomes our responsibility. Our choice uses the established compilation pipeline without claiming that C must outperform every direct-IR frontend. Loop unrolling, for example, is an LLVM optimization pass, not a transformation available only in Clang's frontend. This chapter does not benchmark alternative backend routes; the opening's Rune account explains the author's motivation.
 
 C is still not Lyric's semantic authority. Its expression order, integer promotions, signed-overflow behavior, and string conventions differ from ours. A mechanical source-to-source translation would therefore be wrong even when the resulting C compiles.
 
@@ -195,3 +225,11 @@ First you will see `Hello, Ken and Tom!` from a real executable. Next, argument-
 For a manual view of generated code, use a disposable directory of your own, write a hello-world `.ly` source there, invoke `--emit-c` with stdout redirected to a `.c` file, and compile it with `cc -std=c11 -O2`. Only compile when emission succeeded. The automated walkthrough performs those same separate steps and checks each status before proceeding.
 
 The human walkthrough remains a practical acceptance step distinct from a student's or author's successful execution. Completing this chapter does not add classes, prove the entire runtime memory-safe, or authorize installation or publication. It establishes an executable foundation to which later chapters can add features and their checks together.
+
+
+## Sources for the opening
+
+- LLVM, [Performance Tips for Frontend Authors](https://llvm.org/docs/Frontend/PerformanceTips.html), especially “IR Best Practices” and “Describing Language Specific Properties.” The quotations above come from that guide.
+- LLVM, [Analysis and Transform Passes](https://llvm.org/docs/Passes.html#loop-unroll-unroll-loops), documenting loop unrolling as an LLVM pass.
+- Clang, [Checked Arithmetic Builtins](https://clang.llvm.org/docs/LanguageExtensions.html#checked-arithmetic-builtins).
+- [Rune](https://github.com/google/rune). The benchmark experience and diagnosis are the author's account, not a new controlled backend comparison performed for this chapter.

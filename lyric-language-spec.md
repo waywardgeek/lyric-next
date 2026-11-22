@@ -2193,7 +2193,7 @@ The compiler should follow the architecture the language supports:
 
 Parsing, resolution, elaboration, specialization, effect inference, safety checking, lowering, optimization, and emission are distinct responsibilities. Their exact pass arrangement is an implementation choice. No generated specialization may escape the safety checks.
 
-Specialization substitutes resolved declarations and bindings, not ambiguous text. Generated name mangling is not the identity of a relationship.
+Specialization substitutes resolved declarations and bindings, not ambiguous text. Generated name mangling is not the identity of a relationship. Interface satisfaction and complete participant/role binding are semantic responsibilities, not decisions deferred to C emission. Before backend emission, abstract operations must resolve to their selected concrete operations or specialized bodies, with binding provenance and the selected contract's permissions preserved. Defaults, adapters, explicit storage implementations, and generated cleanup remain subject to effect and lifetime checks; lowering cannot erase those obligations. The particular IR structure and transformation algorithms belong to the implementation design.
 
 Compiler explanations should answer concrete questions:
 
