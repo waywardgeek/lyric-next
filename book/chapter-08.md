@@ -166,6 +166,35 @@ Export field mutations as well as formal-reference mutations in helper summaries
 
 Constructor initialization needs a narrow distinction, not a constructor-wide exemption. A store proven to affect only newly allocated `self` storage does not replace an existing caller object's payload; it still invalidates earlier local borrows of that fresh payload. A constructor may also take an existing same-class object as a parameter and mutate its fields. Those effects must reach callers, including mutations through aliases or helpers. Omit an outward mutation only when its fresh-storage provenance is established; the enclosing constructor or matching class name alone is insufficient. Constructor allocation still carries the class-growth effect before its body uses reference arguments.
 
+For example, this library fragment must be rejected at the final use of `element`:
+
+```lyric
+class C {
+    a: [i32]
+    func C(self, others: [C]) {
+        self.a = [1]
+        if len(others) > 0 { others[0].a = [2] }
+    }
+}
+func use() {
+    let c = C([])
+    let element = ref c.a[0]
+    let other = C([c])
+    element = 3
+}
+```
+
+The first construction initializes only fresh storage. The second also replaces
+an existing object's array through `others[0]`. The array parameter copies
+handles, not objects, so that replacement releases the payload selected by
+`element`. Class allocation alone is not the reason for rejection: the field
+descriptor can move without moving its separately allocated element payload.
+The constructor's existing-object mutation must reach the caller and invalidate
+that payload borrow. Track the same distinction through aliases and helper
+arguments. A passing public suite does not replace this source-level reasoning;
+this counterexample was found during the student's own review after an earlier
+public pass.
+
 ## Cleanup effects require possible occupancy
 
 A declared counted type alone does not mean a holder currently owns anything. Reuse the graph's worklist to track possible occupancy separately from definite initialization. Register owned parameters as occupied, borrowed constructor/final receivers as nonowners, and uninitialized locals as empty. Each executed declaration resets its holder state, including on loop iterations.

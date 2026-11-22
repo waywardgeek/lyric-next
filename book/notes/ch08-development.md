@@ -578,3 +578,8 @@ Lesson: being inside a constructor is not proof that a mutation targets fresh st
 The fresh student independently corrected constructor freshness provenance, then passed the final cumulative suite in Debug and Release, separate PEG143, and spin08. Parent read final receipts and summaries and verified all 28 source/project and 10 artifact hashes without rerunning the candidate. The child is stopped. See `ch08-student-report.md` and `ch08-checks/student/` for results, assistance, and limits. The public static inventory remains 154: the student's additional constructor counterexample is diagnostic evidence, not silently promoted to a new completion gate. No student sanitizer run or human acceptance is claimed.
 
 The reference implementation is not replaced by the independent student. Constructor-provenance teaching is integrated; any future retained-case extension should preserve this completed result rather than trigger an automatic student rerun.
+
+
+## Student-feedback integration audit
+
+Compared all six student lessons with construction prose: capacity/grouped selection in Chapter 7; exceptional unsafe folding in Chapter 6; discard cleanup, validity/occupancy, constructor provenance, and bounded allocation evidence in Chapter 8. Added the student's existing-object constructor counterexample beside the provenance rule, and explicit private-helper naming/source-review guidance in Chapter 6. This is teaching integration, not new grading or another execution of the passing student.

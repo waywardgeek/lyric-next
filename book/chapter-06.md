@@ -45,6 +45,13 @@ Use direct C `+`, `-`, `*`, `/`, unary minus, and ordinary casts for unchecked o
 
 Small, frequently used numeric helpers should be `static inline`, including the remaining bit-reconstruction and wrapping helpers. This makes the intended use explicit without forcing large allocation or failure routines to inline. We choose straightforward unchecked C for performance; passing correctness checks alone does not establish a speedup.
 
+Generated helper names are implementation details, not a public interface.
+Review the generated definitions and call paths to establish that small helpers
+are inline and unchecked arithmetic bypasses checked helpers. Do not infer
+those properties by counting a reference compiler's identifier spellings or
+requiring unused helper definitions to remain in the output. Behavioral grader
+passes and this source review establish different evidence.
+
 ### Division, remainder, and negation
 
 Division truncates toward zero; a nonzero remainder has the dividend's sign. In default safe mode, check a known zero divisor during semantic analysis, and a dynamic divisor before evaluating C arithmetic. Signed minimum divided by -1 overflows. Signed minimum remainder -1 is valid and equals zero, but C's `%` is unsafe for that pair too. Return zero before executing `%`.
