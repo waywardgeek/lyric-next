@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 76, in <module>
+    main()
+    ~~~~^^
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 62, in main
+    assert compiled.returncode == 0 and not compiled.stderr, (name, layout, compiled.stderr)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('final-reads-field', 'aos', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-layout-vq7g7tv5/final-reads-field.ly":1:7: error LYC306: Final hook emission is not implemented yet. (byte 6)\n')

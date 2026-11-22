@@ -101,3 +101,8 @@ chains with expected-type and typed-neighbor context respectively. They require
 silent success within the ordinary case timeout, not a performance benchmark.
 
 The retained Chapter 3 PEG comparison is also required separately from `make test`: after building Release, run `DOTNET=dotnet node tools/peg/test.mjs graders/ch03/cases.json` from the solution root, substituting tool paths as needed. Require exit zero and 143/143 authored expectations. See Chapter 3 for pinned setup; prepared offline bundles need no download.
+
+The three retained `assert-*` cases add the ordinary `assert(bool) -> unit`
+signature, boolean argument checking, and arity checking. False is accepted by
+semantic checking; Chapter 5 tests its runtime failure. The current suite has
+82 cases; the earlier 79-case reconstruction did not exercise these additions.

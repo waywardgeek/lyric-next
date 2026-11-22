@@ -2,11 +2,14 @@
 
 ## TL;DR
 
+Retain Chapter 5 assertions in every mode: `assert(bool) -> unit` evaluates once and fails with located `LYR010` and the active trace on false. Optimization and `--unsafe` must not remove assertions.
+
+
 Extend the existing checker and C emitter together. Add integer division, remainder, computed negation, explicit wrapping, bitwise operations, shifts, and integer casts; boolean comparisons and short-circuit operators; compound assignment; value-producing conditionals; and while loops with break and continue. Preserve left-to-right effects, checked integer widths, definite assignment, and located failures.
 
 Use a C compiler that provides checked addition, subtraction, and multiplication builtins. The verified toolchain is Apple Clang 21 on macOS ARM64. Requiring suitable target facilities is simpler than maintaining both manual guards and a builtin implementation. Lyric still owns its semantics: compiler builtins do not choose our types, sequence expressions, or produce our diagnostics.
 
-Start from your Chapter 5 compiler. The public [Chapter 6 grader contract](../graders/ch06/README.md) defines the supported behavior, exact failures, and comparison rules. This chapter does not add arrays, classes, floating expressions, general unsafe mode, generic functions, or new assignment destinations. Unsupported constructs still reject explicitly.
+Start from your Chapter 5 compiler. The public [Chapter 6 grader contract](../graders/ch06/README.md) defines the supported behavior, exact failures, and comparison rules. This chapter does not add arrays, classes, floating expressions, generic functions, or new assignment destinations. Unsupported constructs still reject explicitly.
 
 ## Three questions, not one
 
@@ -30,9 +33,21 @@ Shifts are different: the left operand alone determines the result width. The co
 
 Continue exact constant evaluation with arbitrary-precision integers. Constants must obey the same operation widths and failure rules as runtime values. Do not fold a variable's remembered initializer or an effectful conditional into an apparent effect-free constant. The emitter's shortcut for a constant fact depends on that guarantee.
 
+### Safe defaults and the unchecked mode
+
+Add `--unsafe` to `--emit-c`, `--check`, and `--check-library`, before the filename. Reject unknown or duplicate options. Default checking and emission remain safe. Store this policy once on the analysis created for a compilation; emission reads it there rather than accepting a potentially different choice. Later class layout options remain independent.
+
+Unsafe mode removes ordinary arithmetic overflow, integer-conversion range, shift-count, and zero-divisor checks. When arrays arrive in Chapter 7, it also removes index bounds checks. Type, initialization, ownership, and static lifetime rules remain. Every operation accepted without a diagnostic in safe mode must retain its result. Only exceptional inputs that safe mode rejects may inherit unchecked C behavior. Emit a conspicuous unsafe comment in the generated translation unit and disclose the mode in benchmarks.
+
+Keep valid constant folding. In unsafe mode, leave an overflowing ordinary operation, out-of-range ordinary cast, invalid shift count, or zero division unfolded instead of assigning it a guaranteed result. In particular, do not invoke the host arbitrary-precision divide operation on zero while checking. Explicit wrapping operations still fold modulo the selected width. Literal representability and type compatibility are not disabled.
+
+Use direct C `+`, `-`, `*`, `/`, unary minus, and ordinary casts for unchecked operations, converting operands to the selected Lyric operation type as needed. Preserve the existing left-to-right snapshots. For `%`, retain the signed-minimum/-1 zero case before C remainder. Left shift retains unsigned bit lowering and width reconstruction; it is valid for negative signed operands and may discard high bits. On the supported arithmetic-right-shift C target, valid `>>` can use the native operator. Do not normalize invalid unsafe shift counts. Mixed comparisons and explicit wrapping operators retain their established semantics in both modes.
+
+Small, frequently used numeric helpers should be `static inline`, including the remaining bit-reconstruction and wrapping helpers. This makes the intended use explicit without forcing large allocation or failure routines to inline. We choose straightforward unchecked C for performance; passing correctness checks alone does not establish a speedup.
+
 ### Division, remainder, and negation
 
-Division truncates toward zero; a nonzero remainder has the dividend's sign. Check a known zero divisor during semantic analysis, and a dynamic divisor before evaluating C arithmetic. Signed minimum divided by -1 overflows. Signed minimum remainder -1 is valid and equals zero, but C's `%` is unsafe for that pair too. Return zero before executing `%`.
+Division truncates toward zero; a nonzero remainder has the dividend's sign. In default safe mode, check a known zero divisor during semantic analysis, and a dynamic divisor before evaluating C arithmetic. Signed minimum divided by -1 overflows. Signed minimum remainder -1 is valid and equals zero, but C's `%` is unsafe for that pair too. Return zero before executing `%`.
 
 Computed unary minus retains its operand type. Negating signed minimum overflows; negating a nonzero unsigned value with ordinary minus does too. Keep the direct negative-literal rule from Chapter 4: parse the magnitude and sign together before checking representability, so `-128i8` remains legal. That special case is not permission for a computed operand to overflow.
 
@@ -40,7 +55,7 @@ Runtime computed negation can reuse checked subtraction from zero. Its diagnosti
 
 ### Delegate checked arithmetic, not language semantics
 
-Replace Chapter 5's manual add/subtract/multiply guards with typed helpers using `__builtin_add_overflow`, `__builtin_sub_overflow`, and `__builtin_mul_overflow`. Each helper declares an exact-width result and passes its address to the builtin. For example, the addition helper for i8 uses an `int8_t` output, not a C `int` output. The pointer type establishes the overflow boundary even when C normally promotes narrow operands.
+Replace Chapter 5's manual add/subtract/multiply guards with typed `static inline` helpers using `__builtin_add_overflow`, `__builtin_sub_overflow`, and `__builtin_mul_overflow`. Each helper declares an exact-width result and passes its address to the builtin. For example, the addition helper for i8 uses an `int8_t` output, not a C `int` output. The pointer type establishes the overflow boundary even when C normally promotes narrow operands.
 
 On a true overflow flag, invoke the existing located `LYR001` failure path with the same operation name and active Lyric trace. Otherwise return the result. Do not execute ordinary signed arithmetic first and inspect it afterward. Do not replace these calls with a process-wide trapping flag: we need our own diagnostic and location.
 
@@ -187,6 +202,8 @@ python3 graders/ch06/run.py dotnet compiler/bin/Debug/net10.0/Lyric.dll
 ```
 
 The Chapter 4 value-if rejection is explicitly milestone-only for Chapters 4–5. `--chapter=6` requires that same source to succeed; the other semantic checks are unchanged. The selector defaults to Chapter 4, so do not omit it when grading this increment. This approved feature transition is not permission to remove other regressions.
+
+Run the additional retained mode checks with `python3 graders/ch06/unsafe.py --chapter=6 DOTNET ASSEMBLY`, substituting the same compiler executable and assembly as above. Run this for both Debug and Release. The grader checks valid unchecked execution and emission-only exceptional cases; it never treats an arbitrary undefined-behavior outcome as an expected result. Later chapters use `--chapter=7` for bounds/borrow checks and `--chapter=8` for both layouts.
 
 All 250 named Chapter 6 cases are retained. Read their public source and the shared Chapter 5 harness. Successful emission requires exit 0, nonempty C, and empty stderr. Executable cases compile at both `-O0` and `-O2`, then require exact output bytes and status. Rejection and runtime-failure fixtures prescribe exact diagnostics, locations, and traces. Each subprocess has a 20-second bound. C formatting and generated identifier spelling are not requirements. Graders and expected results are readable but not student-editable.
 

@@ -1,0 +1,10 @@
+compiler/bin/Debug/net10.0/Lyric: OK
+compiler/bin/Debug/net10.0/Lyric.deps.json: OK
+compiler/bin/Debug/net10.0/Lyric.dll: OK
+compiler/bin/Debug/net10.0/Lyric.pdb: OK
+compiler/bin/Debug/net10.0/Lyric.runtimeconfig.json: OK
+compiler/bin/Release/net10.0/Lyric: OK
+compiler/bin/Release/net10.0/Lyric.deps.json: OK
+compiler/bin/Release/net10.0/Lyric.dll: OK
+compiler/bin/Release/net10.0/Lyric.pdb: OK
+compiler/bin/Release/net10.0/Lyric.runtimeconfig.json: OK

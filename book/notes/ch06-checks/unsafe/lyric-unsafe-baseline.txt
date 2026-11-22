@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/graders/ch06/unsafe.py", line 45, in <module>
+    assert result.returncode == 0 and not result.stderr, (label, result)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('arithmetic', CompletedProcess(args=['/Users/bill/.local/share/ensemble-dotnet10/dotnet', 'compiler/bin/Release/net10.0/Lyric.dll', '--emit-c', '--unsafe', '/Users/bill/ensemble-edition3-cadence/tmp/lyric-unsafe-4to9qfyx/case.ly'], returncode=2, stdout=b'', stderr=b'Usage: Lyric --inspect-source FILE | --unicode-version\n'))

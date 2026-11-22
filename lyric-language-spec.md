@@ -520,17 +520,21 @@ This is a semantic copy, not a demand for avoidable allocations. Moves and copy 
 
 `let` prevents mutation of its array value, including nested array elements and length. `var` permits it. Writable reference access requires mutable storage and cannot bypass `let`. Ordinary parameters follow assignment's value semantics; explicit reference parameters borrow the caller's storage under the reference-parameter rules in this section. Ordinary slices produce independent array values; explicit reference slices borrow fixed-length windows.
 
+`capacity(array) -> u64` observes the selected array descriptor without making a value copy or changing ownership. Grouping preserves the selected descriptor; indexed arrays and object array fields expose their own capacity. A computed array expression is evaluated exactly once and its resulting descriptor is observed. Ordinary independent array copies preserve length and elements, but not spare reservation: their initial capacity equals their length, recursively at every array level. A reference observes the original storage's capacity. Copy-elision must preserve these observable results.
+
 ### Elements, size, capacity, and resizing
 
-An ordinary dynamic array distinguishes its size (also called length) from its capacity. Size counts initialized, live elements; capacity counts the element slots available in its backing allocation. The invariant is `0 <= size <= capacity`. Size and capacity are `u64` element counts, and `len(array)` returns `u64`. A target need not be able to allocate every representable count: reject counts whose byte allocation cannot fit the target allocation size before converting to that size or calling the allocator. All indexing is bounds checked against size, never capacity. Spare capacity is raw storage, not additional readable elements, and does not require constructing values of the element type.
+An ordinary dynamic array distinguishes its size (also called length) from its capacity. Size counts initialized, live elements; capacity counts the element slots available in its backing allocation. The invariant is `0 <= size <= capacity`. Both size and capacity must be readable by source programs; capacity is not hidden implementation state. They are observations, not permission to write descriptor metadata directly or read uninitialized spare slots. `capacity(array)` returns `u64`, including when a future bounded representation stores a smaller count internally. The default size and capacity representation uses `u64` element counts, and `len(array)` returns `u64`. Planned bounded representations may store smaller counts as described under field-specific array storage in Section 15; this does not silently change the public `len` result type. A target need not be able to allocate every representable count: reject counts whose byte allocation cannot fit the target allocation size before converting to that size or calling the allocator. All indexing is bounds checked against size, never capacity. Spare capacity is raw storage, not additional readable elements, and does not require constructing values of the element type.
 
 Appending a supplied value increases size by one and initializes that element with the supplied value under ordinary value semantics. It uses spare capacity when available; otherwise the backing allocation grows. Capacity growth alone does not change size or create live elements. Implementations should grow capacity geometrically rather than reallocate for every appended element. The initial backend uses approximately 50% growth, with a minimum increment of one and enough capacity for the requested size. The exact growth factor is an implementation choice, not an observable element-value guarantee. Capacity arithmetic and allocation-byte calculations must be checked for overflow before allocation or access.
 
 Increasing size without supplied element values requires a valid default value for the element type. Core defaults are integer zero, positive floating-point zero, boolean false, and empty arrays (including strings and nested-array elements). Nullable object-reference elements default to null; no object is constructed. These are typed values, not a universal requirement that every representation can be initialized by clearing bytes.
 
+Default initialization specifies observable values, not mandatory stores across reserved capacity. Reserving capacity must not eagerly initialize or touch every spare element. When the target representation makes an element’s default all-zero bytes, the backend may use zeroed allocation or demand-zero storage instead of explicit per-element stores. Large `calloc` allocations may be backed by lazy demand-zero mappings, depending on allocator and operating system; physical commitment, mapping thresholds, and shared-zero-page details are not language guarantees. Do not defeat this benefit with a redundant full-capacity zeroing loop. Freshly exposed live elements must still have their required defaults: reused holes or previously written storage cannot be assumed zero, and shrink/regrowth must not expose stale values. Nonzero defaults or representations not guaranteed to be all-bits-zero need suitable typed initialization.
+
 Non-nullable object references have no default value. An array of such references therefore cannot grow its size by default initialization. It may still increase capacity, append supplied valid references, and shrink. It must never expose null or uninitialized storage as a live non-nullable element. This same rule applies to any other type without a valid default; no default for an arbitrary aggregate or class is implied here. A default-growing resize operation requires a defaultable element type, while shrinking is available independently of that capability.
 
-Shrinking releases removed elements, decrementing reference counts where applicable and cleaning up nested owned array storage. Any resulting destruction contributes its effects. Shrinking normally retains capacity; retaining allocation bytes does not retain removed live elements. Subsequent size growth initializes new elements afresh rather than exposing stale contents. Ordinary array copying remains recursively independent as specified above; spare capacity is not part of the initialized element sequence.
+Shrinking releases removed elements, decrementing reference counts where applicable and cleaning up nested owned array storage. Any resulting destruction contributes its effects. Shrinking to a nonzero size normally retains capacity; retaining allocation bytes does not retain removed live elements. Explicit `resize(0)` releases all live elements and relinquishes the backing block, leaving size and capacity both zero, even if the array already had size zero with reserved capacity. No separate array `free` method is required. This release invalidates still-needed payload borrows and includes any element-cleanup effects; it does not move a descriptor that remains in stable storage. Subsequent size growth initializes new elements afresh rather than exposing stale contents. Ordinary array copying remains recursively independent as specified above; spare capacity is not part of the initialized element sequence.
 
 Accepted cases include default-growing integer arrays with zero elements, default-growing nullable-reference arrays with null elements, reserving capacity for non-nullable references without changing size, and appending an explicitly supplied non-nullable reference. Default-growing a non-nullable-reference array and indexing unused capacity are rejected. These requirements specify behavior, not new source-level names or signatures for the array library.
 
@@ -766,7 +770,7 @@ For a reference into an object, invalidation follows the **owner's** class, not 
 
 The implementation may use direct references when the stable-storage requirements hold. Optimizations must not move or reclaim borrowed storage before its last possible use. Bounds and acquisition-time tag checks can be removed when proven redundant; optimization cannot revive a borrow invalidated by a source operation.
 
-An explicit unsafe benchmarking flag may disable bounds checks. Such builds are outside the safe-language guarantee and must be identified as unsafe in benchmark results.
+The explicit `--unsafe` flag disables index bounds checks. Such builds are outside the safe-language guarantee and must be identified as unsafe in benchmark results.
 
 ## 6. Functions, generics, closures, and generators
 
@@ -1270,7 +1274,7 @@ class Connection {
 }
 ```
 
-A class has at most one final hook. Its object and fields remain allocated during the hook. Its own relationship teardown has not yet begun, but other objects reachable from it may already be partway through an enclosing cascade. The hook must obey ordinary reference-validity rules; it cannot assume every ancestor still satisfies a fully attached invariant.
+A class has at most one final hook. Only generated destruction may invoke it; an explicit source call to the final-marked method is rejected. Applications needing an explicit close operation provide a separate ordinary method. During the final hook, the object and its fields remain allocated. Its own relationship teardown has not yet begun, but other objects reachable from it may already be partway through an enclosing cascade. The hook must obey ordinary reference-validity rules; it cannot assume every ancestor still satisfies a fully attached invariant.
 
 Removing incoming relationships before destroying children prevents those maintained links from returning to a freed parent during the cascade. It does not erase temporary local references: static destruction analysis invalidates those. The implementation reexamines current child membership after recursive destruction, rather than preserving a stale list of pointers across callbacks or cascades.
 
@@ -1712,7 +1716,7 @@ interface Numeric<T> {
 }
 ```
 
-Numeric covers i8/i16/i32/i64, u8/u16/u32/u64, f32/f64. Its factories return zero and one in T; add/mul have the same checked, wrapping-in-unsafe-mode, or IEEE behavior as the corresponding ordinary operators in Section 14. The capability does not silently widen T or promise algebraic identities that floating-point rounding or checked overflow would violate. User-defined conforming types may also supply the capability.
+Numeric covers i8/i16/i32/i64, u8/u16/u32/u64, f32/f64. Its factories return zero and one in T; add/mul have the same checked, unchecked-in-unsafe-mode, or IEEE behavior as the corresponding ordinary operators in Section 14. The capability does not silently widen T or promise algebraic identities that floating-point rounding or checked overflow would violate. User-defined conforming types may also supply the capability.
 
 Standard Equatable implementations cover those numeric types, bool, string (therefore [u8]), and Sym. Numeric equality follows Section 14, including NaN inequality; string equality compares bytes and symbol equality compares interned names. Comparable initially covers integers, bool (false before true), and byte arrays/string (lexicographic unsigned-byte order). It requires a total order consistent with equals. Floating-point types do not receive this total-order capability by default; IEEE comparisons remain available without it.
 
@@ -1722,7 +1726,7 @@ The capability methods do not authorize general user-defined operator overloadin
 
 ## 14. Numeric operations and conversions
 
-Operands evaluate left to right. Numeric operations specify mathematical values or fixed-width bits explicitly; emitted C must preserve those semantics in safe and unsafe builds.
+Operands evaluate left to right. Numeric operations specify mathematical values or fixed-width bits explicitly. Both safe and unsafe builds preserve every result accepted without a diagnostic in safe mode; only the explicitly unchecked exceptional cases below may inherit C behavior.
 
 ### Evaluation and compound assignment
 
@@ -1757,9 +1761,9 @@ let wrapped = !-value  // modular negation in every mode
 
 Numeric conversions, integer comparisons, shifts, division, and remainder are specified in this section.
 
-Explicit unsafe mode disables automatic integer-overflow checks as well as the separately specified bounds-check opt-out. Ordinary integer addition, subtraction, multiplication, and negation then wrap modulo 2^N for an N-bit result type, with the resulting bits interpreted in that type. These operations have the same modular results as explicit wrapping arithmetic. Their result is defined even for signed overflow: the optimizer may not assume that overflow never occurs. The backend must implement these semantics deliberately rather than emit undefined signed C overflow and inherit its consequences.
+Explicit `--unsafe` mode disables ordinary arithmetic overflow checks, numeric-conversion range checks, shift-count checks, zero-divisor checks, and index bounds checks. For cases that safe mode would reject or diagnose, unchecked operations may inherit the C backend’s normal behavior, including implementation-defined or undefined behavior. Ordinary addition, subtraction, multiplication, and negation need not wrap on overflow. C optimizers may make their usual assumptions about those unchecked operations. This permission applies only to the exceptional inputs: valid safe-mode computations must retain their results. It does not disable type checking, initialization checking, ownership, or static lifetime checking.
 
-Unchecked bounds access remains outside the safe-language guarantee, and unsafe execution must be identified in benchmark results. Defined arithmetic wraparound does not restore memory safety to unchecked indexing. Shifts normalize counts in unsafe mode as specified below; division and remainder retain zero-divisor checks. Explicit wrapping operators retain their defined modular meaning in every mode.
+Unchecked indexing and exceptional unchecked arithmetic are outside the safe-language guarantee, and unsafe execution must be identified in benchmark results. Unsafe shifts do not normalize counts; division and remainder do not retain zero-divisor checks. Explicit wrapping operators retain their defined modular meaning in every mode. Unsupported language features remain unsupported, and unsafe mode does not manufacture arbitrary object references or disable reference counting. Allocation failure and allocation-size validation are not index bounds checks and remain checked.
 
 ### Implicit integer conversions and mixed arithmetic
 
@@ -1787,9 +1791,9 @@ Operands evaluate once, left to right, under ordinary lifetime/effect rules. The
 
 `value as Type` converts an integer value to the named integer type. The right operand is a type expression, including a declared generic type parameter, not a value expression whose type is inferred as the target. Expression-derived targets and a typeof facility are not part of the initial language.
 
-In safe mode, `as` preserves the mathematical value when it is representable in the destination type. A statically known out-of-range conversion is a compile-time error; a dynamic out-of-range conversion produces checked failure. In unsafe mode, integer `as` converts modulo 2^N for the N-bit destination and interprets the resulting bits in its signed or unsigned type.
+In safe mode, `as` preserves the mathematical value when it is representable in the destination type. A statically known out-of-range conversion is a compile-time error; a dynamic out-of-range conversion produces checked failure. In unsafe mode, integer `as` may use an unchecked C conversion. Representable values retain their mathematical value; out-of-range inputs inherit the backend conversion behavior rather than a promised modulo result.
 
-`value !as Type` explicitly requests that same modulo-width conversion in every mode, including safe mode. It is appropriate for intentional truncation or signedness reinterpretation. It does not report overflow merely because bits are discarded. Widening a negative integer under modular conversion uses its mathematical value modulo the destination width, not zero-extension of the source bit pattern.
+`value !as Type` explicitly requests modulo-width conversion in every mode, including safe mode. It is appropriate for intentional truncation or signedness reinterpretation. It does not report overflow merely because bits are discarded. Widening a negative integer under modular conversion uses its mathematical value modulo the destination width, not zero-extension of the source bit pattern.
 
 ```lyric
 let small = large as u8       // checked in safe mode
@@ -1798,7 +1802,7 @@ let low_byte = hash !as u8    // explicitly modulo 256
 
 Evaluate the converted operand once. The target type expression is resolved statically and has no runtime evaluation. `as` and `!as` have the same cast precedence and association; `!as` is the wrapping-cast operator, not a postfix unwrap followed by a cast. Parenthesize an optional unwrap when needed, for example `(optional!) as u8`. No `!as` wrapping behavior is implied for floating-point, reference, or arbitrary class conversions.
 
-The C backend must preserve the defined result for every accepted integer conversion without relying on implementation-defined out-of-range signed casts. Integer casts do not manufacture object references or bypass reference/lifetime checks. Generic casts are valid only when the actual constrained/specialized operand and target types support the operation.
+The C backend must preserve representable ordinary conversions and the defined modulo result of every explicit `!as`, without relying on implementation-defined out-of-range signed casts for those guaranteed results. An out-of-range ordinary `as` in unsafe mode is the explicit exception. Integer casts do not manufacture object references or bypass reference/lifetime checks. Generic casts are valid only when the actual constrained/specialized operand and target types support the operation.
 
 ### Integer shifts
 
@@ -1808,7 +1812,7 @@ Shifts manipulate fixed-width bit patterns rather than perform checked multiplic
 - `>>` on unsigned operands fills high bits with zeros.
 - `>>` on signed operands replicates the sign bit (arithmetic right shift).
 
-The shift count must be an integer. Safe mode requires `0 <= count < N`; a statically known invalid count is a diagnostic, and a dynamic invalid count produces checked failure. Unsafe mode normalizes the count to the unique value in `[0, N)` congruent to it modulo N, including negative counts. The lowering explicitly performs this normalization rather than relying on target-specific instruction masking. Operand evaluation remains left to right and occurs once.
+The shift count must be an integer. Safe mode requires `0 <= count < N`; a statically known invalid count is a diagnostic, and a dynamic invalid count produces checked failure. Unsafe mode omits the count check and does not normalize the count. Counts outside `[0, N)` may reach the C operator and inherit its behavior, including undefined behavior. Valid counts retain the same fixed-width result in both modes. Operand evaluation remains left to right and occurs once.
 
 ```lyric
 // Division and arithmetic right shift intentionally differ for negatives:
@@ -1816,15 +1820,15 @@ assert_eq(-7 / 2, -3)
 assert_eq(-7 >> 1, -4)
 ```
 
-The backend must preserve these semantics without invoking C undefined behavior or depending on implementation-defined signed shifts. Left shift operates on an unsigned representation of the required width; small integer promotions must not accidentally turn it into overflowing signed arithmetic. Signed right shift must preserve sign extension explicitly where the backend's guarantees do not establish it. Reinterpretation of result bits must preserve the source signed type's defined representation, not rely on an unchecked out-of-range C conversion. Zero-count paths must not construct an auxiliary shift by N. These are lowering obligations, not evidence that a shift implementation has been tested.
+For valid counts, the backend must preserve these semantics without invoking C undefined behavior. Native signed right shift may be used when the supported C target guarantees arithmetic sign extension; otherwise lower sign extension explicitly. Left shift operates on an unsigned representation of the required width; small integer promotions must not accidentally turn it into overflowing signed arithmetic. Signed right shift must preserve sign extension explicitly where the backend's guarantees do not establish it. Reinterpretation of result bits must preserve the source signed type's defined representation, not rely on an unchecked out-of-range C conversion. Zero-count paths must not construct an auxiliary shift by N. These are lowering obligations, not evidence that a shift implementation has been tested.
 
 ### Integer division and remainder
 
-Integer division truncates toward zero. A nonzero remainder has the dividend's sign: `-7 / 3` is -2 and `-7 % 3` is -1. Division or remainder by zero produces a checked programming failure in both safe and unsafe modes; the absence of a meaningful modular result makes this an explicit retained check in unsafe mode.
+Integer division truncates toward zero. A nonzero remainder has the dividend's sign: `-7 / 3` is -2 and `-7 % 3` is -1. Division or remainder by zero produces a checked programming failure in safe mode. Unsafe mode may execute the unchecked C operator for these invalid inputs.
 
-For signed minimum divided by -1, safe division produces checked overflow failure; unsafe division returns the signed minimum by modulo-width wraparound. The remainder for signed minimum and -1 is zero in either mode. These outcomes must be implemented before executing a backend instruction or C operation that has undefined behavior for the exceptional operands.
+For signed minimum divided by -1, safe division produces checked overflow failure; unsafe division may inherit unchecked C behavior. The remainder for signed minimum and -1 is zero in either mode: it is a valid safe-mode operation, so even unsafe emission must handle it before evaluating C `%`, which would otherwise have undefined behavior.
 
-A C11 lowering can first reject a zero divisor, then handle the signed-minimum/-1 pair explicitly, and only then evaluate C `/` or `%`. Both C operators require this guard, not just division. The ordinary defined C cases provide truncation toward zero and the required remainder sign. The failure branches call the runtime's non-returning checked-failure diagnostic; they do not return a fake arithmetic value.
+A safe C11 lowering can first reject a zero divisor, then handle the signed-minimum/-1 pair explicitly, and only then evaluate C `/` or `%`. Both safe operators require this guard, not just division. Unsafe division can use `/` directly; unsafe remainder retains only the signed-minimum/-1 result handling. The ordinary defined C cases provide truncation toward zero and the required remainder sign. The failure branches call the runtime's non-returning checked-failure diagnostic; they do not return a fake arithmetic value.
 
 A standalone 64-bit C probe of this guarded arithmetic recipe passed 271 checks each under Apple Clang 21 on ARM64 at -O0, -O3, and -O3 with undefined-behavior sanitization. It checked failure classification rather than executing Lyric's not-yet-implemented fatal diagnostic. The local `gcc` executable is also Apple Clang, so this is not independent GNU GCC or cross-target verification. The test's wider-integer oracle is not required by the lowering recipe.
 
@@ -1858,7 +1862,7 @@ An explicit integer-to-float `as` conversion rounds to the destination floating-
 
 A float-to-integer `as` conversion truncates toward zero, then requires that the resulting mathematical integer be representable in the destination type. For example, `3.9 as i32` is 3 and `-3.9 as i32` is -3. NaN, infinity, or an unrepresentable truncated result produces checked failure. A statically known invalid conversion is a compile-time diagnostic.
 
-These float-to-integer checks remain enabled in unsafe mode. They are an explicit exception to the integer-overflow/bounds opt-out, like zero-divisor checks. `!as` is restricted to integer-to-integer conversion; it does not define floating-point wrapping, saturation, or reinterpretation.
+Unsafe mode may omit these float-to-integer checks and use an unchecked C cast for inputs that safe mode rejects. Finite representable values still truncate toward zero; NaN, infinity, and out-of-range inputs inherit backend behavior. This does not authorize fast-math changes to valid floating-point arithmetic. `!as` is restricted to integer-to-integer conversion; it does not define floating-point wrapping, saturation, or reinterpretation.
 
 The C backend must establish finiteness and the representable range of the truncated value before executing a float-to-integer cast. It may not cast first and inspect the result afterward, or rely on an out-of-range C conversion. Boundary tests must include destination extrema, nearby fractional values, NaN, infinities, and the fact that converting a large integer bound to a float can round that bound outward. A naive comparison against a rounded integer maximum is not sufficient. These are required lowering/conformance cases, not a claim that a float-cast probe has been run.
 
@@ -1933,6 +1937,28 @@ An ordinary dynamic array owned by an object may independently resize or relocat
 
 This design does not require full-index-space virtual reservations. Allocation byte arithmetic and index capacity must be checked before allocation, and allocation failure follows the fatal-allocation contract. Shared-library unload and storage teardown must not release backing while live objects or accesses require it; exact module-lifetime coordination remains to be specified.
 
+### Field-specific array payload storage and compact representations
+
+**Planned performance requirement; implementation deferred beyond bootstrap.** Compiler-managed locality must extend beyond contiguous SoA descriptors to the dynamic-array payloads owned by the same field of a class. The bootstrap may use ordinary C heap allocation for each payload. That is a correctness-first implementation boundary, not the intended final performance design. Field-specific allocation, compaction, and compact metadata are required upgrades in the plan to win representative application benchmarks; no speedup is established merely by specifying them, and self-hosting need not wait for them.
+
+Each array-valued class field has a dedicated growable payload heap. New nonempty payload blocks are appended at its high-water end, avoiding an independent general-purpose heap allocation for each object’s array. When the heap cannot accommodate the request, grow its backing by approximately 50%, or enough to satisfy the request if larger. Check index, capacity, alignment-rounding, and byte-size arithmetic before allocation; preferred extra capacity must not turn a valid request into a needless limit failure. This field heap is distinct from the SoA array containing the owner descriptors.
+
+Deleting an array or moving its payload to a new, larger block at the heap end leaves a hole. Each hole stores two integers of the heap-index representation: the next-hole index and the hole’s size. Every allocated nonempty block must therefore reserve enough physical space to become such a hole later, even when its logical payload is smaller than that header. Round physical block extents and starts to the required alignment. Padding and hole headers are allocator metadata, never live elements or part of the array’s logical length. Exact index units, hole-size units, splitting/coalescing policy, and hole reuse policy remain implementation decisions to specify before building the allocator; the append-at-end fast path is the intended starting point.
+
+Alignment must satisfy both the hole metadata’s index type and the array element type, including any wider alignment required by nested descriptors or other supported elements. Aligning only to a small index width is insufficient for a more strongly aligned element type. The initial allocation base and every block boundary must meet those requirements. Do not rely on unaligned typed C accesses or on a particular processor tolerating them. Checked alignment and minimum-block calculations must include their padding in heap-capacity accounting.
+
+Compaction packs live payload blocks and updates their owning objects’ descriptors. Heap growth that relocates the backing must likewise preserve every live owner’s access to its payload, through the chosen indexed representation or complete descriptor updates. Neither operation may leave stale owner pointers. Object slots and object-reference indices are not compacted or renumbered. Payload relocation preserves logical values and ownership: it is a move, not an ordinary array-value copy, and must not invoke finalizers or introduce retain/release operations merely for moved elements. Removed elements still undergo their normal logical cleanup before their storage becomes a hole.
+
+An explicit generated compaction operation is permitted only when no still-needed borrow points into storage it may move. Owner descriptors remain the authoritative holders and are updated as part of the operation. A borrow of a descriptor that stays in place is distinct from a borrow of its payload; nested descriptors inside moved payloads are themselves moved storage. Growing one array can relocate the shared heap for that field and therefore invalidate payload borrows from other objects’ arrays in that same heap. Checking must expose this shared allocation effect through helpers, constructors, and compaction; it cannot retain the bootstrap assumption that every payload reallocates independently. Concurrent protection must cover the actual shared heap; the full concurrency protocol remains separately unresolved.
+
+Array declarations must eventually be able to select smaller maximum-length/count representations, including `u8`, `u16`, and `u32`. Object classes must likewise support a selectable object-reference index width, so arrays of object references and object fields do not pay for unnecessarily wide handles. These are separate limits: a short individual array does not imply that the entire field heap, or the class population, fits in that same width. The heap-index width controls its hole header. Define and check each applicable representable limit before truncating, allocating, or exposing a value. Explicit source spelling, defaults, generic/type compatibility, byte-layout consequences, and exhaustion diagnostics remain open; no new grammar is implied by this requirement.
+
+The planned object-reference representation reserves index zero for null and does not allocate a live object in that slot. Smaller index widths must account for that reservation and any other internal sentinel in their usable capacity. Null representation does not make a nonnullable source reference accept null. The bootstrap currently uses a different internal empty-holder/free-list sentinel; adopting the compact representation requires an explicit backend transition, not a claim that zero is already reserved in the implementation.
+
+**Empty and reserved arrays:** an array with zero capacity owns no payload block. An empty array may have nonzero capacity after explicit `reserve(n)`; length zero alone does not imply absence of allocated storage. Reserved capacity remains available until an operation relinquishes that storage. Explicit `resize(0)` releases the block and sets both size and capacity to zero, including when length was already zero. In a field-specific heap, releasing the block creates a hole; it need not return the shared heap backing to the operating system. The existing `truncate` operation retains capacity, including when truncating to zero. Ordinary destruction and replacement also perform their normal ownership cleanup.
+
+**Observable capacity:** `capacity(array) -> u64` reads the selected descriptor. Independent value copies have initial capacity equal to length at every nested level; references observe the original reservation. Copy-elision must preserve those observations. Compact representations do not change the public query type.
+
 ### Cross-class requirements and acquisition proposal
 
 The compiler infers conservative transitive class-access requirements from object use, creation, destruction, generated cleanup, callbacks, and final hooks. A class used without creation/destruction requires shared access; a class that may be created or destroyed requires exclusive access. Exclusive mode wins when requirements combine. Access requirements must cover all reachable calls in recursive groups, and generic specialization must carry all participant/role bindings. Unknown external effects cannot be treated as no effects.
@@ -1960,6 +1986,13 @@ Lifetime/allocation locking does not by itself specify publication, thread entry
 Foreign functions need truthful creation, destruction, mutation, escape, and lifetime/data-lock contracts. Unknown effects are not harmless. Native code violating its contracts is outside the safe-language guarantee; keep that trust boundary small and explicit.
 
 ## 16. Standard-library contracts
+
+### Assertions
+
+The ordinary standard function `assert(condition: bool) -> unit` evaluates its sole argument exactly once. True returns unit silently. False terminates the process with a fatal assertion diagnostic at the call site and the active call trace; it is not a recoverable error and promises no cleanup. The initial compiler reports `LYR010: assertion failed` and exits 1. Constant false remains a runtime failure rather than a compile-time rejection. No custom-message parameter is provided.
+
+Assertions remain enabled in optimized builds and under `--unsafe`; neither may remove the condition's effects or the false-condition failure. They are not C preprocessor assertions and do not depend on `NDEBUG`.
+
 
 This section specifies the retained and upgraded compiler-oriented library surface while distinguishing completed behavior from explicitly incomplete API contracts. A signature inventory is not a complete library specification: every operation also needs defined failure, ownership, mutation, lifetime, and edge behavior. The numeric and storage rules elsewhere in this document apply to library code too. The numeric parsing APIs below use Result. Historical operating-system boolean/tuple signatures have not yet been uniformly revised; their presence does not select a second `?` propagation protocol.
 
@@ -2020,7 +2053,7 @@ Preserve the operations `len`, `is_empty`, `push`, `append`, `pop`, `contains`, 
 
 Array `len()` and its `length` alias return `u64`, matching the free `len(array)` operation.
 
-The canonical growth methods require a writable array receiver and return `unit`: `reserve(n: u64)` ensures capacity of at least n without changing size or shrinking capacity; `resize(n: u64)` changes size, releasing removed elements or initializing added elements to their typed defaults; `truncate(n: u64)` shrinks size to n when n is smaller and otherwise does nothing. `push(value: T)` appends one supplied element by value. `resize` growth requires a defaultable element type; `reserve`, `truncate`, and `push` do not require a default value. Growth may relocate backing storage and must respect live stable borrows. Allocation-count and byte-size overflow fail before allocation; allocator failure follows the fatal out-of-memory policy.
+The canonical growth methods require a writable array receiver and return `unit`: `reserve(n: u64)` ensures capacity of at least n without changing size or shrinking capacity; `resize(n: u64)` changes size, releasing removed elements or initializing added elements to their typed defaults, with `resize(0)` also releasing reserved backing and setting capacity to zero; `truncate(n: u64)` shrinks size to n when n is smaller and otherwise does nothing. `push(value: T)` appends one supplied element by value. `resize` growth requires a defaultable element type; `reserve`, `truncate`, and `push` do not require a default value. Growth may relocate backing storage and must respect live stable borrows. Allocation-count and byte-size overflow fail before allocation; allocator failure follows the fatal out-of-memory policy.
 
 Baseline results: `first` and `last` return `T?`; `index_of` returns `i32` with -1 for not found; `pop` returns T; mutators return `unit`. Empty pop, equality requirements, sort ordering/stability, invalid ranges, and remove-not-found behavior need explicit rules rather than backend defaults.
 
@@ -2173,7 +2206,13 @@ Show the structural cleanup generated for Edge.
 
 These answers come from the authoritative model. A separate tool should not have to guess them from text.
 
-The C backend is a practical starting point. AoS and SoA are layout choices with the same source semantics. Bounds checks, arithmetic rules, evaluation order, and lifetime checks must survive lowering and optimization. Debug UAF sentinels are diagnostic aids, not a substitute for static safety.
+### A deliberate, durable C backend
+
+C is Lyric's backend for its useful life as a human-guided language project, not temporary scaffolding on the way to direct LLVM IR or machine-code emission. We deliberately design Lyric to accommodate C's constraints because we intend to keep using Clang's frontend lowering and optimization pipeline. Lyric supplies the higher-level language guarantees, ownership analysis, and compiler-managed layouts; generated C expresses those decisions in a form Clang can optimize. Backend compatibility is a language-design consideration, not a reason to silently weaken established safe-program semantics.
+
+A future superintelligence capable of surpassing Clang's optimization may also make human participation unnecessary and replace this specification with something better that we cannot predict. That possibility is outside Lyric's actionable roadmap, not a planned backend transition. For the useful life of Lyric with human input, we will use the C backend; our work is to improve Lyric's generated C and its use of Clang.
+
+AoS and SoA are layout choices with the same source semantics. Bounds checks, arithmetic rules, evaluation order, and lifetime checks must survive lowering and optimization. Debug UAF sentinels are diagnostic aids, not a substitute for static safety.
 
 ### Initial executable entry point
 
@@ -2192,7 +2231,9 @@ lyric help
 
 Keep these names unless deliberately changed. `lyric fmt` formats `.ly` language source. Design artifacts, documentation annotations, and their formatting/verification belong to Lyre; the Lyric compiler does not provide a `.lyric` source mode or maintain Lyre's annotation layer.
 
-`--soa` selects layout without changing language behavior. `--lir-dump` provides diagnostic output. A UAF-debug option is diagnostic support, not a substitute for static checking. Bounds-check disabling is an explicitly unsafe benchmark mode. Old RC-disable flags cannot silently change the accepted lifetime contract in an ordinary safe build.
+The initial C-backend target scope is Clang on x86-64 and ARM64. Target-specific lowering may use established compiler/target guarantees, such as arithmetic signed right shift, but CPU instruction behavior alone is not a guarantee for a C expression with undefined behavior. Verification on one architecture does not establish execution or performance on the other.
+
+`--soa` selects layout without changing language behavior. `--lir-dump` provides diagnostic output. A UAF-debug option is diagnostic support, not a substitute for static checking. `--unsafe` selects the explicitly unchecked numeric/index mode defined in Section 14; emitted C identifies this mode, and benchmarks must report it. Old RC-disable flags cannot silently change the accepted lifetime contract in an ordinary safe build.
 
 A whole-module compile includes the declared files and resolves dependencies deterministically. Parser/checker errors prevent executable output. An example appearing in this document is not tested merely because it is fenced as Lyric; compiler validation remains future work.
 

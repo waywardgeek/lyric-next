@@ -1,0 +1,54 @@
+133:                        Unsupported(declaration);
+138:                        Unsupported(nameNode);
+164:                            Unsupported(member);
+171:                            Unsupported(member);
+180:                        Unsupported(member);
+214:                                Unsupported(parameter);
+234:                        Unsupported(child);
+252:                    Unsupported(function.Declaration!);
+299:                    Unsupported(declaration);
+408:                    && parameterType.ArrayDepth == 0 && parameterType.Class is not null)
+465:                        if (objectClasses[i] == owner && !owner.IsCountedClass())
+668:                if (owner is null || !owner.IsCountedClass())
+686:                if (type.Class is not SemanticSymbol owner || !owner.IsCountedClass())
+810:                    && owner.IsCountedClass())
+831:                        && fact.Type.ArrayDepth == 0 && fact.Type.Class is not null)
+1084:                                && bindingType.ArrayDepth == 0 && bindingType.Class is not null)
+1114:                            if (target.Fact!.Type.ArrayDepth > 0)
+1213:                    Unsupported(statement);
+1272:                        Unsupported(statement);
+1409:                    Unsupported(node);
+1457:        void Unsupported(SyntaxNode node)
+1459:            Fail(node, "LYC306", $"Unsupported semantic construct: {node.Kind}.");
+1503:                Unsupported(storage);
+1516:                Unsupported(pattern);
+1544:                    Unsupported(node.ChildAt(next + 1));
+1615:            SemanticSymbol? field = receiverType.ArrayDepth == 0
+1637:                Unsupported(node);
+1666:                    Unsupported(node);
+1682:                    Unsupported(node);
+1695:                Unsupported(node);
+1704:                Unsupported(target);
+1767:            if (node.Kind == SyntaxKind.ArrayType && node.ChildCount() == 1)
+1770:                if (element.ArrayDepth == 0 && element != SemanticType.Bool
+1773:                    Unsupported(node);
+1789:            Unsupported(node);
+1904:                    if (receiver is SemanticType owner && owner.ArrayDepth == 0)
+1916:                    if (container is SemanticType array && array.ArrayDepth > 0)
+2010:                    if (receiver is SemanticType owner && owner.ArrayDepth == 0)
+2163:                        SemanticType? element = item.Expected is SemanticType context && context.ArrayDepth > 0
+2276:                    if (arrayType.ArrayDepth == 0)
+2307:                    if (expectedType is SemanticType context && context.ArrayDepth > 0)
+2321:                    if (elementType.ArrayDepth == 0 && elementType != SemanticType.Bool
+2324:                        Unsupported(node);
+2337:                    if (containerType.ArrayDepth == 0)
+2355:                        Unsupported(node);
+2364:                        Unsupported(node);
+2532:                        Unsupported(node);
+2553:                            && receiverClass.ArrayDepth == 0 && receiverClass.Class is not null)
+2592:                            "resize" => ArrayOperation.Resize,
+2599:                            Unsupported(callee);
+2613:                        if (arrayType.ArrayDepth == 0)
+2631:                        Unsupported(callee);
+2649:                        Unsupported(callee);
+2659:                    Unsupported(node);

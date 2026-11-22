@@ -33,8 +33,9 @@ internal sealed partial class Compilation
 
 internal sealed partial class SemanticAnalysis
 {
-    internal partial SemanticAnalysis(Compilation compilation)
+    internal partial SemanticAnalysis(Compilation compilation, bool unsafeMode)
     {
+        Unsafe = unsafeMode;
         compilation.AddAnalysis(this);
     }
 

@@ -169,5 +169,24 @@ for storage_kind, setup, selected in [
         )
         CASES.append((f'alias-preview-widen-{storage_kind}-{alias_kind}', source, b'ok'))
 
+# Capacity is observed on the selected descriptor, not an independent copy.
+CASES += [
+    ('capacity-reserved-empty', 'func main() { var a: [i32] = []; a.reserve(100u64); assert(len(a) == 0u64 && capacity(a) >= 100u64); print("ok") }', b'ok'),
+    ('capacity-copy-tight', 'func main() { var a = [1, 2]; a.reserve(100u64); let b = a; assert(capacity(a) >= 100u64 && capacity(b) == 2u64); print("ok") }', b'ok'),
+    ('capacity-empty-copy', 'func main() { var a: [i32] = []; a.reserve(100u64); let b = a; assert(capacity(b) == 0u64 && capacity(a) >= 100u64); print("ok") }', b'ok'),
+    ('capacity-resize-zero', 'func main() { var a = [1]; a.reserve(100u64); a.resize(0u64); assert(len(a) == 0u64 && capacity(a) == 0u64); print("ok") }', b'ok'),
+    ('capacity-empty-release', 'func main() { var a: [i32] = []; a.reserve(100u64); a.resize(0u64); a.push(7); assert(len(a) == 1u64 && a[0] == 7 && capacity(a) < 100u64); print("ok") }', b'ok'),
+    ('capacity-truncate-retains', 'func main() { var a = [1]; a.reserve(100u64); a.truncate(0u64); assert(len(a) == 0u64 && capacity(a) >= 100u64); print("ok") }', b'ok'),
+    ('capacity-ref-alias', 'func main() { var a = [1]; let r = ref a; r.reserve(100u64); assert(capacity((r)) >= 100u64); print("ok") }', b'ok'),
+    ('capacity-nested', 'func main() { var a = [[1]]; a[0].reserve(100u64); assert(capacity(a[0]) >= 100u64); print("ok") }', b'ok'),
+    ('capacity-value-parameter', 'func size(a: [i32]) -> u64 { return capacity(a) }; func main() { var a = [1]; a.reserve(100u64); assert(size(a) == 1u64 && capacity(a) >= 100u64); print("ok") }', b'ok'),
+]
+
+# A later index must not invalidate an already-selected nested descriptor.
+capacity_selection = 'func change(a: ref [[[i32]]]) -> i32 { a.resize(0u64); return 0 }; func main() { var a = [[[1]]]; let n = capacity(a[0][change(ref a)]) }'
+REJECTIONS.append(('capacity-selection-invalidation', capacity_selection,
+                   capacity_selection.index('a[0][change') + 1,
+                   'LYC326: Borrowed storage may have been invalidated.'))
+
 if __name__ == '__main__':
     raise SystemExit(execution.main(CASES, [], REJECTIONS, RUNTIME_FAILURES))

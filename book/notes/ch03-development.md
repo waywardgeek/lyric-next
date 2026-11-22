@@ -160,3 +160,7 @@ The student independently corrected acceptance of raw triple strings in imports 
 Setup assistance was required: Node’s Homebrew opt aliases were blocked despite granted Cellar libraries. An explicit DYLD_LIBRARY_PATH restricted to those granted libraries enabled loading. Actual JavaScript startup additionally needed OPENSSL_CONF pointing to an empty sandbox-local file for this offline command. No host configuration, access grants, installation, or network use was changed. Lesson: a runtime version probe is not enough; exercise the actual workload early.
 
 Parent SHA-256 comparison confirmed all 201 frozen input files and all 186 noncompiler public files copied by the student unchanged. The student is shut down; implementation and original logs remain preserved in its child directory. Its report and principal logs are copied into ch03-checks/student/. This is one successful reconstruction with setup assistance, not exhaustive proof. Human walkthrough and acceptance remain pending; no Chapter 4, commit, or push performed.
+
+## Human acceptance
+
+Bill reported, “Chapter 3 looks good, so we can close that out,” and moved on to reading Chapter 4. Chapter 3 is accepted and closed. This records his acceptance; it does not add a claim that he ran the manual walkthrough. The earlier pending statements describe the historical milestones above. No student rerun was requested or performed.

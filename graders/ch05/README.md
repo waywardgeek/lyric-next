@@ -36,7 +36,7 @@ comparisons, mutable arrays, and other unsupported semantics are not added here.
 
 ## Execution contract
 
-All 75 named cases are **retained**. Stable identifiers are the case names in
+All 80 named cases are **retained**. Stable identifiers are the case names in
 `run.py`; generated names include the integer type and operation/boundary label.
 There are no chapter-only cases. The grader supplies an independent compiler
 command through its arguments. It writes disposable source and C files, invokes
@@ -102,3 +102,15 @@ must arrange for failed writes to reach the checked output path. The grader
 uses Python's operating-system pipe support; the verified host is macOS ARM64.
 The `operand-order` and `returned-frame` cases check evaluation order and removal
 of completed activations from a subsequent failure trace.
+
+## Always-on assertions (retained)
+
+The five `assert-*` cases require the Chapter 4 standard signature
+`assert(condition: bool) -> unit`. True returns unit silently; evaluate the
+condition once. False reports `LYR010: assertion failed` at the assertion call,
+then the active innermost-first trace, and exits 1 with no later output.
+The existing runtime-failure comparison checks exact stderr bytes, quoted file
+and function names, location, exit status, and empty stdout. These cases run at
+both O0 and O2. Assertions must not depend on C `assert` or `NDEBUG`, and Chapter
+6 retains them in unsafe mode. There are now 80 cases (78 executable, two
+compile rejections). Earlier reconstruction evidence predates these additions.

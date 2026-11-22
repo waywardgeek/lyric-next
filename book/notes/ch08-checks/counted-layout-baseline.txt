@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 88, in <module>
+    main()
+    ~~~~^^
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 74, in main
+    assert compiled.returncode == 0 and not compiled.stderr, (name, layout, compiled.stderr)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('counted-alias', 'aos', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-layout-q7na3d6t/counted-alias.ly":1:1: error LYC306: Counted class emission is not implemented yet. (byte 0)\n')

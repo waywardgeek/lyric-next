@@ -26,7 +26,7 @@ Maintain `0 <= length <= capacity`. Only slots below length contain initialized 
 
 The empty descriptor has a null pointer and zero length and capacity. It is safe to release and to move from. An empty array may also retain previously allocated capacity after shrinking. Neither case permits indexing element zero.
 
-This storage policy is for ordinary dynamic arrays. It is not the later stable-address class-property storage design. A stable descriptor does not make its backing allocation stable.
+This storage policy is for ordinary dynamic arrays. Later class storage uses indexed object handles: class backing growth may move field descriptors, while separately allocated array payload has its own lifetime. A stable descriptor does not make its backing allocation stable, and a stable object handle does not make its field addresses stable.
 
 ## Represent the type without a registry
 
@@ -57,6 +57,16 @@ Integer defaults are zero, boolean defaults are false, and nested arrays, includ
 
 The receiver is selected before the argument is evaluated. This is observable when the argument has effects. A nested receiver can itself live in a parent's relocatable backing, so saving its address already creates a temporary borrow. Named reference variables are not the first place where invalidation matters.
 
+### Observe capacity without copying
+
+Declare the ordinary standard builtin `capacity(array) -> u64` with the same any-array parameter contract as `len`. Resolve its builtin identity through the semantic symbol, not its source spelling. It accepts immutable arrays too: observing capacity does not grant writes.
+
+Ordinary array copies allocate exactly the live length, recursively for nested arrays. They do not preserve spare reservation. This is now observable, so copy-elision must preserve it: after `a.reserve(100u64); let b = a`, `capacity(b)` equals `len(b)`, while `capacity(a)` still reports the reservation. References observe the original descriptor.
+
+A capacity query is not an ordinary copying array read. For names and field selections, read the selected descriptor; unwrap groups without copying. For indexing, select the containing descriptor, evaluate the index once, bounds-check against length, and observe the selected child descriptor. For computed arrays, evaluate the expression normally once and observe its resulting descriptor. Snapshot each indexed descriptor selection before evaluating a later nested index. Record these selections in the existing temporary-borrow graph: a later index may call a helper that invalidates the earlier selection. Computed arrays remain owned temporaries. Save the capacity in a u64 temporary immediately, preserving left-to-right evaluation. Do not retain a new borrow or introduce another owner just to inspect metadata.
+
+Use the retained capacity fixtures to distinguish reserve at length zero, tight copies, nested descriptors, reference aliases, value parameters, truncate retaining storage, and resize(0) releasing it. Assertions from Chapter 5 can express these expectations directly.
+
 ## Allocate without arithmetic surprises
 
 `u64` is the language's length type, not a promise that every such length fits the target address space. Before allocating, require the requested count to fit `SIZE_MAX / element_stride`. Only then convert and multiply to obtain a `size_t` byte count. Distinguish allocation-size overflow (`LYR007`) from allocator refusal (`LYR008`). Both are fatal, located failures with the existing best-effort Lyric call trace and nonzero process exit. Fatal termination promises no normal cleanup or finalization.
@@ -67,7 +77,7 @@ For growth, use a simple geometric preference: current capacity plus half its ca
 
 Store `realloc`'s result in a temporary. On failure, the original pointer still describes the old allocation until fatal termination. Update the descriptor only after success. Never overwrite the original pointer with an unchecked null result.
 
-For push, check length-plus-one before addition, reserve sufficient storage, install the evaluated element, and only then increment length. For shrinking, decrement length and release each removed nested child. Retain capacity. Regrowth initializes new live slots afresh; old contents beyond length are never resurrected.
+For push, check length-plus-one before addition, reserve sufficient storage, install the evaluated element, and only then increment length. For shrinking, decrement length and release each removed nested child. Nonzero resize and truncate retain capacity. For resize(0), then release the backing block and reset the entire descriptor, even if its length was already zero but capacity was reserved. Regrowth initializes new live slots afresh; old contents beyond length are never resurrected.
 
 ## Copy, move, and release have different jobs
 
@@ -75,7 +85,7 @@ Use a recursive copy helper parameterized by the checked nesting depth and scala
 
 Release traverses only live children, recursively drops them, frees the outer allocation, and resets the descriptor to empty. Spare slots own nothing and must not be traversed. Copying preserves values; releasing ends ownership; moving transfers an already independent value without copying it again.
 
-The simplest initial emitter makes array-valued reads into independent owned temporaries. A literal installs its evaluated children into a new parent array, moving nested temporary descriptors and resetting their sources. A string literal may have static source bytes, but the expression result is an owned array copy. There is no shared-static-string ownership exception.
+The simplest initial emitter makes array-valued reads into independent owned temporaries. A literal installs its evaluated children into a new parent array, moving nested temporary descriptors and resetting their sources. A string literal may have static source bytes, but the expression result is an owned array copy. There is no shared-static-string ownership exception. Keep the static template readable, for example `static const uint8_t bytes[] = "Hello, World!";`, with an explicit Lyric length excluding C’s terminator. The copy creates the ordinary independently owned `[u8]` value that can be transferred and released; it is not a conversion to a null-terminated string. Avoiding this allocation for a print-only literal is a possible later optimization, not a different string ownership rule.
 
 An ordinary call evaluates arguments left to right into temporaries. Array value arguments transfer their independent values to the callee's parameter owners; reset the caller's moved temporaries. Reference arguments do not transfer or reset caller storage. Printing borrows its evaluated text for output while the caller retains responsibility for the temporary's cleanup.
 
@@ -214,7 +224,7 @@ python3 graders/ch07/run.py dotnet compiler/bin/Debug/net10.0/Lyric.dll
 python3 graders/ch07/run.py dotnet compiler/bin/Release/net10.0/Lyric.dll
 ```
 
-Replace `dotnet` with your selected SDK executable if needed. All 102 named Chapter 7 cases are retained; there are no Chapter 7-only cases. Successful emission requires exit 0, nonempty C, and empty stderr. Executables compile and run at both `-O0` and `-O2` with exact output bytes and exit status. Negative cases require their specified diagnostics, locations, and traces. A crash, timeout, or arbitrary nonzero exit is not an expected rejection. Each subprocess has the shared harness's 20-second limit. Generated C formatting and temporary identifier spelling are not grading requirements.
+Replace `dotnet` with your selected SDK executable if needed. All 112 named Chapter 7 cases are retained; there are no Chapter 7-only cases. Successful emission requires exit 0, nonempty C, and empty stderr. Executables compile and run at both `-O0` and `-O2` with exact output bytes and exit status. Negative cases require their specified diagnostics, locations, and traces. A crash, timeout, or arbitrary nonzero exit is not an expected rejection. Each subprocess has the shared harness's 20-second limit. Generated C formatting and temporary identifier spelling are not grading requirements.
 
 An optional supporting-toolchain diagnostic run is:
 

@@ -1,0 +1,10 @@
+6ee66585a2d3e58519fd00f33a2c403b9110f20b7fc2f8ab3d446832a3fe9bf9  compiler/bin/Debug/net10.0/Lyric
+94cb5bbb1bbfa82fd9213e9265c5702d63ccae99760934eb81e5421e4b2a2c18  compiler/bin/Debug/net10.0/Lyric.deps.json
+0b9909794722d1b1f88b583a6784d7edaad01208341813f738e252b1d0472468  compiler/bin/Debug/net10.0/Lyric.dll
+b87877e52ae42ea7a6db9c5e722c3fa91437d9f22fe174f09bebee30c38f3309  compiler/bin/Debug/net10.0/Lyric.pdb
+f9bc8e9f0c46247078ed47309f19a7576b4b94e4300e9de0003917d6bd2d667a  compiler/bin/Debug/net10.0/Lyric.runtimeconfig.json
+6ee66585a2d3e58519fd00f33a2c403b9110f20b7fc2f8ab3d446832a3fe9bf9  compiler/bin/Release/net10.0/Lyric
+94cb5bbb1bbfa82fd9213e9265c5702d63ccae99760934eb81e5421e4b2a2c18  compiler/bin/Release/net10.0/Lyric.deps.json
+9e70777486909f24486e57d50638aa2e967d86dd53ea32b1bc9df0f94077ceb0  compiler/bin/Release/net10.0/Lyric.dll
+f4aa5ac1c18947e1c3d4f182771263bd3c0cbc82e6f8a992a56510dd33b9fb98  compiler/bin/Release/net10.0/Lyric.pdb
+9950d4583cfc9a106857c0d5b8a75b53e8774852b57b80bc3823a74d44a4d87f  compiler/bin/Release/net10.0/Lyric.runtimeconfig.json

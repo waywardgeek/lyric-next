@@ -65,6 +65,59 @@ internal sealed partial class SemanticScope
 
 internal sealed partial class SemanticSymbol
 {
+    internal partial bool IsCountedClass()
+    {
+        if (Kind != SymbolKind.Class || Declaration is null)
+        {
+            return false;
+        }
+        for (int i = 0; i < Declaration.ChildCount(); i += 1)
+        {
+            SyntaxNode child = Declaration.ChildAt(i);
+            if (child.Kind == SyntaxKind.Modifier
+                && child.Source!.SourceText(child.TextOffset, child.TextLength) == "value")
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal partial bool IsFinalHook()
+    {
+        if (Kind != SymbolKind.Function || Declaration is null)
+        {
+            return false;
+        }
+        for (int i = 0; i < Declaration.ChildCount(); i += 1)
+        {
+            SyntaxNode child = Declaration.ChildAt(i);
+            if (child.Kind == SyntaxKind.Modifier
+                && child.Source!.SourceText(child.TextOffset, child.TextLength) == "final")
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    internal partial SemanticSymbol? FinalHook()
+    {
+        if (Kind != SymbolKind.Class || Declaration is null)
+        {
+            return null;
+        }
+        for (int i = 0; i < Declaration.ChildCount(); i += 1)
+        {
+            SemanticSymbol? member = Declaration.ChildAt(i).DeclaredSymbol;
+            if (member is not null && member.IsFinalHook())
+            {
+                return member;
+            }
+        }
+        return null;
+    }
+
     internal partial SemanticSymbol(SemanticScope scope, SyntaxNode? declaration,
         string name, SymbolKind kind, SemanticType? type, bool mutable,
         BuiltinKind builtin, bool acceptsArray, bool isReference)

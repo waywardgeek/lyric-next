@@ -1,0 +1,13 @@
+PASS ordinary aos -O0 outstanding blocks [3, 3]
+PASS ordinary aos -O2 outstanding blocks [3, 3]
+PASS ordinary soa -O0 outstanding blocks [3, 3]
+PASS ordinary soa -O2 outstanding blocks [3, 3]
+PASS counted aos -O0 outstanding blocks [3, 3]
+PASS counted aos -O2 outstanding blocks [3, 3]
+PASS counted soa -O0 outstanding blocks [3, 3]
+PASS counted soa -O2 outstanding blocks [3, 3]
+PASS counted-array aos -O0 outstanding blocks [3, 3]
+PASS counted-array aos -O2 outstanding blocks [3, 3]
+PASS counted-array soa -O0 outstanding blocks [3, 3]
+PASS counted-array soa -O2 outstanding blocks [3, 3]
+12/12 owned-field/array balance comparisons passed

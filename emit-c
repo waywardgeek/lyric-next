@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Build the current Lyric compiler and emit C without compiling or running it."""
+
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+
+def main():
+    options = sys.argv[1:-1]
+    invalid_option = any(option not in ('--unsafe', '--soa') for option in options)
+    duplicate_option = len(set(options)) != len(options)
+    if len(sys.argv) < 2 or invalid_option or duplicate_option:
+        print('Usage: ./emit-c [--unsafe] [--soa] FILE.ly > FILE.c', file=sys.stderr)
+        return 2
+    source = Path(sys.argv[-1]).resolve()
+    if source.suffix != '.ly' or not source.is_file():
+        print(f'emit-c: expected an existing .ly file: {source}', file=sys.stderr)
+        return 2
+
+    root = Path(__file__).resolve().parent
+    dotnet = os.environ.get('DOTNET', 'dotnet')
+    # Never emit with a stale compiler after a failed build. Reserve stdout
+    # exclusively for generated C so shell redirection produces a usable file.
+    subprocess.run(
+        [dotnet, 'build', str(root / 'compiler/Lyric.csproj'),
+         '-c', 'Release', '--nologo', '--tl:off'],
+        cwd=root, stdout=sys.stderr, check=True,
+    )
+    assembly = root / 'compiler/bin/Release/net10.0/Lyric.dll'
+    return subprocess.run(
+        [dotnet, str(assembly), '--emit-c'] + options + [str(source)],
+    ).returncode
+
+
+if __name__ == '__main__':
+    try:
+        status = main()
+    except subprocess.CalledProcessError as error:
+        status = error.returncode
+    except OSError as error:
+        print(f'emit-c: {error}', file=sys.stderr)
+        status = 1
+    except KeyboardInterrupt:
+        status = 130
+    sys.exit(128 - status if status < 0 else status)

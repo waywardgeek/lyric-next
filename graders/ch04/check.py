@@ -10,6 +10,9 @@ import tempfile
 # Deep left-associated trees are permitted by the parser. These cases guard
 # subsequent semantic passes, independently of parser recursion limits.
 CASES = [
+    ('assert-bool', 'func main() { assert(true); assert(false) }', None),
+    ('assert-type', 'func main() { assert(1) }', ('LYC304', 'Expected bool, got i32.')),
+    ('assert-arity', 'func main() { assert() }', ('LYC303', "Function 'assert' expects 1 argument(s), got 0.")),
     ('long-context', 'func main() { let total: u8 = ' + ' + '.join(['0'] * 4000) + ' }', None),
     ('long-neighbor', 'func main() { let total = ' + ' + '.join(['0'] * 3999 + ['0u8']) + ' }', None),
     ('branch-return-else', 'func main() { let x: string; if true { x = "A" } else { return }; print(x) }', None),
@@ -135,6 +138,7 @@ def main():
                     if match is not None:
                         valid = valid and (match[3], match[4]) == expected
                         anchors = {
+                            "assert-type": "1", "assert-arity": "assert",
                             "branch-isolation": "x", "branch-value-unsupported": "true",
                             "branch-unreachable-unsupported": "print",
                             "branch-one": "x", "branch-possible": "x",

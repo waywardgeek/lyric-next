@@ -232,3 +232,7 @@ Parent verification matched all 203 frozen input hashes and all 185 listed nonco
 Teaching feedback required no correction. Explicit iterative arithmetic traversal and continuing-path joins supported reconstruction. One student-owned diagnostic initially used invented syntax and failed; the student corrected only that diagnostic and retained the failure. Lesson: diagnostic scaffolding must obey the actual language contract, and a scaffolding failure is not an expected compiler rejection. CLI passes and relationship-lifecycle evidence remain distinct.
 
 This is one successful unassisted reconstruction, not universal semantic correctness. The student walkthrough is not Bill's acceptance. Chapter 4 is ready for human reading and make spin04; no Chapter 5, commit, or push was performed.
+
+## Human acceptance
+
+Bill reported, “Chapter 4 looks good.” Chapter 4 is accepted and closed. This records his acceptance after reading; it does not claim that he ran the manual walkthrough. Earlier pending statements describe the historical milestones above. No student rerun or compiler change was needed.

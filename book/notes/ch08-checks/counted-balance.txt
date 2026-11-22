@@ -1,0 +1,9 @@
+PASS ordinary aos -O0 outstanding blocks [3, 3]
+PASS ordinary aos -O2 outstanding blocks [3, 3]
+PASS ordinary soa -O0 outstanding blocks [3, 3]
+PASS ordinary soa -O2 outstanding blocks [3, 3]
+PASS counted aos -O0 outstanding blocks [3, 3]
+PASS counted aos -O2 outstanding blocks [3, 3]
+PASS counted soa -O0 outstanding blocks [3, 3]
+PASS counted soa -O2 outstanding blocks [3, 3]
+8/8 owned-field balance comparisons passed

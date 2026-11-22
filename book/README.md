@@ -2,6 +2,8 @@
 
 This book is being developed with the implementation, not reconstructed after a finished compiler. The [language specification](../lyric-language-spec.md) defines Lyric's behavior; the book teaches how to construct a compiler that implements it.
 
+Authoring collaboration follows the [recorded agreements](notes/authoring.md).
+
 ## Current drafts
 
 - [Preface](preface.md): Bill's author-voice draft on agentic codebooks, the two-edition/self-hosting plan, and the prospective connection to LLM training.
@@ -10,15 +12,20 @@ This book is being developed with the implementation, not reconstructed after a 
 
 - [Chapter 2 — Recognize Tokens Without Parser Feedback](chapter-02.md): teaching for the verified Unicode and lexer increment; both independent reviews and an unassisted student reconstruction are complete. Bill reviewed and accepted Chapter 2.
 
-- [Chapter 3 — Parse the Language](chapter-03.md): full-parser teaching and public tree contracts. Both independent reviews are incorporated. A fresh student passed all cumulative Debug/Release checks and the PEG comparison, with runtime setup assistance only. Ready for Bill’s walkthrough and acceptance.
+- [Chapter 3 — Parse the Language](chapter-03.md): full-parser teaching and public tree contracts. Both independent reviews are incorporated. A fresh student passed all cumulative Debug/Release checks and the PEG comparison, with runtime setup assistance only. Bill has accepted Chapter 3 and closed it out.
 
-- [Chapter 4 — Give the Program Meaning](chapter-04.md): draft teaching for the verified first semantic increment. Both configurations pass the 79 semantic cases and retained earlier suites. The single code and text reviews are incorporated. A fresh student passed all cumulative Debug/Release checks, the separate PEG comparison, and the scripted walkthrough without requirement clarification or implementation assistance. Human walkthrough and acceptance remain pending.
+- [Chapter 4 — Give the Program Meaning](chapter-04.md): teaching for the verified first semantic increment. Both configurations pass the 79 semantic cases and retained earlier suites. The single code and text reviews are incorporated. A fresh student passed all cumulative Debug/Release checks, the separate PEG comparison, and the scripted walkthrough without requirement clarification or implementation assistance. Bill has accepted Chapter 4 and closed it out.
 
-- [Chapter 5 — Run the Program](chapter-05.md): reference C emission and execution implemented; 75 retained Chapter 5 cases pass in both configurations alongside retained checks. The scripted walkthrough is verified. The single code and text reviews are incorporated; fresh-student reconstruction passed all required cumulative checks, the separate PEG comparison, and the scripted walkthrough; human acceptance remains pending. Bill authorized advancing with the Chapter 4 human walkthrough deferred.
+- [Chapter 5 — Run the Program](chapter-05.md): reference C emission and execution implemented; 75 retained Chapter 5 cases pass in both configurations alongside retained checks. The scripted walkthrough is verified. The single code and text reviews are incorporated; fresh-student reconstruction passed all required cumulative checks, the separate PEG comparison, and the scripted walkthrough; Bill has accepted Chapter 5 and closed it out.
 
-- [Chapter 6 — Expressions and Control Flow](chapter-06.md): expanded reference implementation and teaching complete through both reviews and fresh-student reconstruction. The reference and independent student each pass 250 Chapter 6 cases in both configurations, all retained checks, the separate PEG comparison, and the scripted walkthrough. The student needed runtime setup assistance only; human walkthrough and acceptance remain pending.
+- [Chapter 6 — Expressions and Control Flow](chapter-06.md): expanded reference implementation and teaching complete through both reviews and fresh-student reconstruction. The reference and independent student each pass 250 Chapter 6 cases in both configurations, all retained checks, the separate PEG comparison, and the scripted walkthrough. The student needed runtime setup assistance only; Bill has accepted Chapter 6 and closed it out.
 
 - [Chapter 7 — Arrays, Ownership, and Stable References](chapter-07.md): teaching for the implemented array and reference increment. The single code review is incorporated. All 102 Chapter 7 cases and retained earlier suites pass in Debug and Release, plus the separate 143-case PEG comparison and scripted walkthrough. The earlier 90-case sanitizer run passed. Both single reviews are incorporated; a fresh confined student independently passed all required cumulative checks, PEG143, and the scripted walkthrough without implementation assistance or grader changes. Human walkthrough and acceptance remain pending.
+
+The historical completion results above predate the newly approved assertion
+and capacity contracts. Their construction requirements are integrated into
+Chapters 4–7 and their retained graders; successful frozen students have not
+been rerun. Current verification is recorded in the development notes.
 
 ## Reference implementation in development
 
@@ -45,9 +52,11 @@ See [Chapter 2 development notes](notes/ch02-development.md) for evidence limits
 
 See [the next-increment roadmap](roadmap.md) for the approved Chapter 8 scope and the interfaces → multi-class interfaces → relationships dependency spine. It supersedes the broad sketch below where more specific.
 
+- [Chapter 8 — Classes, Lifetimes, and Two Storage Layouts](chapter-08.md): reference implementation and teaching complete through the single code and text reviews and fresh independent reconstruction. Both configurations pass all retained checks, including 154 static class cases and 212 layout executions, plus allocation/ownership checks, PEG143, and the scripted walkthrough. The student received a grader correction and constructor-scope clarification, but no implementation assistance; see the [reconstruction report](notes/ch08-student-report.md). Human walkthrough and acceptance remain pending.
+
 ## Provisional construction sequence
 
-This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 7 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
+This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 8 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 
 1. **Read characters and report errors.** Establish the executable foundation, character parsing, and the error interface together. Independent positive and negative graders must test successful output and illegal-input diagnostics. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup in this small slice.
 2. **Recognize tokens.** Build on Chapter 1’s UTF-8 validation and source locations to recognize lexical elements and enforce identifier rules. Settle remaining relevant lexical questions before treating this slice as complete.

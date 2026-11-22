@@ -77,9 +77,14 @@ Start each check by retiring the previous analysis and constructing a fresh anal
 ```text
 print(text: string) -> unit
 println(text: string) -> unit
+assert(condition: bool) -> unit
 ```
 
-Both have real parameter symbols and function scopes. Call checking must not contain a special branch for those spellings. The language makes public standard exports automatically visible in the global namespace; this increment implements the supported declarations, not the entire standard library. Printing eventually writes bytes, with `println` adding LF. This chapter establishes signatures only, not output execution or I/O-failure behavior.
+All three have real parameter symbols and function scopes. Call checking must not contain a special branch for those spellings. The language makes public standard exports automatically visible in the global namespace; this increment implements the supported declarations, not the entire standard library. Printing eventually writes bytes, with `println` adding LF. This chapter establishes signatures only, not output execution or I/O-failure behavior.
+
+These string-only signatures are the output primitives, not the whole long-term convenience interface. Callers should not have to manually convert and concatenate every value. The planned everyday interface is string interpolation, for example `println(f"Count: {count}, total: {total}")`. Formatting produces a string independently of output, so that same text can be sent to a file, diagnostic, or test; plain printing never interprets formatting directives in its input. Interpolation is not supported by this chapter’s semantic increment. A later increment must establish formatting rules for numbers and user-defined values before implementing it. Direct generic printing such as `println(count)` remains a possible convenience, not a requirement here. For this chapter, passing a non-string argument still correctly fails type checking.
+
+`assert` is an ordinary standard function, not new statement grammar. Require exactly one `bool` argument and a unit result through the same call checker. Both `assert(true)` and `assert(false)` are semantically valid: the false case is a runtime assertion failure, not a constant-expression rejection. No implicit integer-to-bool conversion or optional message is provided. The next chapter implements its execution; later optimized and unsafe builds must preserve it.
 
 Use three passes over user functions:
 

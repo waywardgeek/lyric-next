@@ -22,13 +22,15 @@ internal sealed partial class SemanticAnalysis
 {
     internal Compilation? Compilation;
     internal bool Destroyed;
+    // Checked-mode policy belongs to this analysis and is consumed by emission.
+    internal readonly bool Unsafe;
     private readonly List<SemanticScope> Scopes = new();
 
     // Analysis owns scope lifetimes. Registration updates the scope backlink.
     internal partial void AddScope(SemanticScope scope);
     internal partial void RemoveScope(SemanticScope scope);
 
-    internal partial SemanticAnalysis(Compilation compilation);
+    internal partial SemanticAnalysis(Compilation compilation, bool unsafeMode = false);
     internal partial void Destroy();
 }
 
@@ -58,6 +60,8 @@ internal enum BuiltinKind
     Print,
     Println,
     Length,
+    Capacity,
+    Assert,
 }
 
 // Value-like checked class operation. The fact's Symbol relationship identifies
@@ -128,6 +132,12 @@ internal sealed partial class SemanticSymbol
         string name, SymbolKind kind, SemanticType? type, bool mutable,
         BuiltinKind builtin = BuiltinKind.None, bool acceptsArray = false, bool isReference = false);
     internal partial void Destroy();
+    // Queries authoritative syntax/member relationships; no duplicate hook state.
+    internal partial bool IsFinalHook();
+    // Lifetime policy comes from the class declaration, not copied state.
+    internal partial bool IsCountedClass();
+    // Valid checked classes have at most one hook. Returns its existing symbol.
+    internal partial SemanticSymbol? FinalHook();
 }
 
 internal sealed partial class SyntaxNode
@@ -191,7 +201,7 @@ internal sealed partial class Compilation
 {
     // Checks parsed sources; executable mode additionally requires main.
     // Failure retires incomplete analysis.
-    internal partial Diagnostic? Check(bool executable);
+    internal partial Diagnostic? Check(bool executable, bool unsafeMode = false);
 }
 
 internal sealed partial class SourceFile

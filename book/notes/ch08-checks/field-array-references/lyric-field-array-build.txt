@@ -1,0 +1,9 @@
+/Users/bill/projects/lyric-next/compiler/Semantics/Check.cs(1490,54): error CS8629: Nullable value type may be null. [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+
+Build FAILED.
+
+/Users/bill/projects/lyric-next/compiler/Semantics/Check.cs(1490,54): error CS8629: Nullable value type may be null. [/Users/bill/projects/lyric-next/compiler/Lyric.csproj]
+    0 Warning(s)
+    1 Error(s)
+
+Time Elapsed 00:00:00.81

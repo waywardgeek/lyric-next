@@ -109,6 +109,21 @@ def run(command, **options):
                           timeout=20, **options)
 
 
+# Assertions are ordinary checked calls and always-on runtime checks.
+CASES += [
+    ('assert-true', 'func main() { assert(true); print("ok") }', b'ok'),
+    ('assert-once', 'func condition() -> bool { print("once"); return true }; func main() { assert(condition()) }', b'once'),
+    ('assert-unit', 'func main() { let result: unit = assert(true); print("ok") }', b'ok'),
+]
+ASSERT_FAILURES = []
+for name, source, trace in [
+    ('assert-false', 'func main() { assert(false); print("unreachable") }', ['main']),
+    ('assert-trace', 'func check(x: bool) { assert(x) }; func main() { check(false) }', ['check', 'main']),
+]:
+    ASSERT_FAILURES.append((name, source, source.index('assert(') + 1,
+                            'LYR010: assertion failed', trace))
+
+
 def main(cases=CASES, overflows=OVERFLOWS, rejections=REJECTIONS, runtime_failures=()):
     compiler = sys.argv[1:]
     if not compiler:
@@ -193,4 +208,4 @@ def main(cases=CASES, overflows=OVERFLOWS, rejections=REJECTIONS, runtime_failur
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(main(runtime_failures=ASSERT_FAILURES))

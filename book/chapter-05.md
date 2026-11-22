@@ -12,7 +12,11 @@ This chapter adds execution, not class semantics or a broader expression languag
 
 The preceding chapter can establish that a call resolves, its arguments fit, and every read has an initialized value. It cannot print hello world. Now those facts become instructions that another compiler can execute.
 
-C is a useful first target because it supplies native compilation without requiring us to build a machine-code backend. It is not Lyric's semantic authority. Its expression order, integer promotions, signed-overflow behavior, and string conventions differ from ours. A mechanical source-to-source translation would therefore be wrong even when the resulting C compiles.
+C is our intended long-term performance backend, not a temporary convenience on the way to emitting LLVM IR. Our ambition is for Lyric in structure-of-arrays (SoA) mode to be the fastest language for most real projects. The compiler should make efficient layouts available to ordinary application code, rather than require programmers to handcraft specialized representations. C programmers can write SoA themselves, but that does not make it the normal way applications are built. Representative applications are the important test: winning a small benchmark with expert-tuned code is not the same as making everyday programs fast. Later chapters build the class layouts; this chapter establishes execution, not those performance results.
+
+Emitting C also uses the C compiler's frontend lowering before its optimizer and machine-code backend. Direct LLVM IR bypasses Clang's C frontend; producing equally effective optimizer input then becomes our responsibility. Bill's experience with Rune motivates this choice: he reports that its SoA implementation lost benchmarks because of its LLVM-IR emission route, rather than its layout strategy. We choose C to exploit the established compilation pipeline, not merely to save implementation effort. This chapter does not measure the relative performance of those routes or assign a numerical share of Clang's optimizations to its frontend.
+
+C is still not Lyric's semantic authority. Its expression order, integer promotions, signed-overflow behavior, and string conventions differ from ours. A mechanical source-to-source translation would therefore be wrong even when the resulting C compiles.
 
 Keep the boundary inspectable:
 
@@ -37,7 +41,7 @@ The existing graph already supplies everything persistent:
 
 Keep generated C names in a temporary symbol-to-name dictionary for this emission. Repeated references to one symbol receive one generated name; distinct symbols receive distinct names even when their source names match in independent scopes. Do not store a second signature table or copy semantic types into a backend model. Names such as `ly_s0` also avoid C keywords and Unicode-identifier differences. Their exact spelling is not a public output contract.
 
-Add an explicit builtin identity to the symbol vocabulary: none, print, or println. The semantic pass sets it when constructing the standard declarations. The emitter dispatches on the resolved symbol's identity, not the text of a call. This preserves ordinary name resolution and keeps implementation behavior attached to its authoritative declaration.
+Add an explicit builtin identity to the symbol vocabulary: none, print, println, or assert. The semantic pass sets it when constructing the standard declarations. The emitter dispatches on the resolved symbol's identity, not the text of a call. This preserves ordinary name resolution and keeps implementation behavior attached to its authoritative declaration.
 
 String syntax retains a source span rather than a token reference. Expose a declared source operation that returns read-only decoded literal bytes for that exact span. In this implementation it binary-searches the source's ordered token collection and verifies the complete span and decoded-value presence. Do not parse escapes again or add a second persistent decoded-string store. The returned span is temporary and must not survive token/source mutation. Emission neither mutates the compilation nor retains the span after producing its bytes.
 
@@ -63,7 +67,7 @@ Write bytes as numeric initializer elements. A sentinel byte can make an empty C
 
 This shared immutable storage implements the currently observable operations. It is **not** an implementation of general mutable array value semantics. When later chapters add array mutation, assignments and parameter passing must preserve independent value storage as the language requires. Do not quietly keep shared backing merely because this chapter's programs cannot expose it.
 
-For diagnostic paths and function names, JSON-quote the logical text so control characters are displayed safely. Then encode those UTF-8 bytes into C string literals with fixed three-digit octal escapes. This prevents the C execution character set or a following digit from changing the intended diagnostic bytes. Literal program data and diagnostic display strings have different contracts.
+For diagnostic paths and function names, JSON-quote the logical text so control characters are displayed safely, then encode those UTF-8 bytes as readable C literals. On the supported ASCII-compatible C target, preserve printable ASCII, escape quotes and backslashes, and use familiar newline, carriage-return, and tab escapes. Escape question marks to prevent C11 trigraph conversion. Encode other bytes with two-digit hex escapes, ending each escape with an adjacent string-literal boundary so following hexadecimal characters cannot extend it. Use the same byte spelling for program literals in explicit `uint8_t` arrays, so ordinary text remains recognizable as `"Hello, World!"`. A C initializer’s trailing zero is not part of the Lyric length. Literal program data and JSON-quoted diagnostic display strings still have different contracts; repeated source filenames at diagnostic sites are not duplicate program literals.
 
 ## Evaluation order must be emitted
 
@@ -125,11 +129,21 @@ The verified target for this increment is macOS ARM64 with Apple Clang. Exact by
 
 There is an operating-system boundary too: on POSIX, a broken output pipe can deliver `SIGPIPE` before stdio reports failure. At executable startup, ignore that signal where it is defined, checking setup failure. This lets the checked write path deliver the diagnostic. Do not install such process-wide policy as a hidden library initialization effect. Our retained test closes the reader before starting the program; the original runtime terminated by signal 13 with no diagnostic, while the corrected runtime reported the intended failure. Checking stream return values alone was insufficient.
 
+## Assertions make executable expectations explicit
+
+Implement the Chapter 4 standard declaration `assert(condition: bool) -> unit`. This is a regular call resolved through its builtin symbol identity, not a parser keyword or a name-based backend shortcut. Evaluate the condition exactly once using the ordinary left-to-right expression temporaries. Pass that saved boolean and the assertion call's source location to a runtime helper.
+
+On true, the helper returns the ordinary unit value without output. On false, report `LYR010: assertion failed` at the call site, print the active Lyric call trace in the same format as overflow, then exit 1. Constant false is still a runtime failure. Diagnostic delivery is best-effort; fatal failure does not unwind or promise cleanup. There is no custom-message parameter in this increment.
+
+Do not use C's `assert` macro: `NDEBUG` can erase it. Lyric assertions remain active in optimized builds and under the later `--unsafe` mode. Unsafe removes specified arithmetic and index checks, not explicit assertions or the effects of evaluating their conditions.
+
+For example, `assert(true); print("ok")` must succeed. `assert(false); print("unreachable")` must fail without printing the later text. A helper that prints once and returns true lets a grader establish exactly-once evaluation. Later chapters can express richer expectations directly, such as `assert(capacity(a) == 0u64)`. Graders must still check exit status, streams, and the intended diagnostic: a crash is not an assertion failure.
+
 ## Exercises and completion
 
 Start from your Chapter 4 compiler, not this chapter's reference implementation. Extend Common declarations and the responsible modules following the existing architecture. Implement the emission boundary, builtin identity, read-only literal access, C runtime, expression sequencing, statement lowering, checked arithmetic, and trace lifetime described above. Preserve every earlier inspection mode and diagnostic contract.
 
-Read the [Chapter 5 grader contract](../graders/ch05/README.md) and its public `run.py`. Its 75 named cases are retained; there are no chapter-only checks. The 73 executable cases compile and run emitted C at both `-O0` and `-O2`, comparing exact status and output bytes. The two rejection cases instead require the existing semantic diagnostic and no C output; they never invoke the C compiler. The graders do not require particular C formatting or generated identifiers. Source rejection must emit no C. Crashes, signals, timeouts, and unrelated nonzero exits do not count as intended runtime failure.
+Read the [Chapter 5 grader contract](../graders/ch05/README.md) and its public `run.py`. Its 80 named cases are retained; there are no chapter-only checks. The 78 executable cases compile and run emitted C at both `-O0` and `-O2`, comparing exact status and output bytes. The two rejection cases instead require the existing semantic diagnostic and no C output; they never invoke the C compiler. The graders do not require particular C formatting or generated identifiers. Source rejection must emit no C. Crashes, signals, timeouts, and unrelated nonzero exits do not count as intended runtime failure.
 
 Prerequisites are Python 3, Make, .NET 10/C# 14 for this edition, a C11 compiler with exact-width integer types, and the existing Node/Peggy setup for the retained syntax comparison. No new package installation is performed by these commands. Run from the repository root:
 

@@ -1,0 +1,42 @@
+cumulative.txt
+Grader comparison self-check passed
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+82/82 semantic cases passed
+80/80 execution cases passed
+250/250 execution cases passed
+87/87 unsafe checks passed
+112/112 execution cases passed
+6/6 execution cases passed
+154/154 Chapter 8 checking cases passed
+212/212 layout executions passed
+4/4 free-slot allocation comparisons passed
+12/12 owned-field/array balance comparisons passed
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+82/82 semantic cases passed
+80/80 execution cases passed
+250/250 execution cases passed
+87/87 unsafe checks passed
+112/112 execution cases passed
+6/6 execution cases passed
+154/154 Chapter 8 checking cases passed
+212/212 layout executions passed
+4/4 free-slot allocation comparisons passed
+12/12 owned-field/array balance comparisons passed
+sanitized-layout.txt
+212/212 layout executions passed

@@ -20,6 +20,11 @@ internal sealed partial class Compilation
             throw new InvalidOperationException("Check before emitting C.");
         }
         using StringWriter code = new(CultureInfo.InvariantCulture);
+        bool unsafeMode = Analysis.Unsafe;
+        if (unsafeMode)
+        {
+            code.WriteLine("/* UNSAFE: arithmetic and index checks disabled; invalid inputs inherit C behavior. */");
+        }
         Dictionary<SemanticSymbol, string> names = new();
         List<SemanticSymbol> functions = new();
         List<SemanticSymbol> classes = new();
@@ -29,6 +34,9 @@ internal sealed partial class Compilation
         Stack<int> loopScopes = new();
         int temporary = 0;
         int indentation = 0;
+        // Cleanup diagnostics use the containing source function when there is
+        // no single expression site (for example, an implicit scope exit).
+        string cleanupLocation = "";
         SemanticSymbol? entry = null;
         foreach (SourceFile source in Sources)
         {
@@ -44,19 +52,9 @@ internal sealed partial class Compilation
                     for (int m = 0; m < declaration.ChildCount(); m += 1)
                     {
                         SyntaxNode member = declaration.ChildAt(m);
-                        if (member.Kind == SyntaxKind.Modifier && Text(member) == "value")
-                        {
-                            return source.SemanticDiagnostic(member, "LYC306",
-                                "Counted class emission is not implemented yet.");
-                        }
                         if (member.DeclaredSymbol is not SemanticSymbol symbol)
                         {
                             continue;
-                        }
-                        if (symbol.Kind == SymbolKind.Field && symbol.Type!.Value.ArrayDepth > 0)
-                        {
-                            return source.SemanticDiagnostic(member, "LYC306",
-                                "Owned array field emission is not implemented yet.");
                         }
                         if (symbol.Kind == SymbolKind.Function)
                         {
@@ -107,6 +105,23 @@ internal sealed partial class Compilation
                     struct ly_frame *parent;
                 } ly_frame;
                 static ly_frame *ly_current_frame;
+
+                /* Language assertions are always enabled, including unsafe and
+                   optimized builds. Never delegate this contract to C assert. */
+                static ly_unit ly_assert(bool condition, const char *file, int line, int column)
+                {
+                    if (!condition)
+                    {
+                        fprintf(stderr, "%s:%d:%d: runtime error LYR010: assertion failed\n",
+                            file, line, column);
+                        for (ly_frame *frame = ly_current_frame; frame != NULL; frame = frame->parent)
+                        {
+                            fprintf(stderr, "  in %s\n", frame->name);
+                        }
+                        exit(1);
+                    }
+                    return (ly_unit){0};
+                }
 
                 static void ly_overflow(const char *file, int line, int column, const char *operation)
                 {
@@ -277,18 +292,28 @@ internal sealed partial class Compilation
                 }
                 """);
             ArithmeticHelpers();
+            // Generated destructors call hooks; declarations precede storage
+            // routines, while checked method bodies are emitted below them.
+            foreach (SemanticSymbol function in functions)
+            {
+                Line(Signature(function) + ";");
+            }
             foreach (SemanticSymbol classSymbol in classes)
             {
                 ClassStorage(classSymbol);
             }
-            foreach (SemanticSymbol function in functions)
+            foreach (SemanticSymbol classSymbol in classes)
             {
-                Line(Signature(function) + ";");
+                if (classSymbol.IsCountedClass())
+                {
+                    CountedArrays(classSymbol);
+                }
             }
             foreach (SemanticSymbol function in functions)
             {
                 Line(Signature(function));
                 SyntaxNode declaration = function.Declaration!;
+                cleanupLocation = Location(declaration);
                 for (int i = 0; i < declaration.ChildCount(); i += 1)
                 {
                     if (declaration.ChildAt(i).Kind == SyntaxKind.Block)
@@ -392,7 +417,17 @@ internal sealed partial class Compilation
             Line($"static uint64_t {name}_next;");
             // Metadata is private allocator storage: moving it cannot invalidate
             // source field borrows. Both payload layouts share this free list.
-            Line($"typedef struct {name}_slot {{ uint64_t next_free; bool live; }} {name}_slot;");
+            Line($"enum {{ {name}_free_state, {name}_live_state, {name}_destroying_state }};");
+            Line($"typedef struct {name}_slot {{");
+            indentation += 1;
+            Line("uint64_t next_free;");
+            Line("unsigned char state;");
+            if (owner.IsCountedClass())
+            {
+                Line("uint64_t references;");
+            }
+            indentation -= 1;
+            Line($"}} {name}_slot;");
             Line($"static ly_array {name}_slots;");
             Line($"static uint64_t {name}_free = UINT64_MAX;");
             if (structureOfArrays)
@@ -461,7 +496,13 @@ internal sealed partial class Compilation
             Line($"{name}_next = index + 1;");
             indentation -= 1;
             Line("}");
-            Line($"(({name}_slot *){name}_slots.data)[index].live = true;");
+            Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_live_state;");
+            if (owner.IsCountedClass())
+            {
+                // Construction returns the first owning holder. Reused slots
+                // start a new count rather than inheriting their old occupancy.
+                Line($"(({name}_slot *){name}_slots.data)[index].references = 1;");
+            }
             foreach (SemanticSymbol field in fields)
             {
                 Line($"{FieldStorage(field, "index")} = ({CType(field.Type!.Value)}){{0}};");
@@ -474,34 +515,197 @@ internal sealed partial class Compilation
             indentation += 1;
             // This guard is defensive; static analysis must reject stale source
             // uses. Slot reuse does not make an old source handle valid again.
-            Line($"if (index >= {name}_next || !(({name}_slot *){name}_slots.data)[index].live)");
+            Line($"if (index >= {name}_next || (({name}_slot *){name}_slots.data)[index].state != {name}_live_state)");
             Line("{");
             Line("    ly_array_failure(file, line, column, \"LYR009: invalid object destruction\");");
             Line("}");
-            Line($"(({name}_slot *){name}_slots.data)[index].live = false;");
+            Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_destroying_state;");
+            SemanticSymbol? hook = owner.FinalHook();
+            if (hook is not null)
+            {
+                Line($"(void){Name(hook)}(index);");
+            }
+            // Hook calls may grow this class's metadata and SoA backing. Keep
+            // only the index across the call, then resolve current storage again.
+            // Final observes live fields. Only afterward release their owned
+            // values, resolving each descriptor from the surviving index.
+            foreach (SemanticSymbol field in fields)
+            {
+                SemanticType fieldType = field.Type!.Value;
+                if (fieldType.ArrayDepth > 0)
+                {
+                    Line($"ly_array_drop(&{FieldStorage(field, "index")}, {fieldType.ArrayDepth});");
+                }
+            }
+            Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_free_state;");
             Line($"(({name}_slot *){name}_slots.data)[index].next_free = {name}_free;");
             Line($"{name}_free = index;");
             Line("return (ly_unit){0};");
             indentation -= 1;
             Line("}");
+            if (owner.IsCountedClass())
+            {
+                // UINT64_MAX is reserved by allocation. It denotes an empty
+                // backend holder, not a nullable source-language object.
+                Line($"static inline uint64_t {name}_retain(uint64_t index, const char *file, int line, int column)");
+                Line("{");
+                indentation += 1;
+                Line($"if (index >= {name}_next || (({name}_slot *){name}_slots.data)[index].state != {name}_live_state)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, \"LYR009: invalid object retain\");");
+                Line("}");
+                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[index];");
+                Line("if (slot->references == UINT64_MAX)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, \"LYR012: object reference count overflow\");");
+                Line("}");
+                Line("slot->references += 1;");
+                Line("return index;");
+                indentation -= 1;
+                Line("}");
+                Line($"static inline void {name}_release(uint64_t *holder, const char *file, int line, int column)");
+                Line("{");
+                indentation += 1;
+                Line("uint64_t index = *holder;");
+                Line("if (index == UINT64_MAX)");
+                Line("{");
+                Line("    return;");
+                Line("}");
+                Line($"if (index >= {name}_next || (({name}_slot *){name}_slots.data)[index].state != {name}_live_state)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, \"LYR009: invalid object release\");");
+                Line("}");
+                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[index];");
+                Line("if (slot->references == 0)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, \"LYR009: empty object reference count\");");
+                Line("}");
+                Line("*holder = UINT64_MAX;");
+                Line("slot->references -= 1;");
+                Line("if (slot->references == 0)");
+                Line("{");
+                // Destruction can call user code and relocate metadata. Never
+                // dereference slot again after crossing this boundary.
+                Line($"    (void){name}_destroy(index, file, line, column);");
+                Line("}");
+                indentation -= 1;
+                Line("}");
+            }
+        }
+        // The element class is known at compile time. Recursive array ownership
+        // uses its existing retain/release operations, not a runtime type registry.
+        void CountedArrays(SemanticSymbol owner)
+        {
+            string name = Name(owner);
+            code.WriteLine($$"""
+                static void {{name}}_array_drop(ly_array *array, unsigned depth,
+                    const char *file, int line, int column)
+                {
+                    if (depth > 1)
+                    {
+                        ly_array *children = array->data;
+                        for (uint64_t i = 0; i < array->length; i += 1)
+                        {
+                            {{name}}_array_drop(&children[i], depth - 1, file, line, column);
+                        }
+                    }
+                    else
+                    {
+                        uint64_t *elements = array->data;
+                        for (uint64_t i = 0; i < array->length; i += 1)
+                        {
+                            {{name}}_release(&elements[i], file, line, column);
+                        }
+                    }
+                    free(array->data);
+                    *array = (ly_array){0};
+                }
+
+                static ly_array {{name}}_array_copy(ly_array source, unsigned depth,
+                    const char *file, int line, int column)
+                {
+                    size_t stride = depth > 1 ? sizeof(ly_array) : sizeof(uint64_t);
+                    ly_array result = ly_array_new(source.length, stride, file, line, column);
+                    if (depth > 1)
+                    {
+                        ly_array *from = source.data;
+                        ly_array *to = result.data;
+                        for (uint64_t i = 0; i < source.length; i += 1)
+                        {
+                            to[i] = {{name}}_array_copy(from[i], depth - 1, file, line, column);
+                            result.length += 1;
+                        }
+                    }
+                    else
+                    {
+                        uint64_t *from = source.data;
+                        uint64_t *to = result.data;
+                        for (uint64_t i = 0; i < source.length; i += 1)
+                        {
+                            to[i] = {{name}}_retain(from[i], file, line, column);
+                            result.length += 1;
+                        }
+                    }
+                    return result;
+                }
+                """);
+        }
+        bool Counted(SemanticType type)
+        {
+            return type.ArrayDepth == 0 && type.Class is SemanticSymbol owner
+                && owner.IsCountedClass();
+        }
+        bool Owned(SemanticType type)
+        {
+            return type.ArrayDepth > 0 || Counted(type);
         }
         string Copy(string value, SemanticType type, SyntaxNode node)
         {
-            string scalar = CType(new SemanticType(type.Scalar, 0));
+            if (Counted(type))
+            {
+                return $"{Name(type.Class!)}_retain({value}, {Location(node)})";
+            }
+            if (type.Class is SemanticSymbol owner && owner.IsCountedClass())
+            {
+                return $"{Name(owner)}_array_copy({value}, {type.ArrayDepth}, {Location(node)})";
+            }
+            string scalar = CType(new SemanticType(type.Scalar, 0, type.Class));
             return $"ly_array_copy({value}, {type.ArrayDepth}, sizeof({scalar}), {Location(node)})";
         }
         void Own(string name, SemanticType type)
         {
-            if (type.ArrayDepth > 0)
+            if (Owned(type))
             {
                 owned[^1].Add((name, type));
             }
         }
         void Moved(string name, SemanticType type)
         {
-            if (type.ArrayDepth > 0)
+            if (Counted(type))
+            {
+                Line($"{name} = UINT64_MAX;");
+            }
+            else if (type.ArrayDepth > 0)
             {
                 Line($"{name} = (ly_array){{0}};");
+            }
+        }
+        void Drop(string name, SemanticType type, string location)
+        {
+            if (Counted(type))
+            {
+                Line($"{Name(type.Class!)}_release(&{name}, {location});");
+            }
+            else if (type.ArrayDepth > 0)
+            {
+                if (type.Class is SemanticSymbol owner && owner.IsCountedClass())
+                {
+                    Line($"{Name(owner)}_array_drop(&{name}, {type.ArrayDepth}, {location});");
+                }
+                else
+                {
+                    Line($"ly_array_drop(&{name}, {type.ArrayDepth});");
+                }
             }
         }
         void Cleanup(int firstScope, string? except = null)
@@ -513,13 +717,31 @@ internal sealed partial class Compilation
                     var value = owned[i][j];
                     if (value.Name != except)
                     {
-                        Line($"ly_array_drop(&{value.Name}, {value.Type.ArrayDepth});");
+                        Drop(value.Name, value.Type, cleanupLocation);
                     }
                 }
             }
         }
         // Select existing storage, never a value-copy temporary. Index expressions
         // are evaluated once, left to right, before the assignment RHS.
+        string Receiver(SyntaxNode node)
+        {
+            SyntaxNode ungrouped = node;
+            while (ungrouped.Kind == SyntaxKind.Group)
+            {
+                ungrouped = ungrouped.ChildAt(0);
+            }
+            if (ungrouped.Kind != SyntaxKind.Name)
+            {
+                return Expression(node);
+            }
+            // A field selection borrows its named receiver. Snapshot its index
+            // before RHS effects, without manufacturing another owning holder.
+            string result = "ly_receiver" + temporary.ToString(CultureInfo.InvariantCulture);
+            temporary += 1;
+            Line($"uint64_t {result} = {Storage(ungrouped)};");
+            return result;
+        }
         string Storage(SyntaxNode node)
         {
             if (node.Kind == SyntaxKind.Name)
@@ -530,7 +752,7 @@ internal sealed partial class Compilation
             if (node.Kind == SyntaxKind.Member)
             {
                 // Preserve identity across RHS effects, not an interior address.
-                string receiver = Expression(node.ChildAt(0));
+                string receiver = Receiver(node.ChildAt(0));
                 return FieldStorage(node.Fact!.Symbol!, receiver);
             }
             string array = Storage(node.ChildAt(0));
@@ -542,8 +764,37 @@ internal sealed partial class Compilation
             Line($"{element} *{pointer} = &(({element} *)({array}).data)[(uint64_t){index}];");
             return "(*" + pointer + ")";
         }
+        // Capacity observes existing storage without making a value copy. A
+        // computed value still owns its ordinary temporary until scope cleanup.
+        string ArrayDescriptor(SyntaxNode node)
+        {
+            if (node.Kind == SyntaxKind.Group)
+            {
+                return ArrayDescriptor(node.ChildAt(0));
+            }
+            if (node.Kind is SyntaxKind.Name or SyntaxKind.Member)
+            {
+                return Storage(node);
+            }
+            if (node.Kind == SyntaxKind.Index)
+            {
+                string array = ArrayDescriptor(node.ChildAt(0));
+                string index = Expression(node.ChildAt(1));
+                Bounds(array, index, node);
+                // Freeze this selection before evaluating any later nested index.
+                string selected = "ly_descriptor" + temporary.ToString(CultureInfo.InvariantCulture);
+                temporary += 1;
+                Line($"ly_array *{selected} = &((ly_array *)({array}).data)[(uint64_t){index}];");
+                return "(*" + selected + ")";
+            }
+            return Expression(node);
+        }
         void Bounds(string array, string index, SyntaxNode node)
         {
+            if (unsafeMode)
+            {
+                return;
+            }
             string invalid = $"(uint64_t){index} >= ({array}).length";
             if (SemanticTypes.IsSigned(node.ChildAt(1).Fact!.Type))
             {
@@ -594,17 +845,77 @@ internal sealed partial class Compilation
         }
         string CString(string text)
         {
-            // Fixed three-digit octal escapes cannot absorb following digits.
-            // Encode bytes explicitly so C source/execution character sets cannot
-            // change diagnostic paths or names. JSON quoting makes display safe.
+            return CBytes(Encoding.UTF8.GetBytes(text));
+        }
+        string CBytes(ReadOnlySpan<byte> bytes)
+        {
+            // Keep ordinary text readable without changing arbitrary byte values.
+            // End each hex escape with a literal boundary: C otherwise consumes
+            // following hexadecimal characters as part of the same escape.
             StringBuilder escaped = new("\"");
-            foreach (byte value in Encoding.UTF8.GetBytes(text))
+            foreach (byte value in bytes)
             {
-                escaped.Append('\\');
-                escaped.Append(Convert.ToString(value, 8).PadLeft(3, '0'));
+                switch (value)
+                {
+                    case (byte)'"':
+                        escaped.Append("\\\"");
+                        break;
+                    case (byte)'\\':
+                        escaped.Append("\\\\");
+                        break;
+                    case (byte)'?':
+                        // Avoid C11 trigraph interpretation before escape parsing.
+                        escaped.Append("\\?");
+                        break;
+                    case 10:
+                        escaped.Append("\\n");
+                        break;
+                    case 13:
+                        escaped.Append("\\r");
+                        break;
+                    case 9:
+                        escaped.Append("\\t");
+                        break;
+                    default:
+                        if (value >= 32 && value <= 126)
+                        {
+                            escaped.Append((char)value);
+                        }
+                        else
+                        {
+                            escaped.Append("\\x");
+                            escaped.Append(value.ToString("X2", CultureInfo.InvariantCulture));
+                            escaped.Append("\"\"");
+                        }
+                        break;
+                }
             }
             escaped.Append('"');
             return escaped.ToString();
+        }
+        string UncheckedArithmetic(SemanticType type, string operation, string left, string right)
+        {
+            // Cast to the selected Lyric type before C's usual conversions.
+            // Narrow unsigned multiplication is widened to avoid signed int
+            // promotion. Invalid safe-mode inputs otherwise inherit C behavior.
+            string ctype = CType(type);
+            string a = $"(({ctype}){left})";
+            string b = $"(({ctype}){right})";
+            if (operation == "*" && !SemanticTypes.IsSigned(type)
+                && SemanticTypes.IntegerWidth(type) < 32)
+            {
+                a = $"((uint32_t){left})";
+                b = $"((uint32_t){right})";
+            }
+            string result = $"({a} {operation} {b})";
+            if (operation == "%" && SemanticTypes.IsSigned(type))
+            {
+                // This is valid Lyric even in safe mode, so unsafe must preserve
+                // zero rather than execute C's undefined MIN % -1 operation.
+                string minimum = Integer(SemanticTypes.Minimum(type));
+                result = $"({a} == ({ctype}){minimum} && {b} == -1 ? 0 : {result})";
+            }
+            return result;
         }
         void ArithmeticHelpers()
         {
@@ -626,7 +937,7 @@ internal sealed partial class Compilation
                 string mask = Integer((BigInteger.One << width) - 1);
                 // Unsigned arithmetic is defined modulo 2^64. Masking preserves
                 // exactly the low N bits, also for the narrower Lyric types.
-                Line($"static {ctype} ly_{kind}_bits(uint64_t bits)");
+                Line($"static inline {ctype} ly_{kind}_bits(uint64_t bits)");
                 Line("{");
                 indentation += 1;
                 Line($"bits &= {mask};");
@@ -647,7 +958,7 @@ internal sealed partial class Compilation
                 foreach (string operation in new[] { "add", "sub", "mul" })
                 {
                     string symbol = operation == "add" ? "+" : operation == "sub" ? "-" : "*";
-                    Line($"static {ctype} ly_{kind}_wrap_{operation}({ctype} a, {ctype} b)");
+                    Line($"static inline {ctype} ly_{kind}_wrap_{operation}({ctype} a, {ctype} b)");
                     Line("{");
                     indentation += 1;
                     Line($"return ly_{kind}_bits((uint64_t)a {symbol} (uint64_t)b);");
@@ -655,10 +966,11 @@ internal sealed partial class Compilation
                     Line("}");
                 }
                 // The expression site validates the independently typed count
-                // before conversion. Helpers therefore receive only 0 <= count < N.
+                // before conversion in safe mode. Unsafe invalid counts have no
+                // promised result; valid counts preserve these same bit semantics.
                 foreach (string operation in new[] { "shl", "shr" })
                 {
-                    Line($"static {ctype} ly_{kind}_{operation}({ctype} a, uint64_t count)");
+                    Line($"static inline {ctype} ly_{kind}_{operation}({ctype} a, uint64_t count)");
                     Line("{");
                     indentation += 1;
                     Line($"uint64_t bits = ((uint64_t)a) & {mask};");
@@ -688,7 +1000,7 @@ internal sealed partial class Compilation
                 foreach (string operation in new[] { "div", "rem" })
                 {
                     string symbol = operation == "div" ? "/" : "%";
-                    Line($"static {ctype} ly_{kind}_{operation}({ctype} a, {ctype} b, const char *file, int line, int column)");
+                    Line($"static inline {ctype} ly_{kind}_{operation}({ctype} a, {ctype} b, const char *file, int line, int column)");
                     Line("{");
                     indentation += 1;
                     Line("if (b == 0) { ly_zero_divisor(file, line, column); }");
@@ -723,7 +1035,7 @@ internal sealed partial class Compilation
                     // The destination pointer sets the checked width, even when
                     // C would promote narrow operands. The builtin reports overflow
                     // without executing an undefined signed arithmetic operation.
-                    Line($"static {ctype} ly_{kind}_{operation}({ctype} a, {ctype} b, const char *file, int line, int column)");
+                    Line($"static inline {ctype} ly_{kind}_{operation}({ctype} a, {ctype} b, const char *file, int line, int column)");
                     Line("{");
                     indentation += 1;
                     Line($"{ctype} result;");
@@ -772,27 +1084,46 @@ internal sealed partial class Compilation
             }
             else
             {
+                if (operation == ArrayOperation.Resize && elementType.ArrayDepth == 0
+                    && elementType.Class is not null)
+                {
+                    // Non-nullable handles have no default. Unsafe mode does not
+                    // waive initialized-storage or ownership requirements.
+                    Line($"if ({argument} > {pointer}->length)");
+                    Line("{");
+                    indentation += 1;
+                    Line($"ly_array_failure({Location(node)}, \"LYR011: array element has no default value\");");
+                    indentation -= 1;
+                    Line("}");
+                }
                 // Shrink first, releasing each removed owning child exactly once.
                 Line($"while ({pointer}->length > {argument})");
                 Line("{");
                 indentation += 1;
                 Line($"{pointer}->length -= 1;");
-                if (elementType.ArrayDepth > 0)
-                {
-                    Line($"ly_array_drop(&((ly_array *){pointer}->data)[{pointer}->length], {elementType.ArrayDepth});");
-                }
+                Drop($"(({element} *){pointer}->data)[{pointer}->length]", elementType, Location(node));
                 indentation -= 1;
                 Line("}");
                 if (operation == ArrayOperation.Resize)
                 {
-                    Line($"ly_array_reserve({pointer}, {argument}, sizeof({element}), {Location(node)});");
-                    Line($"while ({pointer}->length < {argument})");
+                    // Unlike truncate, resize(0) gives up even an empty reservation.
+                    Line($"if ({argument} == 0)");
                     Line("{");
                     indentation += 1;
-                    Line($"(({element} *){pointer}->data)[{pointer}->length] = ({element}){{0}};");
-                    Line($"{pointer}->length += 1;");
+                    Drop($"(*{pointer})", arrayType, Location(node));
                     indentation -= 1;
                     Line("}");
+                    if (elementType.ArrayDepth > 0 || elementType.Class is null)
+                    {
+                        Line($"ly_array_reserve({pointer}, {argument}, sizeof({element}), {Location(node)});");
+                        Line($"while ({pointer}->length < {argument})");
+                        Line("{");
+                        indentation += 1;
+                        Line($"(({element} *){pointer}->data)[{pointer}->length] = ({element}){{0}};");
+                        Line($"{pointer}->length += 1;");
+                        indentation -= 1;
+                        Line("}");
+                    }
                 }
             }
             string result = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
@@ -819,6 +1150,15 @@ internal sealed partial class Compilation
                     values.Add(node, pointer);
                     continue;
                 }
+                if (node.Kind == SyntaxKind.Call && fact.Symbol?.Builtin == BuiltinKind.Capacity)
+                {
+                    string descriptor = ArrayDescriptor(node.ChildAt(1));
+                    string capacityResult = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
+                    temporary += 1;
+                    Line($"uint64_t {capacityResult} = ({descriptor}).capacity;");
+                    values.Add(node, capacityResult);
+                    continue;
+                }
                 if (fact.ClassOperation == ClassOperation.Destroy)
                 {
                     string receiver = Expression(node.ChildAt(0).ChildAt(0));
@@ -833,11 +1173,24 @@ internal sealed partial class Compilation
                     values.Add(node, ArrayMethod(node));
                     continue;
                 }
+                if (node.Kind == SyntaxKind.Member)
+                {
+                    string receiver = Receiver(node.ChildAt(0));
+                    string field = FieldStorage(fact.Symbol!, receiver);
+                    string value = fact.Type.ArrayDepth > 0 ? Copy(field, fact.Type, node) : field;
+                    string fieldResult = "ly_field" + temporary.ToString(CultureInfo.InvariantCulture);
+                    temporary += 1;
+                    Line($"{CType(fact.Type)} {fieldResult} = {value};");
+                    Own(fieldResult, fact.Type);
+                    values.Add(node, fieldResult);
+                    continue;
+                }
                 if (node.Kind == SyntaxKind.If)
                 {
                     string branchResult = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
                     temporary += 1;
-                    Line($"{CType(fact.Type)} {branchResult} = {{0}};");
+                    string empty = Counted(fact.Type) ? "UINT64_MAX" : "{0}";
+                    Line($"{CType(fact.Type)} {branchResult} = {empty};");
                     Own(branchResult, fact.Type);
                     Conditional(node, branchResult);
                     values.Add(node, branchResult);
@@ -879,7 +1232,7 @@ internal sealed partial class Compilation
                 // A known constant has no effects in this supported language.
                 // Its checked exact value also avoids host/C literal overflow.
                 if (item.Stage == 0 && fact.IntegerConstant is null
-                    && node.Kind is SyntaxKind.Call or SyntaxKind.Group or SyntaxKind.Binary or SyntaxKind.Unary or SyntaxKind.Cast or SyntaxKind.Array or SyntaxKind.Index or SyntaxKind.Member)
+                    && node.Kind is SyntaxKind.Call or SyntaxKind.Group or SyntaxKind.Binary or SyntaxKind.Unary or SyntaxKind.Cast or SyntaxKind.Array or SyntaxKind.Index)
                 {
                     work.Push((node, 1));
                     int first = node.Kind == SyntaxKind.Call ? 1 : 0;
@@ -906,26 +1259,18 @@ internal sealed partial class Compilation
                     switch (node.Kind)
                     {
                         case SyntaxKind.Name:
-                            expression = fact.Type.ArrayDepth > 0
+                            expression = Owned(fact.Type)
                                 ? Copy(Storage(node), fact.Type, node)
                                 : Storage(node);
                             break;
-                        case SyntaxKind.Member:
-                            expression = FieldStorage(fact.Symbol!, values[node.ChildAt(0)]);
-                            break;
                         case SyntaxKind.String:
                             ReadOnlySpan<byte> bytes = node.Source!.LiteralBytes(node.TextOffset, node.TextLength);
-                            List<string> elements = new();
-                            foreach (byte value in bytes)
-                            {
-                                elements.Add(value.ToString(CultureInfo.InvariantCulture));
-                            }
-                            // A sentinel makes the empty array legal C; it is not
-                            // part of the Lyric value and never controls output.
-                            elements.Add("0");
+                            // C supplies a trailing zero, but the explicit Lyric
+                            // length excludes it. Embedded zeros remain ordinary
+                            // bytes; output and ownership never use strlen.
                             string storage = "ly_b" + temporary.ToString(CultureInfo.InvariantCulture);
                             temporary += 1;
-                            Line($"static const unsigned char {storage}[] = {{ {string.Join(", ", elements)} }};");
+                            Line($"static const uint8_t {storage}[] = {CBytes(bytes)};");
                             expression = Copy($"(ly_array){{(void *){storage}, {bytes.Length.ToString(CultureInfo.InvariantCulture)}, {bytes.Length.ToString(CultureInfo.InvariantCulture)}}}", fact.Type, node);
                             break;
                         case SyntaxKind.Array:
@@ -947,7 +1292,7 @@ internal sealed partial class Compilation
                             string subscript = values[node.ChildAt(1)];
                             Bounds(container, subscript, node);
                             string selected = $"(({CType(fact.Type)} *){container}.data)[(uint64_t){subscript}]";
-                            expression = fact.Type.ArrayDepth > 0 ? Copy(selected, fact.Type, node) : selected;
+                            expression = Owned(fact.Type) ? Copy(selected, fact.Type, node) : selected;
                             break;
                         case SyntaxKind.Literal:
                             expression = Text(node);
@@ -964,6 +1309,10 @@ internal sealed partial class Compilation
                                 // 2^64, preserving negative mathematical values for
                                 // subsequent masking to any destination width.
                                 expression = $"ly_{destination}_bits((uint64_t){castValue})";
+                            }
+                            else if (unsafeMode)
+                            {
+                                expression = $"({CType(fact.Type)}){castValue}";
                             }
                             else
                             {
@@ -1000,8 +1349,10 @@ internal sealed partial class Compilation
                         case SyntaxKind.Unary when Text(node) == "-":
                             Diagnostic negationLocation = node.Source!.SemanticDiagnostic(node, "", "");
                             string negationFile = CString(JsonSerializer.Serialize(node.Source.Path));
-                            expression = $"ly_{SemanticTypes.Name(fact.Type)}_sub(0, {values[node.ChildAt(0)]}, "
-                                + $"{negationFile}, {negationLocation.Line}, {negationLocation.Column})";
+                            expression = unsafeMode
+                                ? $"(-{values[node.ChildAt(0)]})"
+                                : $"ly_{SemanticTypes.Name(fact.Type)}_sub(0, {values[node.ChildAt(0)]}, "
+                                    + $"{negationFile}, {negationLocation.Line}, {negationLocation.Column})";
                             break;
                         case SyntaxKind.Unary when Text(node) == "!-":
                             expression = $"ly_{SemanticTypes.Name(fact.Type)}_wrap_sub(0, {values[node.ChildAt(0)]})";
@@ -1051,15 +1402,20 @@ internal sealed partial class Compilation
                             }
                             Diagnostic shiftLocation = node.Source!.SemanticDiagnostic(node, "", "");
                             string shiftFile = CString(JsonSerializer.Serialize(node.Source.Path));
-                            Line($"if ({invalidCount})");
-                            Line("{");
-                            indentation += 1;
-                            Line($"ly_shift_count({shiftFile}, {shiftLocation.Line}, {shiftLocation.Column});");
-                            indentation -= 1;
-                            Line("}");
+                            if (!unsafeMode)
+                            {
+                                Line($"if ({invalidCount})");
+                                Line("{");
+                                indentation += 1;
+                                Line($"ly_shift_count({shiftFile}, {shiftLocation.Line}, {shiftLocation.Column});");
+                                indentation -= 1;
+                                Line("}");
+                            }
                             string shiftOperation = Text(node) == "<<" ? "shl" : "shr";
-                            expression = $"ly_{SemanticTypes.Name(fact.Type)}_{shiftOperation}("
-                                + $"{values[node.ChildAt(0)]}, (uint64_t){count})";
+                            expression = unsafeMode && Text(node) == ">>"
+                                ? $"({values[node.ChildAt(0)]} >> {count})"
+                                : $"ly_{SemanticTypes.Name(fact.Type)}_{shiftOperation}("
+                                    + $"{values[node.ChildAt(0)]}, (uint64_t){count})";
                             break;
                         case SyntaxKind.Binary when Text(node) is "&" or "|" or "^":
                             // Unsigned conversion preserves low two's-complement
@@ -1091,9 +1447,11 @@ internal sealed partial class Compilation
                             };
                             Diagnostic location = node.Source!.SemanticDiagnostic(node, "", "");
                             string file = CString(JsonSerializer.Serialize(node.Source.Path));
-                            expression = $"ly_{SemanticTypes.Name(fact.Type)}_{operation}("
-                                + $"{values[node.ChildAt(0)]}, {values[node.ChildAt(1)]}, "
-                                + $"{file}, {location.Line}, {location.Column})";
+                            expression = unsafeMode
+                                ? UncheckedArithmetic(fact.Type, Text(node), values[node.ChildAt(0)], values[node.ChildAt(1)])
+                                : $"ly_{SemanticTypes.Name(fact.Type)}_{operation}("
+                                    + $"{values[node.ChildAt(0)]}, {values[node.ChildAt(1)]}, "
+                                    + $"{file}, {location.Line}, {location.Column})";
                             break;
                         case SyntaxKind.Call:
                             SemanticSymbol target = fact.Symbol!;
@@ -1105,6 +1463,10 @@ internal sealed partial class Compilation
                             if (target.Builtin == BuiltinKind.Length)
                             {
                                 expression = $"{arguments[0]}.length";
+                            }
+                            else if (target.Builtin == BuiltinKind.Assert)
+                            {
+                                expression = $"ly_assert({arguments[0]}, {Location(node)})";
                             }
                             else if (target.Builtin != BuiltinKind.None)
                             {
@@ -1145,12 +1507,17 @@ internal sealed partial class Compilation
                 temporary += 1;
                 Line($"{CType(fact.Type)} {result} = {expression};");
                 Own(result, fact.Type);
-                if (node.Kind == SyntaxKind.Group && fact.Type.ArrayDepth > 0)
+                if (node.Kind == SyntaxKind.Group && Owned(fact.Type))
                 {
                     Moved(values[node.ChildAt(0)], fact.Type);
                 }
                 if (node.Kind == SyntaxKind.Call && fact.Symbol!.Builtin == BuiltinKind.None)
                 {
+                    if (fact.Symbol.Scope!.Class is not null && node.ChildAt(0).Kind == SyntaxKind.Member)
+                    {
+                        SyntaxNode receiver = node.ChildAt(0).ChildAt(0);
+                        Moved(values[receiver], receiver.Fact!.Type);
+                    }
                     // The callee owns the independent argument values, including
                     // cleanup on return. Empty caller slots after that transfer.
                     for (int i = 1; i < node.ChildCount(); i += 1)
@@ -1208,7 +1575,9 @@ internal sealed partial class Compilation
                 for (int p = 0; p < function.FunctionScope!.ParameterCount(); p += 1)
                 {
                     SemanticSymbol parameter = function.FunctionScope.ParameterAt(p);
-                    if (!parameter.IsReference)
+                    bool borrowedSelf = p == 0 && function.Scope!.Class is SemanticSymbol owner
+                        && (function.Name == owner.Name || function.IsFinalHook());
+                    if (!parameter.IsReference && !borrowedSelf)
                     {
                         Own(Name(parameter), parameter.Type!.Value);
                     }
@@ -1231,6 +1600,7 @@ internal sealed partial class Compilation
                         string? initialValue = next < statement.ChildCount()
                             ? Expression(statement.ChildAt(next)) : null;
                         string initializer = initialValue is not null ? " = " + initialValue
+                            : Counted(symbol.Type!.Value) && !symbol.IsReference ? " = UINT64_MAX"
                             : symbol.Type!.Value.ArrayDepth > 0 ? " = {0}" : "";
                         string pointerMarker = symbol.IsReference ? " *" : " ";
                         Line($"{CType(symbol.Type!.Value)}{pointerMarker}{Name(symbol)}{initializer};");
@@ -1273,6 +1643,10 @@ internal sealed partial class Compilation
                             {
                                 value = $"ly_{typeName}_wrap_{operation}({oldValue}, {value})";
                             }
+                            else if (unsafeMode)
+                            {
+                                value = UncheckedArithmetic(targetFact.Type, assignment[..^1], oldValue!, value);
+                            }
                             else
                             {
                                 Diagnostic location = statement.Source!.SemanticDiagnostic(statement, "", "");
@@ -1281,10 +1655,7 @@ internal sealed partial class Compilation
                                     + $"{file}, {location.Line}, {location.Column})";
                             }
                         }
-                        if (targetFact.Type.ArrayDepth > 0)
-                        {
-                            Line($"ly_array_drop(&{targetName}, {targetFact.Type.ArrayDepth});");
-                        }
+                        Drop(targetName, targetFact.Type, Location(statement));
                         Line($"{targetName} = {value};");
                         Moved(value, targetFact.Type);
                         break;
@@ -1303,7 +1674,12 @@ internal sealed partial class Compilation
                         }
                         else
                         {
-                            Line($"(void){Expression(expression)};");
+                            string discarded = Expression(expression);
+                            Line($"(void){discarded};");
+                            if (Owned(expression.Fact!.Type))
+                            {
+                                Drop(discarded, expression.Fact.Type, Location(expression));
+                            }
                         }
                         break;
                     case SyntaxKind.While:

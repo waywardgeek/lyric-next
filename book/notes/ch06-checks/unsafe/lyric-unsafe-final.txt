@@ -1,0 +1,20 @@
+PASS arithmetic
+PASS shifts
+PASS sign-bit
+PASS remainder-min
+PASS wrapping
+PASS cast
+PASS wrapping-cast
+PASS mixed-compare
+PASS unsigned-promotion
+PASS array
+PASS emission-only overflow
+PASS emission-only zero-div
+PASS emission-only zero-rem
+PASS emission-only shift-count
+PASS emission-only cast-range
+PASS emission-only computed-negation
+PASS type checking retained
+PASS borrow checking retained
+PASS unknown and duplicate options rejected
+51/51 unsafe checks passed

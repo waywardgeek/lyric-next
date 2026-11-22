@@ -1,0 +1,66 @@
+FAIL final-valid
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+FAIL final-direct-call
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+FAIL final-result
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+FAIL final-argument
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+FAIL final-duplicate
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+FAIL final-constructor
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:11: error LYC306: Unsupported semantic construct: Modifier. (byte 10)\n')
+FAIL final-destroys-self
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+FAIL final-helper-destroys-class
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+FAIL final-other-class
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:57: error LYC306: Unsupported semantic construct: Modifier. (byte 56)\n')
+FAIL final-effects-reach-caller
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:74: error LYC306: Unsupported semantic construct: Modifier. (byte 73)\n')
+FAIL final-cross-class-cycle
+(1, b'', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ch08-check-m9rzm815/case.ly":1:28: error LYC306: Unsupported semantic construct: Modifier. (byte 27)\n')
+PASS initialized-field
+PASS mutable-object-parameter
+PASS both-branches
+PASS one-branch
+PASS early-return
+PASS initialized-return
+PASS read-before-write
+PASS partial-self-copy
+PASS partial-self-helper
+PASS initialized-self-helper
+PASS other-object-not-self
+PASS owned-array-field
+PASS field-hint
+PASS unknown-field
+PASS constructor-call
+PASS method-call
+PASS returned-handle
+PASS constructor-arity
+PASS no-constructor
+PASS no-reinitialization
+PASS method-ref-offset
+PASS method-borrow-effect
+PASS partial-self-method
+PASS destroy-last-use
+PASS destroy-stale-field
+PASS destroy-stale-alias
+PASS destroy-twice
+PASS destroy-fresh-object
+PASS destroy-does-not-revive-alias
+PASS destroy-helper-effect
+PASS destroy-helper-internal-use
+PASS destroy-conditional-effect
+PASS destroy-during-field-rhs
+PASS destroy-during-later-argument
+PASS growth-keeps-handle
+PASS destroy-constructor-self
+PASS destroy-constructor-return
+PASS destroy-delayed-binding
+PASS destroy-reassign-fresh
+PASS destroy-transitive
+PASS destroy-counted-forbidden
+PASS destroy-arity
+PASS destroy-other-class
+43/54 Chapter 8 checking cases passed

@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Build the current Lyric compiler, compile one source file, and run it."""
+
+import os
+from pathlib import Path
+import shlex
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+    options = sys.argv[1:-1]
+    invalid_option = any(option not in ('--unsafe', '--soa') for option in options)
+    duplicate_option = len(set(options)) != len(options)
+    if len(sys.argv) < 2 or invalid_option or duplicate_option:
+        print('Usage: ./run [--unsafe] [--soa] FILE.ly', file=sys.stderr)
+        return 2
+    source = Path(sys.argv[-1]).resolve()
+    if source.suffix != '.ly' or not source.is_file():
+        print(f'run: expected an existing .ly file: {source}', file=sys.stderr)
+        return 2
+
+    root = Path(__file__).resolve().parent
+    dotnet = os.environ.get('DOTNET', 'dotnet')
+    cc = shlex.split(os.environ.get('CC', 'cc'))
+    if not cc:
+        print('run: CC must name a C compiler', file=sys.stderr)
+        return 2
+
+    # Build first; a failed build must never fall through to an old assembly.
+    # Keep stdout reserved for the user's program, including when redirected.
+    subprocess.run(
+        [dotnet, 'build', str(root / 'compiler/Lyric.csproj'),
+         '-c', 'Release', '--nologo', '--tl:off'],
+        cwd=root, stdout=sys.stderr, check=True,
+    )
+    assembly = root / 'compiler/bin/Release/net10.0/Lyric.dll'
+    # The caller's working directory is preserved for the executed program.
+    # All generated artifacts are removed on success or ordinary failure.
+    with tempfile.TemporaryDirectory(prefix='lyric-run-') as directory:
+        folder = Path(directory)
+        c_source = folder / 'program.c'
+        executable = folder / 'program'
+        with c_source.open('wb') as output:
+            subprocess.run(
+                [dotnet, str(assembly), '--emit-c'] + options + [str(source)],
+                stdout=output, check=True,
+            )
+        subprocess.run(
+            cc + ['-std=c11', '-O2', str(c_source), '-o', str(executable)],
+            check=True,
+        )
+        return subprocess.run([str(executable)]).returncode
+
+
+if __name__ == '__main__':
+    try:
+        status = main()
+    except subprocess.CalledProcessError as error:
+        status = error.returncode
+    except (OSError, ValueError) as error:
+        print(f'run: {error}', file=sys.stderr)
+        status = 1
+    except KeyboardInterrupt:
+        status = 130
+    # Report signal termination using the conventional shell exit status.
+    sys.exit(128 - status if status < 0 else status)

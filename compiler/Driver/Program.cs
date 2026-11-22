@@ -10,13 +10,29 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
-        // Layout is a backend choice only. Normalize this one supported option
-        // before the ordinary mode/filename validation; inspection stays unchanged.
-        bool structureOfArrays = args.Length == 3
-            && args[0] == "--emit-c" && args[1] == "--soa";
-        if (structureOfArrays)
+        // Options precede the filename. Unsafe changes numeric checking as well
+        // as emission; layout remains a representation-only backend choice.
+        bool structureOfArrays = false;
+        bool unsafeMode = false;
+        if (args.Length >= 2 && args[0] is "--emit-c" or "--check" or "--check-library")
         {
-            args = new[] { args[0], args[2] };
+            for (int i = 1; i < args.Length - 1; i += 1)
+            {
+                if (args[i] == "--unsafe" && !unsafeMode)
+                {
+                    unsafeMode = true;
+                }
+                else if (args[i] == "--soa" && args[0] == "--emit-c" && !structureOfArrays)
+                {
+                    structureOfArrays = true;
+                }
+                else
+                {
+                    Console.Error.WriteLine("error: unknown or duplicate compiler option.");
+                    return 2;
+                }
+            }
+            args = new[] { args[0], args[^1] };
         }
 
         if (args.Length == 1 && args[0] == "--unicode-version")
@@ -69,7 +85,7 @@ internal static class Program
             }
             if (diagnostic is null && check)
             {
-                diagnostic = compilation.Check(emitC || args[0] == "--check");
+                diagnostic = compilation.Check(emitC || args[0] == "--check", unsafeMode);
             }
             if (diagnostic is null && emitC)
             {

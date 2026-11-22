@@ -1,0 +1,29 @@
+Grader comparison self-check passed
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+79/79 semantic cases passed
+75/75 execution cases passed
+250/250 execution cases passed
+83/83 unsafe checks passed
+102/102 execution cases passed
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+79/79 semantic cases passed
+75/75 execution cases passed
+250/250 execution cases passed
+83/83 unsafe checks passed
+102/102 execution cases passed

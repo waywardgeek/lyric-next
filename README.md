@@ -2,6 +2,61 @@
 
 Lyric language design and an agentic compiler-construction codebook, developed by Bill Cox and Cadence. The language remains Lyric; this repository is named `lyric-next` during development.
 
+## Compile and run a Lyric file
+
+From the project root:
+
+```sh
+./run hello.ly
+```
+
+The executable `run` script builds the current compiler in Release mode, emits C,
+compiles it with `cc -std=c11 -O2`, and runs the program. It requires Python 3,
+the project's .NET SDK, and a C compiler. Build messages and diagnostics go to
+stderr; stdout contains the program's output. Failed compilation stops the run,
+and temporary C and executable files are removed afterward. The program runs in
+your current working directory. Source paths containing spaces are supported.
+
+Override tool locations when needed:
+
+```sh
+DOTNET=/path/to/dotnet CC=clang ./run hello.ly
+```
+
+`DOTNET` names one executable; `CC` may include compiler arguments. The script
+returns the program's exit status, or a nonzero status if compilation fails.
+It runs your program with your normal permissions; it is not a sandbox.
+
+## Generate C without running it
+
+```sh
+./emit-c hello.ly > hello.c
+```
+
+This builds the current Release compiler and writes only generated C to stdout.
+Build messages and diagnostics go to stderr. It does not invoke a C compiler or
+run the generated program. Python 3 and the project's .NET SDK are required;
+`DOTNET=/path/to/dotnet` overrides the SDK executable just as for `run`.
+Source paths containing spaces work, including when invoked from another directory.
+A build or source error returns nonzero without emitting C. Normal shell `>`
+redirection creates or truncates the destination even if the command fails.
+
+## Unchecked benchmark mode and storage layout
+
+```sh
+./emit-c --unsafe hello.ly > hello.c
+./run --unsafe hello.ly
+./run --unsafe --soa example.ly
+```
+
+Safe mode remains the default. `--unsafe` removes ordinary arithmetic, conversion,
+shift-count, and index bounds checks. Invalid inputs may inherit C undefined or
+implementation-defined behavior; no diagnostic or wrapping result is promised.
+Valid safe-mode results, explicit wrapping operators, ownership, and static
+lifetime checking are preserved. Allocation failure checks remain. Generated C
+labels unsafe output, and benchmark reports must disclose the mode. `--soa`
+selects class layout independently. These options precede the filename.
+
 ## Start here
 
 - [Construction codebook](book/README.md): Preface, Chapter 0 working draft, and a provisional construction sequence.

@@ -1,0 +1,7 @@
+PASS constructor-field
+PASS shared-identity
+PASS method
+PASS ordinary-final
+PASS counted-scope-final
+PASS counted-alias-final-once
+6/6 execution cases passed

@@ -33,7 +33,7 @@ Constant overflow uses LYC311. A known zero divisor uses `LYC316: Integer divisi
 
 ## Explicit wrapping arithmetic
 
-Binary `!+`, `!-`, `!*` follow ordinary integer operand-type selection, but reduce results modulo 2^N at the selected width. Prefix `!-` retains its operand type and computes its modular additive inverse. Signed results interpret the resulting bits as two's-complement values. Both constant evaluation and runtime execution obey this contract; ordinary arithmetic remains checked. No general unsafe compiler mode is introduced.
+Binary `!+`, `!-`, `!*` follow ordinary integer operand-type selection, but reduce results modulo 2^N at the selected width. Prefix `!-` retains its operand type and computes its modular additive inverse. Signed results interpret the resulting bits as two's-complement values. Both constant evaluation and runtime execution obey this contract; ordinary arithmetic remains checked by default. The explicit unsafe-mode contract below is separate from wrapping operators.
 
 The C lowering must avoid signed overflow and out-of-range unsigned-to-signed casts. The runtime and constant fixtures cover all eight widths, including signed-minimum negation and unsigned subtraction below zero.
 
@@ -41,7 +41,7 @@ The C lowering must avoid signed overflow and out-of-range unsigned-to-signed ca
 
 `<<` and `>>` retain the left operand's type and width; the count's type does not widen it. Both operands execute once, left-to-right. Counts must be integers in `[0, width)`. Known invalid counts produce `LYC317: Integer shift count is outside operand width.` at the operator. Dynamic invalid counts produce `LYR004: integer shift count outside operand width`, exit 1, and the located active trace. Noninteger operands use LYC312 as published in the fixtures.
 
-Left shifts discard high bits without overflow failure. Unsigned right shifts zero-fill; signed right shifts sign-extend. Zero counts are valid. Generated C must not depend on signed-shift behavior, integer-promotion overflow, or shifts by the full width. No unsafe count-normalization mode is introduced.
+Left shifts discard high bits without overflow failure. Unsigned right shifts zero-fill; signed right shifts sign-extend. Zero counts are valid. For valid counts, generated C must avoid integer-promotion overflow and shifts by the full width. Native signed right shift requires a supported arithmetic-right-shift target; otherwise use explicit sign extension. Unsafe mode omits count checks, never normalizes counts, and preserves valid-count results.
 
 ## Boolean equality
 
@@ -92,3 +92,27 @@ Each rejection requires `--emit-c` exit 1, empty stdout, and the exact located d
 Graders and fixtures are readable but student-read-only. The implementation must use real semantic checking and emission; fixture recognition is not an implementation. Structural code review remains distinct from these behavioral checks. Human walkthrough remains a separate acceptance step.
 
 The review regressions retain RHS-induced immutable double writes (and the returning-arm control), intrinsic conditional operand widths under destination/neighbor context, and noncontinuation through discarded statement conditionals with return/break/continue. These combinations use the same exact diagnostic and execution comparisons as earlier cases.
+
+## Retained unsafe-mode checks
+
+`python3 graders/ch06/unsafe.py --chapter=6 DOTNET ASSEMBLY` accepts the same
+candidate command as the other graders. Run for both build configurations.
+Chapter 7 uses `--chapter=7` to add array bounds-emission and borrow-refusal
+checks; Chapter 8 uses `--chapter=8` to run both AoS and SoA layouts.
+
+Safe mode retains all existing fixtures and exact diagnostics. Unsafe mode
+preserves valid results and explicit wrapping semantics, but ordinary exceptional
+arithmetic, casts, and shift counts may inherit C behavior. Exceptional fixtures
+check successful emission only, never an expected undefined runtime result.
+Valid programs run at O0/O2 with exact stdout, empty stderr, and exit zero.
+The automated source checks require the unsafe marker and omission of emitted
+index checks. Small arithmetic helpers must still be static-inline, and ordinary
+unsafe arithmetic must bypass checked helpers, as taught in Chapter 6. Verify
+those two construction requirements by source review: the grader does not impose
+helper identifiers, require unused definitions, or claim that counting names
+proves unchecked lowering. Runtime checks establish results only for the valid
+inputs exercised; exceptional unsafe cases remain emission-only.
+
+The unsafe grader also executes false assertions at O0/O2 with `-DNDEBUG` and
+requires exit 1, exact `LYR010` location/trace, and empty stdout. Unsafe mode and
+C assertion-disabling flags must not disable Lyric assertions.

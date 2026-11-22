@@ -1,0 +1,3 @@
+PASS emit-c --unsafe --soa: marked C, no checked-add call
+PASS run --unsafe --soa: exact program output
+PASS launcher duplicate-option refusal

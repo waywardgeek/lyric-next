@@ -61,10 +61,10 @@ internal sealed partial class SourceFile
 
 internal sealed partial class Compilation
 {
-    internal partial Diagnostic? Check(bool executable)
+    internal partial Diagnostic? Check(bool executable, bool unsafeMode)
     {
         ClearAnalysis();
-        SemanticAnalysis analysis = new(this);
+        SemanticAnalysis analysis = new(this, unsafeMode);
         SemanticScope global = new(analysis, null);
         // These lists are temporary traversal work, not duplicated persistent state.
         List<SemanticSymbol> functions = new();
@@ -97,11 +97,19 @@ internal sealed partial class Compilation
                 SemanticScope parameters = new(builtin);
                 _ = new SemanticSymbol(parameters, null, "text", SymbolKind.Parameter, SemanticType.ByteArray, false);
             }
-            SemanticSymbol length = new(global, null, "len", SymbolKind.Function,
-                SemanticType.U64, false, BuiltinKind.Length);
-            SemanticScope lengthParameters = new(length);
-            _ = new SemanticSymbol(lengthParameters, null, "array", SymbolKind.Parameter,
-                null, false, acceptsArray: true);
+            SemanticSymbol assertion = new(global, null, "assert", SymbolKind.Function,
+                SemanticType.Unit, false, BuiltinKind.Assert);
+            SemanticScope assertionParameters = new(assertion);
+            _ = new SemanticSymbol(assertionParameters, null, "condition", SymbolKind.Parameter,
+                SemanticType.Bool, false);
+            foreach (var query in new[] { ("len", BuiltinKind.Length), ("capacity", BuiltinKind.Capacity) })
+            {
+                SemanticSymbol builtin = new(global, null, query.Item1, SymbolKind.Function,
+                    SemanticType.U64, false, query.Item2);
+                SemanticScope parameters = new(builtin);
+                _ = new SemanticSymbol(parameters, null, "array", SymbolKind.Parameter,
+                    null, false, acceptsArray: true);
+            }
             // Collect every top-level name before signatures and bodies: forward
             // calls and shadowing checks must not depend on declaration order.
             foreach (SourceFile source in Sources)
@@ -216,6 +224,11 @@ internal sealed partial class Compilation
                     {
                         function.SetType(ReadType(child.ChildAt(0), scope));
                     }
+                    else if (child.Kind == SyntaxKind.Modifier && Text(child) == "final"
+                        && function.Scope!.Class is not null)
+                    {
+                        // The hook is identified by its existing declaration.
+                    }
                     else if (child.Kind != SyntaxKind.Block && child.Kind != SyntaxKind.Visibility)
                     {
                         Unsupported(child);
@@ -237,6 +250,21 @@ internal sealed partial class Compilation
                     || parameters.ParameterAt(0).Name != "self")
                 {
                     Unsupported(function.Declaration!);
+                }
+                if (function.IsFinalHook())
+                {
+                    if (function.Name == owner.Name)
+                    {
+                        Fail(function.Declaration!, "LYC333", "A constructor cannot be a final hook.");
+                    }
+                    if (parameters.ParameterCount() != 1 || function.Type != SemanticType.Unit)
+                    {
+                        Fail(function.Declaration!, "LYC333", "A final hook must take only self and return unit.");
+                    }
+                    if (owner.FinalHook() != function)
+                    {
+                        Fail(function.Declaration!, "LYC333", "A class may have only one final hook.");
+                    }
                 }
                 if (function.Name == owner.Name && function.Type != SemanticType.Unit)
                 {
@@ -315,6 +343,16 @@ internal sealed partial class Compilation
                 }
             }
             while (changed);
+            // Check the full fixed point before ordinary stale-use diagnostics:
+            // the final contract forbids same-class destruction even without a
+            // later source read, and includes effects of other generated hooks.
+            foreach (SemanticSymbol function in functions)
+            {
+                if (function.IsFinalHook() && classEffects[function].Contains(function.Scope!.Class!))
+                {
+                    Fail(function.Declaration!, "LYC334", "A final hook may not transitively destroy its own class.");
+                }
+            }
             foreach (SemanticSymbol function in functions)
             {
                 CheckBorrows(function, bodies[function], effects, obligations, classEffects, true);
@@ -340,6 +378,12 @@ internal sealed partial class Compilation
             bool summaryChanged = false;
             List<(SemanticSymbol Root, int Depth)> paths = new();
             Dictionary<SemanticSymbol, int> aliases = new();
+            // Event vocabulary (the payload is named Borrow for historical
+            // storage-path events): 0 join/no-op; 1 acquire storage; 2 use storage;
+            // 3 mutate storage; 4 ordered call obligation; 5 acquire object value;
+            // 6 use object value; 7 class destruction effect; 8 occupy holder;
+            // 9 release and empty holder; 10 empty holder without release (move);
+            // 11 possible partial release, preserving possible occupancy.
             List<(SyntaxNode Node, int Operation, int Borrow, List<int> Next)> graph = new();
             Dictionary<int, ((SemanticSymbol Root, int Depth) Changed,
                 (SemanticSymbol Root, int Depth) Used)> callRequirements = new();
@@ -351,16 +395,34 @@ internal sealed partial class Compilation
             Dictionary<SyntaxNode, int> objectValues = new();
             Dictionary<int, SemanticSymbol> destroyedClasses = new();
             Dictionary<int, int> selectedObjects = new();
+            // Negative depths identify class-wide effects, not array nesting.
+            // Growth changes field addresses; destruction also ends payload life.
+            const int classGrowth = -1;
+            const int classDestruction = -2;
+            HashSet<int> indexedFieldDestinations = new();
             List<int> frontier = new();
-            Stack<(int Header, int Exit)> loopEdges = new();
+            Stack<(int Header, int Exit, int CleanupDepth)> loopEdges = new();
+            // Temporary ownership frames follow lexical/control-transfer exits.
+            List<List<int>> cleanupFrames = new() { new() };
+            List<SemanticType> holderTypes = new();
+            Dictionary<SemanticSymbol, int> localHolders = new();
+            // Array expression owners follow emitted temporary transfers. A move
+            // disarms only that temporary; the receiving owner remains live.
+            Dictionary<SyntaxNode, int> arrayTemporaries = new();
             int entry = Event(body, 0, -1);
             for (int i = 0; i < function.FunctionScope!.ParameterCount(); i += 1)
             {
                 SemanticSymbol parameter = function.FunctionScope.ParameterAt(i);
                 if (parameter.Type is SemanticType parameterType
-                    && parameterType.ArrayDepth == 0 && parameterType.Class is not null)
+                    && parameterType.Class is not null)
                 {
                     objectBindings.Add(parameter, NewObject(parameter.Declaration!, parameterType.Class));
+                }
+                bool borrowedSelf = i == 0 && function.Scope!.Class is SemanticSymbol receiverClass
+                    && (function.Name == receiverClass.Name || function.IsFinalHook());
+                if (!parameter.IsReference && !borrowedSelf && parameter.Type is SemanticType ownedParameter)
+                {
+                    RegisterHolder(parameter.Declaration!, ownedParameter, true);
                 }
                 if (parameter.IsReference)
                 {
@@ -368,6 +430,7 @@ internal sealed partial class Compilation
                 }
             }
             BuildBlock(body);
+            Cleanup(body, 0);
             UseConstructedReceiver(body);
 
             // Keep the cause, not just an invalid bit: distinct formal roots may
@@ -378,6 +441,10 @@ internal sealed partial class Compilation
             incoming[entry] = new();
             HashSet<int>?[] invalidObjects = new HashSet<int>?[graph.Count];
             invalidObjects[entry] = new();
+            // Possible occupancy is distinct from definite source initialization.
+            // Empty holders have no final effects; joins preserve any live path.
+            HashSet<int>?[] occupiedHolders = new HashSet<int>?[graph.Count];
+            occupiedHolders[entry] = new();
             Queue<int> pending = new();
             pending.Enqueue(entry);
             while (pending.Count != 0)
@@ -386,7 +453,96 @@ internal sealed partial class Compilation
                 var step = graph[index];
                 var state = new HashSet<(int Borrow, (SemanticSymbol Root, int Depth) Cause)>(incoming[index]!);
                 HashSet<int> objectState = new(invalidObjects[index]!);
-                if (step.Operation == 5)
+                HashSet<int> holderState = new(occupiedHolders[index]!);
+                void ApplyClassEffect(SemanticSymbol owner)
+                {
+                    summaryChanged |= classEffects[function].Add(owner);
+                    ApplyMutation((owner, classDestruction));
+                    SemanticSymbol? finalHook = owner.FinalHook();
+                    if (finalHook is not null)
+                    {
+                        foreach (var effect in effects[finalHook])
+                        {
+                            if (effect.Depth == classGrowth || effect.Root.Kind == SymbolKind.Field)
+                            {
+                                ApplyMutation(effect);
+                            }
+                        }
+                    }
+                    for (int i = 0; i < objectClasses.Count; i += 1)
+                    {
+                        if (objectClasses[i] == owner && !owner.IsCountedClass())
+                        {
+                            objectState.Add(i);
+                        }
+                    }
+                }
+                void ApplyMutation((SemanticSymbol Root, int Depth) mutation, bool export = true)
+                {
+                    bool classWide = mutation.Depth < 0;
+                    if (export && (IsFormal(mutation.Root) || mutation.Root.Kind == SymbolKind.Field
+                        || mutation.Depth == classGrowth))
+                    {
+                        summaryChanged |= effects[function].Add(mutation);
+                    }
+                    for (int i = 0; i < paths.Count; i += 1)
+                    {
+                        var borrowed = paths[i];
+                        bool affected;
+                        if (classWide)
+                        {
+                            affected = IsFormal(borrowed.Root)
+                                || (borrowed.Root.Kind == SymbolKind.Field
+                                    && borrowed.Root.Scope!.Class == mutation.Root
+                                    && (mutation.Depth == classDestruction || borrowed.Depth == 0));
+                            // A plain field store saves an index, not a pointer.
+                            if (indexedFieldDestinations.Contains(i))
+                            {
+                                affected = false;
+                            }
+                        }
+                        else
+                        {
+                            affected = (borrowed.Root == mutation.Root && borrowed.Depth > mutation.Depth)
+                                || (borrowed.Root != mutation.Root
+                                    && ((IsFormal(borrowed.Root)
+                                            && (IsFormal(mutation.Root) || mutation.Root.Kind == SymbolKind.Field))
+                                        || (IsFormal(mutation.Root) && borrowed.Root.Kind == SymbolKind.Field)));
+                        }
+                        if (affected)
+                        {
+                            state.Add((i, mutation));
+                        }
+                    }
+                }
+                if (step.Operation == 8)
+                {
+                    holderState.Add(step.Borrow);
+                }
+                else if (step.Operation == 10)
+                {
+                    holderState.Remove(step.Borrow);
+                }
+                else if (step.Operation is 9 or 11)
+                {
+                    // A partial shrink can release leaves while retaining others.
+                    bool occupied = step.Operation == 9
+                        ? holderState.Remove(step.Borrow) : holderState.Contains(step.Borrow);
+                    if (occupied)
+                    {
+                        SemanticSymbol owner = holderTypes[step.Borrow].Class!;
+                        ApplyClassEffect(owner);
+                        SemanticSymbol? hook = owner.FinalHook();
+                        if (hook is not null)
+                        {
+                            foreach (SemanticSymbol affected in classEffects[hook])
+                            {
+                                ApplyClassEffect(affected);
+                            }
+                        }
+                    }
+                }
+                else if (step.Operation == 5)
                 {
                     objectState.Remove(step.Borrow);
                 }
@@ -399,15 +555,7 @@ internal sealed partial class Compilation
                 }
                 else if (step.Operation == 7)
                 {
-                    SemanticSymbol owner = destroyedClasses[index];
-                    summaryChanged |= classEffects[function].Add(owner);
-                    for (int i = 0; i < objectClasses.Count; i += 1)
-                    {
-                        if (objectClasses[i] == owner)
-                        {
-                            objectState.Add(i);
-                        }
-                    }
+                    ApplyClassEffect(destroyedClasses[index]);
                 }
                 else if (step.Operation == 1)
                 {
@@ -425,21 +573,14 @@ internal sealed partial class Compilation
                 }
                 else if (step.Operation == 3)
                 {
-                    var mutation = paths[step.Borrow];
-                    if (IsFormal(mutation.Root))
-                    {
-                        summaryChanged |= effects[function].Add(mutation);
-                    }
-                    for (int i = 0; i < paths.Count; i += 1)
-                    {
-                        var borrowed = paths[i];
-                        if ((borrowed.Root == mutation.Root && borrowed.Depth > mutation.Depth)
-                            || (borrowed.Root != mutation.Root
-                                && IsFormal(borrowed.Root) && IsFormal(mutation.Root)))
-                        {
-                            state.Add((i, mutation));
-                        }
-                    }
+                    // A constructor's direct self store changes newly allocated
+                    // storage, not an existing caller object's payload. It still
+                    // invalidates local borrows acquired earlier in this body.
+                    bool freshSelfStore = step.Node.Kind == SyntaxKind.Member
+                        && function.Scope?.Class is SemanticSymbol constructingClass
+                        && function.Name == constructingClass.Name
+                        && step.Node.ChildAt(0).Fact?.Symbol == function.FunctionScope!.ParameterAt(0);
+                    ApplyMutation(paths[step.Borrow], !freshSelfStore);
                 }
                 else if (step.Operation == 4)
                 {
@@ -452,14 +593,18 @@ internal sealed partial class Compilation
                     {
                         incoming[next] = new(state);
                         invalidObjects[next] = new(objectState);
+                        occupiedHolders[next] = new(holderState);
                         pending.Enqueue(next);
                     }
                     else
                     {
-                        int before = incoming[next]!.Count + invalidObjects[next]!.Count;
+                        int before = incoming[next]!.Count + invalidObjects[next]!.Count
+                            + occupiedHolders[next]!.Count;
                         incoming[next]!.UnionWith(state);
                         invalidObjects[next]!.UnionWith(objectState);
-                        if (incoming[next]!.Count + invalidObjects[next]!.Count != before)
+                        occupiedHolders[next]!.UnionWith(holderState);
+                        if (incoming[next]!.Count + invalidObjects[next]!.Count
+                            + occupiedHolders[next]!.Count != before)
                         {
                             pending.Enqueue(next);
                         }
@@ -476,14 +621,30 @@ internal sealed partial class Compilation
             void RequireSafe(SyntaxNode node, (SemanticSymbol Root, int Depth) mutation,
                 (SemanticSymbol Root, int Depth) used)
             {
-                if (mutation.Root == used.Root && used.Depth > mutation.Depth)
+                if (mutation.Depth < 0)
+                {
+                    if (IsFormal(used.Root))
+                    {
+                        summaryChanged |= obligations[function].Add((mutation, used));
+                    }
+                    else if (diagnose && used.Root.Kind == SymbolKind.Field
+                        && used.Root.Scope!.Class == mutation.Root
+                        && (mutation.Depth == classDestruction || used.Depth == 0))
+                    {
+                        Fail(node, "LYC326", "Borrowed storage may have been invalidated.");
+                    }
+                }
+                else if (mutation.Root == used.Root && used.Depth > mutation.Depth)
                 {
                     if (diagnose)
                     {
                         Fail(node, "LYC326", "Borrowed storage may have been invalidated.");
                     }
                 }
-                else if (mutation.Root != used.Root && IsFormal(mutation.Root) && IsFormal(used.Root))
+                else if (mutation.Root != used.Root
+                    && ((IsFormal(mutation.Root)
+                            && (IsFormal(used.Root) || used.Root.Kind == SymbolKind.Field))
+                        || (IsFormal(used.Root) && mutation.Root.Kind == SymbolKind.Field)))
                 {
                     summaryChanged |= obligations[function].Add((mutation, used));
                 }
@@ -513,6 +674,88 @@ internal sealed partial class Compilation
                     Event(node, 6, handle);
                 }
             }
+            void Release(SyntaxNode node, SemanticType type)
+            {
+                SemanticSymbol? owner = type.Class;
+                if (owner is null || !owner.IsCountedClass())
+                {
+                    return;
+                }
+                // A release may reach zero. Record finalization for the final
+                // contract, without invalidating other retained counted holders.
+                DestroyClass(node, owner);
+                SemanticSymbol? hook = owner.FinalHook();
+                if (hook is not null)
+                {
+                    foreach (SemanticSymbol affected in classEffects[hook])
+                    {
+                        DestroyClass(node, affected);
+                    }
+                }
+            }
+            int RegisterHolder(SyntaxNode node, SemanticType type, bool initialized)
+            {
+                if (type.Class is not SemanticSymbol owner || !owner.IsCountedClass())
+                {
+                    return -1;
+                }
+                int holder = holderTypes.Count;
+                holderTypes.Add(type);
+                cleanupFrames[^1].Add(holder);
+                // A loop executes the declaration again with fresh empty storage.
+                Event(node, initialized ? 8 : 10, holder);
+                return holder;
+            }
+            bool KnownEmptyArray(SyntaxNode node)
+            {
+                // Only literal construction proves that no counted leaf exists.
+                // Unknown copies/calls remain conservative; later mutations can
+                // populate a known-empty owner through its ordinary root path.
+                Stack<SyntaxNode> pending = new();
+                pending.Push(node);
+                while (pending.Count != 0)
+                {
+                    SyntaxNode next = pending.Pop();
+                    if (next.Kind == SyntaxKind.Group)
+                    {
+                        pending.Push(next.ChildAt(0));
+                    }
+                    else if (next.Kind == SyntaxKind.Array)
+                    {
+                        for (int i = 0; i < next.ChildCount(); i += 1)
+                        {
+                            pending.Push(next.ChildAt(i));
+                        }
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            void MoveArray(SyntaxNode node)
+            {
+                while (node.Kind == SyntaxKind.Group)
+                {
+                    node = node.ChildAt(0);
+                }
+                if (arrayTemporaries.TryGetValue(node, out int holder))
+                {
+                    Event(node, 10, holder);
+                }
+            }
+            void Cleanup(SyntaxNode node, int firstFrame)
+            {
+                for (int frame = cleanupFrames.Count - 1; frame >= firstFrame; frame -= 1)
+                {
+                    List<int> holders = cleanupFrames[frame];
+                    for (int holder = holders.Count - 1; holder >= 0; holder -= 1)
+                    {
+                        Event(node, 9, holders[holder]);
+                    }
+                }
+            }
             void DestroyClass(SyntaxNode node, SemanticSymbol owner)
             {
                 int effect = Event(node, 7, -1);
@@ -539,6 +782,15 @@ internal sealed partial class Compilation
             void Use(SyntaxNode node, int handle)
             {
                 Event(node, 2, handle);
+                SemanticSymbol root = paths[handle].Root;
+                // Selecting the local descriptor for whole-value replacement
+                // does not read its old object elements. Deeper selections do.
+                if (paths[handle].Depth > 0
+                    && root.Type is SemanticType rootType && rootType.ArrayDepth > 0
+                    && objectBindings.TryGetValue(root, out int arrayObjects))
+                {
+                    Event(node, 6, arrayObjects);
+                }
                 if (selectedObjects.TryGetValue(handle, out int selected))
                 {
                     Event(node, 6, selected);
@@ -566,6 +818,7 @@ internal sealed partial class Compilation
                     SyntaxNode receiver = node.ChildAt(0);
                     BuildExpression(receiver);
                     UseObject(receiver);
+                    RegisterComputedReceiver(receiver);
                     int selected = Acquire(node, (node.Fact!.Symbol!, 0));
                     selectedObjects.Add(selected, objectValues[receiver]);
                     return selected;
@@ -575,6 +828,49 @@ internal sealed partial class Compilation
                 Use(node, parent);
                 var path = paths[parent];
                 return Acquire(node, (path.Root, path.Depth + 1));
+            }
+            // Descriptor observation borrows selected storage instead of making
+            // the independent array copies used by ordinary value expressions.
+            // A computed array's owned temporary has no external storage root.
+            int ObserveArray(SyntaxNode node)
+            {
+                if (node.Kind == SyntaxKind.Group)
+                {
+                    return ObserveArray(node.ChildAt(0));
+                }
+                if (node.Kind is SyntaxKind.Name or SyntaxKind.Member)
+                {
+                    return Select(node);
+                }
+                if (node.Kind == SyntaxKind.Index)
+                {
+                    int parent = ObserveArray(node.ChildAt(0));
+                    BuildExpression(node.ChildAt(1));
+                    if (parent >= 0)
+                    {
+                        Use(node, parent);
+                        var path = paths[parent];
+                        return Acquire(node, (path.Root, path.Depth + 1));
+                    }
+                    return -1;
+                }
+                BuildExpression(node);
+                return -1;
+            }
+            void RegisterComputedReceiver(SyntaxNode receiver)
+            {
+                while (receiver.Kind == SyntaxKind.Group)
+                {
+                    receiver = receiver.ChildAt(0);
+                }
+                // Both field reads and field destinations borrow named storage.
+                // A computed receiver instead owns a temporary through the scope.
+                if (receiver.Kind != SyntaxKind.Name
+                    && receiver.Fact!.Type.Class is SemanticSymbol owner
+                    && owner.IsCountedClass())
+                {
+                    RegisterHolder(receiver, receiver.Fact.Type, true);
+                }
             }
             void BuildExpression(SyntaxNode expression)
             {
@@ -592,11 +888,20 @@ internal sealed partial class Compilation
                     // Completion runs after children. Each saved class-valued
                     // expression has its own identity across later effects.
                     if (node.Fact is SemanticFact fact
-                        && fact.Type.ArrayDepth == 0 && fact.Type.Class is not null)
+                        && fact.Type.Class is not null && node.Kind != SyntaxKind.If)
                     {
                         work.Push(() =>
                         {
                             objectValues[node] = NewObject(node, fact.Type.Class);
+                        });
+                    }
+                    if (node.Fact is SemanticFact arrayFact && arrayFact.Type.ArrayDepth > 0
+                        && arrayFact.Type.Class is SemanticSymbol arrayClass
+                        && arrayClass.IsCountedClass() && node.Kind != SyntaxKind.Group)
+                    {
+                        work.Push(() =>
+                        {
+                            arrayTemporaries[node] = RegisterHolder(node, arrayFact.Type, !KnownEmptyArray(node));
                         });
                     }
                     if (node.Kind == SyntaxKind.Name)
@@ -621,12 +926,49 @@ internal sealed partial class Compilation
                     }
                     if (node.Kind == SyntaxKind.Call)
                     {
-                        if (node.Fact!.ArrayOperation != ArrayOperation.None)
+                        if (node.Fact!.Symbol?.Builtin == BuiltinKind.Capacity)
+                        {
+                            int observed = ObserveArray(node.ChildAt(1));
+                            if (observed >= 0)
+                            {
+                                Use(node, observed);
+                            }
+                            return;
+                        }
+                        if (node.Fact.ArrayOperation != ArrayOperation.None)
                         {
                             int receiver = Select(node.ChildAt(0).ChildAt(0));
                             BuildExpression(node.ChildAt(1));
                             Use(node, receiver);
                             Event(node, 3, receiver);
+                            if (node.Fact.ArrayOperation == ArrayOperation.Push)
+                            {
+                                UseObject(node.ChildAt(1));
+                                MoveArray(node.ChildAt(1));
+                                if (!KnownEmptyArray(node.ChildAt(1))
+                                    && localHolders.TryGetValue(paths[receiver].Root, out int filledHolder))
+                                {
+                                    Event(node, 8, filledHolder);
+                                }
+                            }
+                            else if (node.Fact.ArrayOperation is ArrayOperation.Resize or ArrayOperation.Truncate)
+                            {
+                                // Shrink can release any removed counted leaf,
+                                // including leaves inside nested arrays.
+                                if (localHolders.TryGetValue(paths[receiver].Root, out int arrayHolder))
+                                {
+                                    Event(node, 11, arrayHolder);
+                                    if (paths[receiver].Depth == 0
+                                        && node.ChildAt(1).Fact!.IntegerConstant == BigInteger.Zero)
+                                    {
+                                        Event(node, 10, arrayHolder);
+                                    }
+                                }
+                                else
+                                {
+                                    Release(node, node.ChildAt(0).ChildAt(0).Fact!.Type);
+                                }
+                            }
                             return;
                         }
                         if (node.Fact.ClassOperation == ClassOperation.Destroy)
@@ -634,7 +976,16 @@ internal sealed partial class Compilation
                             SyntaxNode receiver = node.ChildAt(0).ChildAt(0);
                             BuildExpression(receiver);
                             UseObject(receiver);
-                            DestroyClass(node, node.Fact.Symbol!);
+                            SemanticSymbol destroyedOwner = node.Fact.Symbol!;
+                            SemanticSymbol? hook = destroyedOwner.FinalHook();
+                            if (hook is not null)
+                            {
+                                foreach (SemanticSymbol affected in classEffects[hook])
+                                {
+                                    DestroyClass(node, affected);
+                                }
+                            }
+                            DestroyClass(node, destroyedOwner);
                             return;
                         }
                         List<(SyntaxNode Node, int Handle)> arguments = new();
@@ -669,6 +1020,20 @@ internal sealed partial class Compilation
                         {
                             UseObject(node.ChildAt(i));
                         }
+                        if (target.Scope?.Class is SemanticSymbol constructedClass
+                            && target.Name == constructedClass.Name)
+                        {
+                            // Arguments are evaluated before constructor allocation.
+                            int growth = paths.Count;
+                            paths.Add((constructedClass, classGrowth));
+                            Event(node, 3, growth);
+                            // Selected reference arguments must survive the
+                            // allocation before the constructor body can use them.
+                            foreach (var argument in arguments)
+                            {
+                                Use(argument.Node, argument.Handle);
+                            }
+                        }
                         if (classEffects.TryGetValue(target, out var destroyed))
                         {
                             foreach (SemanticSymbol owner in destroyed)
@@ -691,7 +1056,11 @@ internal sealed partial class Compilation
                             }
                             (SemanticSymbol Root, int Depth) Substitute((SemanticSymbol Root, int Depth) formal)
                             {
-                                var actual = actuals[formal.Root];
+                                if (!actuals.TryGetValue(formal.Root, out var actual))
+                                {
+                                    // Class-wide effects retain nominal identity.
+                                    return formal;
+                                }
                                 return (actual.Root, actual.Depth + formal.Depth);
                             }
                             // Requirements describe internal order. Do not turn
@@ -706,8 +1075,27 @@ internal sealed partial class Compilation
                             foreach (var effect in effects[target])
                             {
                                 int handle = paths.Count;
-                                paths.Add(Substitute(effect));
+                                var actualEffect = Substitute(effect);
+                                paths.Add(actualEffect);
                                 Event(node, 3, handle);
+                                // A mutating helper can populate an empty actual.
+                                // Its path summary deliberately does not promise
+                                // exact length or count after the call.
+                                if (actualEffect.Depth >= 0
+                                    && localHolders.TryGetValue(actualEffect.Root, out int changedHolder))
+                                {
+                                    Event(node, 8, changedHolder);
+                                }
+                            }
+                        }
+                        // Ordinary callees consume value arguments. Inline
+                        // builtins such as len instead leave their evaluated
+                        // array temporary owned by the caller's cleanup scope.
+                        if (target.Builtin == BuiltinKind.None)
+                        {
+                            for (int i = 1; i < node.ChildCount(); i += 1)
+                            {
+                                MoveArray(node.ChildAt(i));
                             }
                         }
                         return;
@@ -716,7 +1104,14 @@ internal sealed partial class Compilation
                     {
                         BuildExpression(node.ChildAt(0));
                         List<int> skipped = new(frontier);
+                        // The emitted right operand has its own conditional C
+                        // scope. Finalize its temporaries before merging paths;
+                        // the skipped path never acquired these holders.
+                        int rightCleanup = cleanupFrames.Count;
+                        cleanupFrames.Add(new());
                         BuildExpression(node.ChildAt(1));
+                        Cleanup(node, rightCleanup);
+                        cleanupFrames.RemoveAt(cleanupFrames.Count - 1);
                         frontier.AddRange(skipped);
                         return;
                     }
@@ -725,6 +1120,17 @@ internal sealed partial class Compilation
                         for (int i = 0; i < node.ChildCount(); i += 1)
                         {
                             UseObject(node.ChildAt(i));
+                        }
+                        if (node.Kind == SyntaxKind.Array)
+                        {
+                            for (int i = 0; i < node.ChildCount(); i += 1)
+                            {
+                                MoveArray(node.ChildAt(i));
+                            }
+                        }
+                        if (node.Kind == SyntaxKind.Member)
+                        {
+                            RegisterComputedReceiver(node.ChildAt(0));
                         }
                     });
                     for (int i = node.ChildCount() - 1; i >= 0; i -= 1)
@@ -737,11 +1143,21 @@ internal sealed partial class Compilation
                     }
                 }
             }
-            void BuildIf(SyntaxNode node)
+            void BuildIf(SyntaxNode node, int resultObject = -1)
             {
+                // A transferred result keeps one identity across branch cleanup.
+                // Completion must not revive it by acquiring a fresh identity.
+                if (node.Fact!.Type.Class is SemanticSymbol resultClass)
+                {
+                    if (resultObject < 0)
+                    {
+                        resultObject = NewObject(node, resultClass);
+                    }
+                    objectValues[node] = resultObject;
+                }
                 BuildExpression(node.ChildAt(0));
                 List<int> start = new(frontier);
-                BuildBlock(node.ChildAt(1));
+                BuildBlock(node.ChildAt(1), node.Fact!.Type != SemanticType.Unit, resultObject);
                 List<int> thenExit = new(frontier);
                 frontier = start;
                 if (node.ChildCount() > 2)
@@ -749,17 +1165,28 @@ internal sealed partial class Compilation
                     SyntaxNode alternative = node.ChildAt(2);
                     if (alternative.Kind == SyntaxKind.If)
                     {
-                        BuildIf(alternative);
+                        // Else-if condition temporaries belong to the emitted
+                        // else scope, not to the surrounding source block.
+                        int alternativeCleanup = cleanupFrames.Count;
+                        cleanupFrames.Add(new());
+                        BuildIf(alternative, resultObject);
+                        Cleanup(alternative, alternativeCleanup);
+                        if (resultObject >= 0)
+                        {
+                            Event(alternative, 6, resultObject);
+                        }
+                        cleanupFrames.RemoveAt(cleanupFrames.Count - 1);
                     }
                     else
                     {
-                        BuildBlock(alternative);
+                        BuildBlock(alternative, node.Fact!.Type != SemanticType.Unit, resultObject);
                     }
                 }
                 frontier.AddRange(thenExit);
             }
-            void BuildBlock(SyntaxNode block)
+            void BuildBlock(SyntaxNode block, bool transfersTail = false, int resultObject = -1)
             {
+                cleanupFrames.Add(new());
                 for (int i = 0; i < block.ChildCount(); i += 1)
                 {
                     SyntaxNode statement = block.ChildAt(i);
@@ -777,12 +1204,22 @@ internal sealed partial class Compilation
                             {
                                 BuildExpression(initializer);
                                 UseObject(initializer);
+                                MoveArray(initializer);
+                            }
+                            if (!symbol.IsReference && symbol.Type is SemanticType ownedLocal)
+                            {
+                                int localHolder = RegisterHolder(statement, ownedLocal,
+                                    initializer.Fact is not null && !KnownEmptyArray(initializer));
+                                if (localHolder >= 0)
+                                {
+                                    localHolders.Add(symbol, localHolder);
+                                }
                             }
                             // Definite assignment independently prevents reads of
                             // an uninitialized local. Its lifetime identity exists
                             // even when the first value arrives in a later store.
                             if (symbol.Type is SemanticType bindingType
-                                && bindingType.ArrayDepth == 0 && bindingType.Class is not null)
+                                && bindingType.Class is not null)
                             {
                                 objectBindings.Add(symbol, NewObject(statement, bindingType.Class));
                             }
@@ -790,9 +1227,31 @@ internal sealed partial class Compilation
                         case SyntaxKind.Assignment:
                             SyntaxNode target = statement.ChildAt(0);
                             int destination = Select(target);
+                            if (target.Kind == SyntaxKind.Member)
+                            {
+                                indexedFieldDestinations.Add(destination);
+                            }
                             BuildExpression(statement.ChildAt(1));
                             Use(target, destination);
                             UseObject(statement.ChildAt(1));
+                            MoveArray(statement.ChildAt(1));
+                            // Alias spellings select their owner's storage. Only
+                            // depth zero replaces that whole cleanup holder.
+                            if (paths[destination].Depth == 0
+                                && localHolders.TryGetValue(paths[destination].Root, out int replacedHolder))
+                            {
+                                Event(target, 9, replacedHolder);
+                                Event(target, KnownEmptyArray(statement.ChildAt(1)) ? 10 : 8, replacedHolder);
+                            }
+                            else
+                            {
+                                Release(target, target.Fact!.Type);
+                            }
+                            if (paths[destination].Depth > 0 && !KnownEmptyArray(statement.ChildAt(1))
+                                && localHolders.TryGetValue(paths[destination].Root, out int containingHolder))
+                            {
+                                Event(target, 8, containingHolder);
+                            }
                             if (target.Kind == SyntaxKind.Name
                                 && objectBindings.TryGetValue(target.Fact!.Symbol!, out int assignedObject))
                             {
@@ -805,6 +1264,21 @@ internal sealed partial class Compilation
                             break;
                         case SyntaxKind.ExpressionStatement:
                             BuildExpression(statement.ChildAt(0));
+                            // A value tail transfers its result out of this block.
+                            // A trailing discard marker prevents this condition.
+                            if (!transfersTail || i != block.ChildCount() - 1)
+                            {
+                                if (!KnownEmptyArray(statement.ChildAt(0)))
+                                {
+                                    Release(statement, statement.ChildAt(0).Fact!.Type);
+                                }
+                            }
+                            if (transfersTail && i == block.ChildCount() - 1 && resultObject >= 0)
+                            {
+                                UseObject(statement.ChildAt(0));
+                                Event(statement.ChildAt(0), 5, resultObject);
+                            }
+                            MoveArray(statement.ChildAt(0));
                             break;
                         case SyntaxKind.While:
                             int header = Event(statement, 0, -1);
@@ -812,23 +1286,34 @@ internal sealed partial class Compilation
                             frontier = new();
                             int exit = Event(statement, 0, -1);
                             frontier = before;
-                            loopEdges.Push((header, exit));
+                            int conditionCleanup = cleanupFrames.Count;
+                            loopEdges.Push((header, exit, conditionCleanup));
+                            cleanupFrames.Add(new());
                             BuildExpression(statement.ChildAt(0));
+                            List<int> conditionFrontier = new(frontier);
+                            // The false path leaves the condition scope without
+                            // entering the body. Keep its cleanup effects off the
+                            // true path, whose temporaries survive through the body.
+                            Cleanup(statement, conditionCleanup);
                             foreach (int condition in frontier)
                             {
                                 graph[condition].Next.Add(exit);
                             }
+                            frontier = conditionFrontier;
                             BuildBlock(statement.ChildAt(1));
+                            Cleanup(statement, conditionCleanup);
                             foreach (int back in frontier)
                             {
                                 graph[back].Next.Add(header);
                             }
+                            cleanupFrames.RemoveAt(cleanupFrames.Count - 1);
                             loopEdges.Pop();
                             frontier = new() { exit };
                             break;
                         case SyntaxKind.Break:
                         case SyntaxKind.Continue:
                             var loop = loopEdges.Peek();
+                            Cleanup(statement, loop.CleanupDepth);
                             int transfer = statement.Kind == SyntaxKind.Break ? loop.Exit : loop.Header;
                             foreach (int previous in frontier)
                             {
@@ -840,12 +1325,29 @@ internal sealed partial class Compilation
                             if (statement.ChildCount() != 0)
                             {
                                 BuildExpression(statement.ChildAt(0));
+                                MoveArray(statement.ChildAt(0));
+                            }
+                            Cleanup(statement, 0);
+                            // The preserved result leaves only after cleanup.
+                            // A final hook may invalidate an ordinary result even
+                            // though evaluating it before cleanup was safe.
+                            if (statement.ChildCount() != 0)
+                            {
+                                UseObject(statement.ChildAt(0));
                             }
                             UseConstructedReceiver(statement);
                             frontier = new();
                             break;
                     }
                 }
+                Cleanup(block, cleanupFrames.Count - 1);
+                if (resultObject >= 0)
+                {
+                    // As with return, the preserved result must remain valid
+                    // after all branch-local finalization effects have run.
+                    Event(block, 6, resultObject);
+                }
+                cleanupFrames.RemoveAt(cleanupFrames.Count - 1);
             }
         }
 
@@ -1150,12 +1652,20 @@ internal sealed partial class Compilation
                 Fail(node, "LYC325", "Reference argument requires explicit ref storage.");
             }
             SyntaxNode storage = node.ChildAt(0);
+            if (storage.Kind == SyntaxKind.Member)
+            {
+                SemanticSymbol field = CheckField(storage, scope, true);
+                _ = WritableRoot(storage, scope);
+                SemanticType fieldType = field.Type!.Value;
+                _ = new SemanticFact(analysis, node, fieldType, field);
+                return fieldType;
+            }
             if (storage.Kind is not (SyntaxKind.Name or SyntaxKind.Index))
             {
                 Unsupported(storage);
             }
-            SemanticSymbol symbol = WritableRoot(storage, scope);
             SemanticType type = CheckExpression(storage, scope);
+            SemanticSymbol symbol = WritableRoot(storage, scope);
             _ = new SemanticFact(analysis, node, type, symbol);
             return type;
         }
@@ -1284,11 +1794,14 @@ internal sealed partial class Compilation
             {
                 root = root.ChildAt(0);
             }
-            if (root.Kind != SyntaxKind.Name)
+            if (root.Kind is not (SyntaxKind.Name or SyntaxKind.Member))
             {
                 Unsupported(node);
             }
-            SemanticSymbol? symbol = scope.Lookup(Text(root));
+            // Selection has already been checked: reuse its authoritative field
+            // identity rather than checking the receiver again or looking up a name.
+            SemanticSymbol? symbol = root.Kind == SyntaxKind.Member
+                ? root.Fact!.Symbol : scope.Lookup(Text(root));
             if (symbol is null)
             {
                 Fail(root, "LYC301", $"Unknown name '{Text(root)}'.");
@@ -1315,6 +1828,7 @@ internal sealed partial class Compilation
                     Unsupported(node);
                 }
                 SemanticSymbol field = CheckField(target, scope, false);
+                _ = WritableRoot(target, scope);
                 SemanticType supplied = CheckExpression(node.ChildAt(1), scope, field.Type);
                 RequireType(node.ChildAt(1), supplied, field.Type!.Value);
                 if (IsConstructingSelf(target.ChildAt(0).Fact!.Symbol))
@@ -1329,9 +1843,9 @@ internal sealed partial class Compilation
                 {
                     Unsupported(node);
                 }
+                SemanticType selected = CheckExpression(target, scope);
                 SemanticSymbol owner = WritableRoot(target, scope);
                 protectedArrays.Push(owner);
-                SemanticType selected = CheckExpression(target, scope);
                 SemanticType supplied = CheckExpression(node.ChildAt(1), scope, selected);
                 RequireType(node.ChildAt(1), supplied, selected);
                 protectedArrays.Pop();
@@ -1379,7 +1893,7 @@ internal sealed partial class Compilation
                 }
                 // Assignment does not introduce an implicit narrowing conversion.
                 RequireType(value, result!.Value, targetType);
-                if (assignment == "/=" && value.Fact!.IntegerConstant == BigInteger.Zero)
+                if (!unsafeMode && assignment == "/=" && value.Fact!.IntegerConstant == BigInteger.Zero)
                 {
                     Fail(node, "LYC316", "Integer division or remainder by zero.");
                 }
@@ -1416,7 +1930,7 @@ internal sealed partial class Compilation
             {
                 SemanticType element = ReadType(node.ChildAt(0), scope);
                 if (element.ArrayDepth == 0 && element != SemanticType.Bool
-                    && !SemanticTypes.IsInteger(element))
+                    && !SemanticTypes.IsInteger(element) && element.Class is null)
                 {
                     Unsupported(node);
                 }
@@ -1967,7 +2481,7 @@ internal sealed partial class Compilation
                     }
                     SemanticType elementType = SemanticTypes.ElementOf(type);
                     if (elementType.ArrayDepth == 0 && elementType != SemanticType.Bool
-                        && !SemanticTypes.IsInteger(elementType))
+                        && !SemanticTypes.IsInteger(elementType) && elementType.Class is null)
                     {
                         Unsupported(node);
                     }
@@ -2016,7 +2530,11 @@ internal sealed partial class Compilation
                         constant = Text(node) == "!as" ? WrapInteger(type, original) : original;
                         if (!SemanticTypes.Represents(type, constant.Value))
                         {
-                            Fail(node, "LYC318", $"Integer conversion is outside {SemanticTypes.Name(type)} range.");
+                            if (!unsafeMode)
+                            {
+                                Fail(node, "LYC318", $"Integer conversion is outside {SemanticTypes.Name(type)} range.");
+                            }
+                            constant = null;
                         }
                     }
                     break;
@@ -2045,7 +2563,11 @@ internal sealed partial class Compilation
                         }
                         if (!SemanticTypes.Represents(type, constant.Value))
                         {
-                            Fail(node, "LYC311", $"Integer constant operation is outside {SemanticTypes.Name(type)} range.");
+                            if (!unsafeMode)
+                            {
+                                Fail(node, "LYC311", $"Integer constant operation is outside {SemanticTypes.Name(type)} range.");
+                            }
+                            constant = null;
                         }
                     }
                     break;
@@ -2066,11 +2588,12 @@ internal sealed partial class Compilation
                     type = selected!.Value;
                     BigInteger? leftConstant = leftNode.Fact!.IntegerConstant;
                     BigInteger? rightConstant = rightNode.Fact!.IntegerConstant;
-                    if (Text(node) is "/" or "%" && rightConstant == BigInteger.Zero)
+                    if (!unsafeMode && Text(node) is "/" or "%" && rightConstant == BigInteger.Zero)
                     {
                         Fail(node, "LYC316", "Integer division or remainder by zero.");
                     }
-                    if (leftConstant is not null && rightConstant is not null)
+                    if (leftConstant is not null && rightConstant is not null
+                        && !(Text(node) is "/" or "%" && rightConstant == BigInteger.Zero))
                     {
                         constant = Text(node) switch
                         {
@@ -2089,7 +2612,11 @@ internal sealed partial class Compilation
                         }
                         if (!SemanticTypes.Represents(type, constant.Value))
                         {
-                            Fail(node, "LYC311", $"Integer constant operation is outside {SemanticTypes.Name(type)} range.");
+                            if (!unsafeMode)
+                            {
+                                Fail(node, "LYC311", $"Integer constant operation is outside {SemanticTypes.Name(type)} range.");
+                            }
+                            constant = null;
                         }
                     }
                     break;
@@ -2103,7 +2630,11 @@ internal sealed partial class Compilation
                     int width = SemanticTypes.IntegerWidth(type);
                     if (shiftCount is not null && (shiftCount < 0 || shiftCount >= width))
                     {
-                        Fail(node, "LYC317", "Integer shift count is outside operand width.");
+                        if (!unsafeMode)
+                        {
+                            Fail(node, "LYC317", "Integer shift count is outside operand width.");
+                        }
+                        shiftCount = null;
                     }
                     if (shiftCount is not null && node.ChildAt(0).Fact!.IntegerConstant is BigInteger shifted)
                     {
@@ -2209,6 +2740,10 @@ internal sealed partial class Compilation
                             {
                                 Fail(callee, "LYC329", $"No instance method '{Text(callee)}' exists on {SemanticTypes.Name(actualReceiver)}.");
                             }
+                            if (method!.IsFinalHook())
+                            {
+                                Fail(callee, "LYC332", "A final hook may only be invoked by generated destruction.");
+                            }
                             CheckArguments(node, method!, scope, 1);
                             _ = new SemanticFact(analysis, node, method!.Type!.Value, method);
                             return method.Type.Value;
@@ -2230,13 +2765,13 @@ internal sealed partial class Compilation
                             Fail(callee, "LYC303", $"Array method '{Text(callee)}' expects 1 argument(s), got {node.ChildCount() - 1}.");
                         }
                         SyntaxNode receiver = callee.ChildAt(0);
+                        SemanticType arrayType = CheckExpression(receiver, scope);
                         SemanticSymbol owner = WritableRoot(receiver, scope);
                         bool nested = receiver.Kind == SyntaxKind.Index;
                         if (nested)
                         {
                             protectedArrays.Push(owner);
                         }
-                        SemanticType arrayType = CheckExpression(receiver, scope);
                         if (arrayType.ArrayDepth == 0)
                         {
                             Fail(receiver, "LYC323", "Expected an array argument.");

@@ -1,0 +1,5 @@
+PASS aos -O0 outstanding blocks [3, 3]
+PASS aos -O2 outstanding blocks [3, 3]
+PASS soa -O0 outstanding blocks [3, 3]
+PASS soa -O2 outstanding blocks [3, 3]
+4/4 owned-field balance comparisons passed

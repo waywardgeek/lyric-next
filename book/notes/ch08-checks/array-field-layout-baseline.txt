@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 82, in <module>
+    main()
+    ~~~~^^
+  File "/Users/bill/projects/lyric-next/graders/ch08/layout.py", line 68, in main
+    assert compiled.returncode == 0 and not compiled.stderr, (name, layout, compiled.stderr)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('array-field-copy', 'aos', b'"/Users/bill/ensemble-edition3-cadence/tmp/lyric-layout-y6ozjnfx/array-field-copy.ly":1:11: error LYC306: Owned array field emission is not implemented yet. (byte 10)\n')
