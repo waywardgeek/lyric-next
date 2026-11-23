@@ -1,0 +1,18 @@
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+PASS loop-repeat
+PASS loop-break
+PASS loop-continue
+PASS loop-return
+PASS loop-nested-return
+PASS loop-false
+PASS loop-nested
+15/15 ownership IR cases passed

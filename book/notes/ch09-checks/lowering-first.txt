@@ -1,0 +1,17 @@
+PASS constant
+PASS snapshot
+PASS call-order
+PASS short-and
+PASS short-or
+PASS value-if
+PASS else-if
+PASS loop
+PASS compound
+PASS widen
+PASS cast
+PASS unit
+PASS unsupported-array 
+PASS unsupported-class 
+FAIL semantic-first "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-grader-o747thb2/case.ly":1:26: error LYC301: Unknown name 'missing'. (byte 25)
+
+14/15 IR cases passed

@@ -144,8 +144,12 @@ Combining the IR and interfaces in Chapter 9 is possible, but joins a substantia
 backend refactor with new language semantics and makes failures harder to isolate.
 Bill chose a short focused IR chapter, then the full cooperating-type mechanism
 without an intervening ordinary-interface-only chapter. Chapters 9 and 10 are the
-agreed sequence. This records the construction plan. Only the initial IR data model has been
-implemented; the existing compiler still emits C from checked syntax.
+agreed sequence. Chapter 9 now lowers the supported Chapter 8 language into
+validated structured IR and emits C only from that IR. Reference cumulative checks,
+one code review, one text review, and independent reconstruction are complete;
+human acceptance remains pending. No source-language generators are part of this
+chapter: IR Yield returns a structured region value without suspension, and
+compiler-generated destruction bodies express existing Chapter 8 cleanup.
 
 
 ## Structured model: current construction decision

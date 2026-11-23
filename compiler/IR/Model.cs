@@ -79,12 +79,20 @@ internal sealed partial class IrProgram
 }
 internal sealed partial class IrFunction
 {
-    internal partial IrFunction(IrProgram program, SemanticSymbol declaration)
+    internal partial IrFunction(IrProgram program, SemanticSymbol declaration, IrFunctionKind kind)
     {
+        Kind = kind;
         program.AddFunction(this);
         try
         {
-            declaration.AddIrFunction(this);
+            if (kind == IrFunctionKind.Destruction)
+            {
+                declaration.AddIrDestruction(this);
+            }
+            else
+            {
+                declaration.AddIrFunction(this);
+            }
         }
         catch
         {
@@ -103,6 +111,7 @@ internal sealed partial class IrFunction
             Nodes[Nodes.Count - 1].Destroy();
         }
         Declaration?.RemoveIrFunction(this);
+        DestructionClass?.RemoveIrDestruction(this);
         Destroyed = true;
         Program?.RemoveFunction(this);
     }
@@ -394,6 +403,10 @@ internal sealed partial class IrNode
     {
         return Uses.Count;
     }
+    internal partial IrOperand UseAt(int index)
+    {
+        return Uses[index];
+    }
 }
 
 internal sealed partial class IrNode
@@ -421,9 +434,34 @@ internal sealed partial class IrNode
 
 internal sealed partial class SemanticSymbol
 {
+    internal partial void AddIrDestruction(IrFunction function)
+    {
+        // Validate every relationship before publishing either endpoint. There is
+        // no allocation between these two assignments, so refusal leaves both intact.
+        if (Destroyed || Kind != SymbolKind.Class || IrDestruction is not null
+            || Scope?.Analysis is null || Scope.Analysis.Destroyed || function.Destroyed
+            || function.Kind != IrFunctionKind.Destruction
+            || function.Declaration is not null || function.DestructionClass is not null
+            || function.Program?.Analysis != Scope.Analysis)
+        {
+            throw new InvalidOperationException("Cannot attach IR destruction body.");
+        }
+        IrDestruction = function;
+        function.DestructionClass = this;
+    }
+    internal partial void RemoveIrDestruction(IrFunction function)
+    {
+        if (IrDestruction != function || function.DestructionClass != this)
+        {
+            throw new InvalidOperationException("Different IR destruction body owner.");
+        }
+        IrDestruction = null;
+        function.DestructionClass = null;
+    }
     internal partial void AddIrFunction(IrFunction function)
     {
         if (Destroyed || Kind != SymbolKind.Function || IrBody is not null
+            || function.Kind != IrFunctionKind.Source || function.DestructionClass is not null
             || Scope?.Analysis is null || Scope.Analysis.Destroyed || function.Destroyed
             || function.Declaration is not null || function.Program?.Analysis != Scope.Analysis)
         {

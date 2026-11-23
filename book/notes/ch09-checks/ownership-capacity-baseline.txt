@@ -1,0 +1,53 @@
+FAIL capacity-reserve "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-o4u1vtji/capacity-reserve.ly":1:53: error LYC340: This construct is not supported by the current IR lowering slice. (byte 52)
+
+FAIL capacity-copy "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-o4u1vtji/capacity-copy.ly":1:61: error LYC340: This construct is not supported by the current IR lowering slice. (byte 60)
+
+FAIL capacity-truncate "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-o4u1vtji/capacity-truncate.ly":1:57: error LYC340: This construct is not supported by the current IR lowering slice. (byte 56)
+
+FAIL capacity-resize-zero "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-o4u1vtji/capacity-resize-zero.ly":1:92: error LYC340: This construct is not supported by the current IR lowering slice. (byte 91)
+
+FAIL capacity-nested "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-o4u1vtji/capacity-nested.ly":1:58: error LYC340: This construct is not supported by the current IR lowering slice. (byte 57)
+
+FAIL capacity-computed "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-o4u1vtji/capacity-computed.ly":1:85: error LYC340: This construct is not supported by the current IR lowering slice. (byte 84)
+
+PASS push
+PASS push-copy
+PASS reserve
+PASS resize
+PASS shrink
+PASS truncate
+PASS resize-zero
+PASS mutate-ref
+PASS mutate-nested
+PASS ref-local
+PASS ref-forward
+PASS ref-array
+PASS ref-copy
+PASS ref-return
+PASS ref-index-order
+PASS self-check index-order
+PASS index-order
+PASS index-read
+PASS index-write
+PASS index-copy
+PASS index-nested
+PASS index-replace
+PASS index-call
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+PASS loop-repeat
+PASS loop-break
+PASS loop-continue
+PASS loop-return
+PASS loop-nested-return
+PASS loop-false
+PASS loop-nested
+37/43 ownership IR cases passed

@@ -1,0 +1,23 @@
+  Determining projects to restore...
+  Restored /Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-p1h96aii/Probe.csproj (in 23 ms).
+  Probe -> /Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-p1h96aii/bin/Debug/net10.0/Probe.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.29
+Unhandled exception. System.InvalidOperationException: Cannot attach Node relationship.
+   at Lyric.IrFunction.AddNode(IrNode node) in /Users/bill/projects/lyric-next/compiler/IR/Model.cs:line 278
+   at Lyric.IrNode..ctor(IrFunction function, IrKind kind, IrRole role, IrResult result, Nullable`1 type, SyntaxNode origin, SemanticSymbol symbol, IrLiteral literal, String operation) in /Users/bill/projects/lyric-next/compiler/IR/Model.cs:line 141
+   at IrModelProbe.Main() in /Users/bill/projects/lyric-next/tools/probes/ir-model.cs:line 117
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/tools/probes/check_ir_model.py", line 28, in <module>
+    subprocess.run([sys.argv[1], str(work / "bin" / configuration / "net10.0/Probe.dll")],
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                   cwd=work, check=True, timeout=30)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.8_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/Users/bill/.local/share/ensemble-dotnet10/dotnet', '/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-p1h96aii/bin/Debug/net10.0/Probe.dll']' died with <Signals.SIGABRT: 6>.

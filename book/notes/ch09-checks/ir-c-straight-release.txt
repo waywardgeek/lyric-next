@@ -1,0 +1,6 @@
+PASS identity
+PASS storage
+PASS calls
+PASS assertion
+PASS mixed-body
+5/5 IR C-emission cases passed

@@ -1,0 +1,32 @@
+FAIL index-read "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-b6kbpmy5/index-read.ly":1:39: error LYC340: This construct is not supported by the current IR lowering slice. (byte 38)
+
+FAIL index-write "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-b6kbpmy5/index-write.ly":1:32: error LYC340: This construct is not supported by the current IR lowering slice. (byte 31)
+
+FAIL index-copy "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-b6kbpmy5/index-copy.ly":1:41: error LYC340: This construct is not supported by the current IR lowering slice. (byte 40)
+
+FAIL index-nested "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-b6kbpmy5/index-nested.ly":1:38: error LYC340: This construct is not supported by the current IR lowering slice. (byte 37)
+
+FAIL index-replace "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-b6kbpmy5/index-replace.ly":1:38: error LYC340: This construct is not supported by the current IR lowering slice. (byte 37)
+
+FAIL index-compound "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-b6kbpmy5/index-compound.ly":1:36: error LYC306: Unsupported semantic construct: Assignment. (byte 35)
+
+FAIL index-call "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-b6kbpmy5/index-call.ly":1:64: error LYC340: This construct is not supported by the current IR lowering slice. (byte 63)
+
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+PASS loop-repeat
+PASS loop-break
+PASS loop-continue
+PASS loop-return
+PASS loop-nested-return
+PASS loop-false
+PASS loop-nested
+15/22 ownership IR cases passed

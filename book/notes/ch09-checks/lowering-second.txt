@@ -1,0 +1,21 @@
+PASS constant
+PASS snapshot
+PASS call-order
+PASS short-and
+PASS short-or
+PASS value-if
+PASS else-if
+PASS loop
+PASS compound
+PASS widen
+PASS cast
+PASS unit
+PASS branch-return
+PASS recursive
+PASS skipped-call
+PASS assert
+PASS deep
+PASS unsupported-array 
+PASS unsupported-class 
+PASS semantic-first 
+20/20 IR cases passed

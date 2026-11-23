@@ -1,0 +1,31 @@
+FAIL constant Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL snapshot Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL call-order Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL short-and Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL short-or Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL value-if Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL else-if Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL loop Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL compound Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL widen Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL cast Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL unit Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL unsupported-array Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL unsupported-class Usage: Lyric --inspect-source FILE | --unicode-version
+
+FAIL semantic-first Usage: Lyric --inspect-source FILE | --unicode-version
+
+0/15 IR cases passed

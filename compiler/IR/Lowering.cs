@@ -1,0 +1,903 @@
+using System;
+using System.Collections.Generic;
+
+namespace Lyric;
+
+internal sealed partial class Compilation
+{
+    internal partial Diagnostic? LowerIr()
+    {
+        if (Analysis is null || Analysis.Destroyed)
+        {
+            throw new InvalidOperationException("Check before lowering IR.");
+        }
+        Analysis.ClearIr();
+        IrProgram program = new(Analysis);
+        try
+        {
+            // Establish every concrete body identity before lowering any calls.
+            foreach (SourceFile source in Sources)
+            {
+                SyntaxNode root = source.SyntaxRoot()!;
+                for (int i = 0; i < root.ChildCount(); i += 1)
+                {
+                    SyntaxNode declaration = root.ChildAt(i);
+                    if (declaration.Kind == SyntaxKind.Class)
+                    {
+                        SemanticSymbol nominal = declaration.DeclaredSymbol!;
+                        _ = new IrFunction(program, nominal, IrFunctionKind.Destruction);
+                        for (int m = 0; m < declaration.ChildCount(); m += 1)
+                        {
+                            SyntaxNode member = declaration.ChildAt(m);
+                            if (member.DeclaredSymbol is not SemanticSymbol selected)
+                            {
+                                continue;
+                            }
+                            SupportedType(selected.Type!.Value, member);
+                            if (selected.Kind == SymbolKind.Function)
+                            {
+                                _ = new IrFunction(program, selected);
+                            }
+                        }
+                        continue;
+                    }
+                    if (declaration.Kind != SyntaxKind.Function)
+                    {
+                        Unsupported(declaration);
+                    }
+                    SemanticSymbol symbol = declaration.DeclaredSymbol!;
+                    SupportedType(symbol.Type!.Value, declaration);
+                    _ = new IrFunction(program, symbol);
+                }
+            }
+            for (int i = 0; i < program.FunctionCount(); i += 1)
+            {
+                IrFunction function = program.FunctionAt(i);
+                if (function.Kind == IrFunctionKind.Destruction)
+                {
+                    LowerDestruction(function);
+                }
+                else
+                {
+                    LowerFunction(function);
+                }
+            }
+            program.ValidateStructure();
+            program.ValidateOperations();
+            program.ValidateExecution();
+            return null;
+        }
+        catch (SemanticFailure failure)
+        {
+            program.Destroy();
+            return failure.Diagnostic;
+        }
+        catch
+        {
+            program.Destroy();
+            throw;
+        }
+
+        void Unsupported(SyntaxNode node)
+        {
+            throw new SemanticFailure(node.Source!.SemanticDiagnostic(node, "LYC340",
+                "This construct is not supported by the current IR lowering slice."));
+        }
+        void SupportedType(SemanticType type, SyntaxNode node)
+        {
+            if (SemanticTypes.IsFloat(type))
+            {
+                Unsupported(node);
+            }
+        }
+        void LowerDestruction(IrFunction function)
+        {
+            SemanticSymbol nominal = function.DestructionClass!;
+            SemanticType receiverType = new(ScalarKind.Unit, 0, nominal);
+            SyntaxNode origin = nominal.Declaration!;
+            IrNode body = new(function, IrKind.Region, IrRole.Body, origin: origin);
+            function.AddBody(body);
+            // Generated parameters have execution storage, not invented source symbols.
+            IrNode receiver = new(function, IrKind.Local, result: IrResult.Address,
+                type: receiverType, origin: origin);
+            body.AddChild(receiver);
+            if (nominal.FinalHook() is SemanticSymbol hook)
+            {
+                // The hook observes live fields. Keep only the stable handle across
+                // its calls: class storage may grow before reclamation resumes.
+                IrNode handle = new(function, IrKind.Load, result: IrResult.Value,
+                    type: receiverType, origin: origin);
+                body.AddChild(handle);
+                _ = new IrOperand(handle, receiver);
+                IrNode call = new(function, IrKind.Call, result: IrResult.Value,
+                    type: SemanticType.Unit, origin: origin, symbol: hook);
+                body.AddChild(call);
+                _ = new IrOperand(call, handle);
+            }
+            // Final observes live fields. Resolve each descriptor after the hook,
+            // which may grow class storage; never retain an interior pointer across it.
+            for (int i = 0; i < origin.ChildCount(); i += 1)
+            {
+                SemanticSymbol? field = origin.ChildAt(i).DeclaredSymbol;
+                if (field?.Kind != SymbolKind.Field || field.Type!.Value.ArrayDepth == 0)
+                {
+                    continue;
+                }
+                IrNode handle = new(function, IrKind.Load, result: IrResult.Value,
+                    type: receiverType, origin: origin);
+                body.AddChild(handle);
+                _ = new IrOperand(handle, receiver);
+                IrNode place = new(function, IrKind.SelectField, result: IrResult.Place,
+                    type: field.Type, origin: field.Declaration, symbol: field);
+                body.AddChild(place);
+                _ = new IrOperand(place, handle);
+                IrNode release = new(function, IrKind.FreeArray, origin: field.Declaration);
+                body.AddChild(release);
+                _ = new IrOperand(release, place);
+            }
+            IrNode reclaim = new(function, IrKind.ReclaimObject, origin: origin,
+                symbol: nominal);
+            body.AddChild(reclaim);
+            _ = new IrOperand(reclaim, receiver);
+            IrNode unit = new(function, IrKind.Constant, result: IrResult.Value,
+                type: SemanticType.Unit, origin: origin);
+            body.AddChild(unit);
+            IrNode finish = new(function, IrKind.Return, origin: origin);
+            body.AddChild(finish);
+            _ = new IrOperand(finish, unit);
+        }
+        void LowerFunction(IrFunction function)
+        {
+            SemanticSymbol declaration = function.Declaration!;
+            SyntaxNode source = declaration.Declaration!;
+            SyntaxNode block = source.ChildAt(source.ChildCount() - 1);
+            IrNode body = new(function, IrKind.Region, IrRole.Body, origin: block);
+            function.AddBody(body);
+            Dictionary<SemanticSymbol, IrNode> storage = new();
+            // Transient lowering bookkeeping only. The resulting Move/release
+            // operations are the persistent account of ownership and cleanup.
+            Dictionary<IrNode, List<IrNode>> owners = new();
+            // These actions and maps are transient algorithm work, not model
+            // relationships. Every scheduled action drains before this returns.
+            // Scheduling avoids recursion even for deeply nested expressions.
+            Stack<Action> work = new();
+            SemanticScope parameters = declaration.FunctionScope!;
+            for (int p = 0; p < parameters.ParameterCount(); p += 1)
+            {
+                SemanticSymbol parameter = parameters.ParameterAt(p);
+                SupportedType(parameter.Type!.Value, parameter.Declaration!);
+                IrNode local = Add(body, parameter.IsReference ? IrKind.Borrow : IrKind.Local,
+                    parameter.Declaration!,
+                    parameter.Type, IrResult.Address, symbol: parameter);
+                // Constructors and final hooks borrow self. Ordinary methods consume
+                // a receiver holder, just like any other value parameter.
+                bool borrowedSelf = p == 0 && declaration.Scope!.Class is SemanticSymbol owner
+                    && (declaration.Name == owner.Name || declaration.IsFinalHook());
+                if (borrowedSelf && Owned(parameter.Type))
+                {
+                    owners[body].Remove(local);
+                }
+                storage.Add(parameter, local);
+            }
+            Block(block, body, null, IrKind.Return, declaration.Type!.Value);
+            while (work.Count != 0)
+            {
+                work.Pop()();
+            }
+
+            bool Counted(SemanticType? type)
+            {
+                return type is SemanticType value && value.ArrayDepth == 0
+                    && value.Class?.IsCountedClass() == true;
+            }
+            bool Owned(SemanticType? type)
+            {
+                return type?.ArrayDepth > 0 || Counted(type);
+            }
+            IrKind ReadKind(SemanticType type)
+            {
+                return type.ArrayDepth > 0 ? IrKind.Copy : Counted(type) ? IrKind.Ref : IrKind.Load;
+            }
+            IrNode Add(IrNode region, IrKind kind, SyntaxNode origin,
+                SemanticType? type = null, IrResult result = IrResult.None,
+                string? operation = null, SemanticSymbol? symbol = null,
+                IrLiteral? literal = null)
+            {
+                IrNode node = new(function, kind, result: result, type: type,
+                    origin: origin, symbol: symbol, literal: literal, operation: operation);
+                region.AddChild(node);
+                if (Owned(type) && kind is IrKind.Local or IrKind.Copy or IrKind.Ref
+                    or IrKind.NewArray or IrKind.NewObject or IrKind.Call)
+                {
+                    Own(region, node);
+                }
+                return node;
+            }
+            void Own(IrNode region, IrNode holder)
+            {
+                if (!owners.TryGetValue(region, out List<IrNode>? list))
+                {
+                    list = new();
+                    owners.Add(region, list);
+                }
+                list.Add(holder);
+            }
+            IrNode Transfer(IrNode region, SyntaxNode origin, IrNode value)
+            {
+                if (!Owned(value.Type))
+                {
+                    return value;
+                }
+                // Move produces a transient transfer value and empties the source
+                // holder. Its designated consumer establishes the next owner; cleanup may intervene.
+                IrNode move = Add(region, IrKind.Move, origin, value.Type, IrResult.Value);
+                Input(move, value);
+                return move;
+            }
+            void Cleanup(IrNode output, IrNode scope, SyntaxNode origin)
+            {
+                if (!owners.TryGetValue(scope, out List<IrNode>? list))
+                {
+                    return;
+                }
+                // Preserve reverse declaration order, as in the existing emitter.
+                // Empty holders are valid: transfers have already cleared them.
+                for (int i = list.Count - 1; i >= 0; i -= 1)
+                {
+                    IrNode release = Add(output,
+                        Counted(list[i].Type) ? IrKind.Unref : IrKind.FreeArray, origin);
+                    Input(release, list[i]);
+                }
+            }
+            void Input(IrNode consumer, IrNode value)
+            {
+                _ = new IrOperand(consumer, value);
+            }
+            IrNode Region(IrNode owner, IrRole role, SyntaxNode origin)
+            {
+                IrNode region = new(function, IrKind.Region, role, origin: origin);
+                owner.AddChild(region);
+                return region;
+            }
+            IrNode Unit(IrNode region, SyntaxNode origin)
+            {
+                return Add(region, IrKind.Constant, origin, SemanticType.Unit, IrResult.Value);
+            }
+            IrNode Widen(IrNode region, SyntaxNode origin, IrNode value, SemanticType type)
+            {
+                if (value.Type == type)
+                {
+                    return value;
+                }
+                if (!SemanticTypes.CanWiden(value.Type!.Value, type))
+                {
+                    throw new InvalidOperationException("Checked IR widening is invalid.");
+                }
+                IrNode converted = Add(region, IrKind.Convert, origin, type,
+                    IrResult.Value, operation: "widen");
+                Input(converted, value);
+                return converted;
+            }
+            void End(IrNode region, IrKind kind, SyntaxNode origin, IrNode value, SemanticType type)
+            {
+                IrNode converted = Widen(region, origin, value, type);
+                converted = Transfer(region, origin, converted);
+                // A loop condition's holders survive its yielded boolean and
+                // remain live through the selected body. Other yields exit scope.
+                if (region.Role != IrRole.Condition || kind == IrKind.Return)
+                {
+                    Cleanup(region, region, origin);
+                }
+                if (kind == IrKind.Return)
+                {
+                    for (IrNode? parent = region.Parent; parent is not null; parent = parent.Parent)
+                    {
+                        if (parent.Kind == IrKind.Region)
+                        {
+                            Cleanup(region, parent, origin);
+                        }
+                        else if (parent.Kind == IrKind.While)
+                        {
+                            Cleanup(region, parent.ChildAt(0), origin);
+                        }
+                    }
+                }
+                IrNode end = Add(region, kind, origin);
+                Input(end, converted);
+            }
+            string Text(SyntaxNode node)
+            {
+                return node.Source!.SourceText(node.TextOffset, node.TextLength);
+            }
+            IrNode Storage(SyntaxNode node)
+            {
+                while (node.Kind == SyntaxKind.Group)
+                {
+                    node = node.ChildAt(0);
+                }
+                if (node.Kind != SyntaxKind.Name || node.Fact?.Symbol is not SemanticSymbol symbol
+                    || !storage.TryGetValue(symbol, out IrNode? local))
+                {
+                    Unsupported(node);
+                    throw new InvalidOperationException("Unreachable.");
+                }
+                return local;
+            }
+            // Selecting writable storage is not an ordinary array read: copying
+            // here would redirect the assignment into a disposable temporary.
+            // Each selection executes before the next index or assignment RHS.
+            void SelectStorage(SyntaxNode node, IrNode region, IrNode? loop,
+                Action<IrNode> done, bool allowComputed = false)
+            {
+                work.Push(() =>
+                {
+                    if (node.Kind == SyntaxKind.Group)
+                    {
+                        SelectStorage(node.ChildAt(0), region, loop, done, allowComputed);
+                    }
+                    else if (node.Kind == SyntaxKind.Member)
+                    {
+                        // Snapshot the handle, not a pointer into movable class storage.
+                        Receiver(node.ChildAt(0), region, loop, receiver =>
+                        {
+                            IrNode place = Add(region, IrKind.SelectField, node,
+                                node.Fact!.Type, IrResult.Place, symbol: node.Fact.Symbol);
+                            Input(place, receiver);
+                            done(place);
+                        });
+                    }
+                    else if (node.Kind == SyntaxKind.Index)
+                    {
+                        SelectStorage(node.ChildAt(0), region, loop, container =>
+                        {
+                            Expression(node.ChildAt(1), region, loop, index =>
+                            {
+                                done(SelectIndex(node, region, container, index));
+                            });
+                        }, allowComputed);
+                    }
+                    else if (allowComputed && node.Kind != SyntaxKind.Name)
+                    {
+                        // Metadata may observe computed array values. They retain
+                        // their ordinary ownership; writable selection has no fallback.
+                        Expression(node, region, loop, done);
+                    }
+                    else
+                    {
+                        done(Storage(node));
+                    }
+                });
+            }
+            void Receiver(SyntaxNode node, IrNode region, IrNode? loop, Action<IrNode> done)
+            {
+                while (node.Kind == SyntaxKind.Group)
+                {
+                    node = node.ChildAt(0);
+                }
+                if (node.Kind == SyntaxKind.Name)
+                {
+                    // Field selection snapshots identity without acquiring ownership.
+                    // This also permits field access through final-hook borrowed self.
+                    IrNode handle = Add(region, IrKind.Load, node, node.Fact!.Type, IrResult.Value);
+                    Input(handle, Storage(node));
+                    done(handle);
+                }
+                else
+                {
+                    Expression(node, region, loop, done);
+                }
+            }
+            IrNode SelectIndex(SyntaxNode node, IrNode region, IrNode container, IrNode index)
+            {
+                // This operation checks initialized length and captures the actual
+                // element address now. It is not a path to resolve again later.
+                IrNode selected = Add(region, IrKind.SelectIndex, node,
+                    node.Fact!.Type, IrResult.Address);
+                Input(selected, container);
+                Input(selected, index);
+                return selected;
+            }
+            void Expression(SyntaxNode node, IrNode region, IrNode? loop, Action<IrNode> done)
+            {
+                work.Push(() =>
+                {
+                    SemanticFact fact = node.Fact!;
+                    SupportedType(fact.Type, node);
+                    if (fact.IntegerConstant is not null)
+                    {
+                        done(Add(region, IrKind.Constant, node, fact.Type, IrResult.Value,
+                            literal: new IrLiteral(fact.IntegerConstant.Value)));
+                        return;
+                    }
+                    switch (node.Kind)
+                    {
+                        case SyntaxKind.Unit:
+                            done(Unit(region, node));
+                            return;
+                        case SyntaxKind.Literal:
+                            if (fact.Type.ArrayDepth > 0)
+                            {
+                                Unsupported(node);
+                            }
+                            done(Add(region, IrKind.Constant, node, fact.Type, IrResult.Value,
+                                literal: new IrLiteral(Text(node) == "true")));
+                            return;
+                        case SyntaxKind.String:
+                            // The source already owns decoded bytes. Keep an immutable
+                            // payload in IR, but allocate a fresh owning value whenever
+                            // this operation executes (including on loop backedges).
+                            byte[] bytes = node.Source!.LiteralBytes(
+                                node.TextOffset, node.TextLength).ToArray();
+                            done(Add(region, IrKind.NewArray, node, fact.Type,
+                                IrResult.Value, literal: new IrLiteral(bytes)));
+                            return;
+                        case SyntaxKind.Name:
+                            IrNode load = Add(region, ReadKind(fact.Type),
+                                node, fact.Type, IrResult.Value);
+                            Input(load, Storage(node));
+                            done(load);
+                            return;
+                        case SyntaxKind.Member:
+                            SelectStorage(node, region, loop, selected =>
+                            {
+                                IrNode value = Add(region, ReadKind(fact.Type),
+                                    node, fact.Type, IrResult.Value);
+                                Input(value, selected);
+                                done(value);
+                            });
+                            return;
+                        case SyntaxKind.Index:
+                            Expression(node.ChildAt(0), region, loop, container =>
+                            {
+                                Expression(node.ChildAt(1), region, loop, index =>
+                                {
+                                    IrNode selected = SelectIndex(node, region, container, index);
+                                    IrNode value = Add(region,
+                                        ReadKind(fact.Type),
+                                        node, fact.Type, IrResult.Value);
+                                    Input(value, selected);
+                                    done(value);
+                                });
+                            });
+                            return;
+                        case SyntaxKind.Group:
+                            Expression(node.ChildAt(0), region, loop, done);
+                            return;
+                        case SyntaxKind.If:
+                            Expression(node.ChildAt(0), region, loop, condition =>
+                            {
+                                IrNode choice = Add(region, IrKind.If, node, fact.Type, IrResult.Value);
+                                Input(choice, condition);
+                                IrNode yes = Region(choice, IrRole.Then, node.ChildAt(1));
+                                IrNode no = Region(choice, IrRole.Else, node);
+                                work.Push(() =>
+                                {
+                                    if (Owned(fact.Type))
+                                    {
+                                        Own(region, choice);
+                                    }
+                                    done(choice);
+                                });
+                                if (node.ChildCount() == 3)
+                                {
+                                    SyntaxNode alternative = node.ChildAt(2);
+                                    if (alternative.Kind == SyntaxKind.If)
+                                    {
+                                        Expression(alternative, no, loop,
+                                            value => End(no, IrKind.Yield, alternative, value, fact.Type));
+                                    }
+                                    else
+                                    {
+                                        Block(alternative, no, loop, IrKind.Yield, fact.Type);
+                                    }
+                                }
+                                else
+                                {
+                                    work.Push(() => End(no, IrKind.Yield, node, Unit(no, node), fact.Type));
+                                }
+                                Block(node.ChildAt(1), yes, loop, IrKind.Yield, fact.Type);
+                            });
+                            return;
+                        case SyntaxKind.Binary when Text(node) is "&&" or "||":
+                            Expression(node.ChildAt(0), region, loop, left =>
+                            {
+                                IrNode choice = Add(region, IrKind.If, node, fact.Type, IrResult.Value);
+                                Input(choice, left);
+                                IrNode yes = Region(choice, IrRole.Then, node);
+                                IrNode no = Region(choice, IrRole.Else, node);
+                                bool and = Text(node) == "&&";
+                                IrNode evaluated = and ? yes : no;
+                                IrNode skipped = and ? no : yes;
+                                // The skipped path yields the saved left value;
+                                // only the other path evaluates the right operand.
+                                End(skipped, IrKind.Yield, node, left, fact.Type);
+                                work.Push(() => done(choice));
+                                Expression(node.ChildAt(1), evaluated, loop,
+                                    right => End(evaluated, IrKind.Yield, node, right, fact.Type));
+                            });
+                            return;
+                        case SyntaxKind.Call:
+                            if (fact.ClassOperation == ClassOperation.Destroy)
+                            {
+                                Expression(node.ChildAt(0).ChildAt(0), region, loop, receiver =>
+                                {
+                                    // Execute the class's explicit generated destruction body.
+                                    IrNode destroy = Add(region, IrKind.DestroyObject, node,
+                                        fact.Type, IrResult.Value, symbol: fact.Symbol);
+                                    Input(destroy, receiver);
+                                    done(destroy);
+                                });
+                                return;
+                            }
+                            if (fact.Symbol?.Scope?.Class is not null)
+                            {
+                                ClassCall(node, region, loop, done);
+                                return;
+                            }
+                            if (fact.ArrayOperation != ArrayOperation.None)
+                            {
+                                // Capture the descriptor before argument effects.
+                                // This is mutation of existing storage, not a value copy.
+                                SyntaxNode receiver = node.ChildAt(0).ChildAt(0);
+                                SelectStorage(receiver, region, loop, target =>
+                                {
+                                    Expression(node.ChildAt(1), region, loop, argument =>
+                                    {
+                                        IrKind kind = fact.ArrayOperation switch
+                                        {
+                                            ArrayOperation.Reserve => IrKind.ArrayReserve,
+                                            ArrayOperation.Resize => IrKind.ArrayResize,
+                                            ArrayOperation.Truncate => IrKind.ArrayTruncate,
+                                            ArrayOperation.Push => IrKind.ArrayPush,
+                                            _ => throw new InvalidOperationException("Unknown checked array operation."),
+                                        };
+                                        if (fact.ArrayOperation == ArrayOperation.Push)
+                                        {
+                                            SemanticType element = SemanticTypes.ElementOf(receiver.Fact!.Type);
+                                            argument = Widen(region, node, argument, element);
+                                            argument = Transfer(region, node, argument);
+                                        }
+                                        IrNode mutation = Add(region, kind, node, fact.Type, IrResult.Value);
+                                        Input(mutation, target);
+                                        Input(mutation, argument);
+                                        done(mutation);
+                                    });
+                                });
+                                return;
+                            }
+                            if (fact.Symbol?.Builtin == BuiltinKind.Length)
+                            {
+                                Expression(node.ChildAt(1), region, loop, value =>
+                                {
+                                    IrNode length = Add(region, IrKind.ArrayLength, node,
+                                        fact.Type, IrResult.Value);
+                                    Input(length, value);
+                                    done(length);
+                                });
+                                return;
+                            }
+                            if (fact.Symbol?.Builtin == BuiltinKind.Capacity)
+                            {
+                                SelectStorage(node.ChildAt(1), region, loop, descriptor =>
+                                {
+                                    IrNode capacity = Add(region, IrKind.ArrayCapacity, node,
+                                        fact.Type, IrResult.Value);
+                                    Input(capacity, descriptor);
+                                    done(capacity);
+                                }, allowComputed: true);
+                                return;
+                            }
+                            if (fact.Symbol is null || fact.Symbol.Kind != SymbolKind.Function
+                                || node.ChildAt(0).Kind != SyntaxKind.Name)
+                            {
+                                Unsupported(node);
+                            }
+                            break;
+                        case SyntaxKind.Unary when Text(node) == "ref":
+                            SelectStorage(node.ChildAt(0), region, loop, selected =>
+                            {
+                                if (selected.Result == IrResult.Place)
+                                {
+                                    IrNode address = Add(region, IrKind.AddressOf, node,
+                                        selected.Type, IrResult.Address);
+                                    Input(address, selected);
+                                    selected = address;
+                                }
+                                IrNode borrow = Add(region, IrKind.Borrow, node,
+                                    fact.Type, IrResult.Address);
+                                Input(borrow, selected);
+                                done(borrow);
+                            });
+                            return;
+                        case SyntaxKind.Array:
+                        case SyntaxKind.Unary:
+                        case SyntaxKind.Binary:
+                        case SyntaxKind.Cast:
+                            break;
+                        default:
+                            Unsupported(node);
+                            break;
+                    }
+                    int first = node.Kind == SyntaxKind.Call ? 1 : 0;
+                    int count = node.Kind == SyntaxKind.Cast ? 1 : node.ChildCount() - first;
+                    IrNode[] arguments = new IrNode[count];
+                    // Push continuations in reverse so children execute left to
+                    // right. Each result is a snapshot, never a deferred C read.
+                    work.Push(() =>
+                    {
+                        IrKind kind = node.Kind switch
+                        {
+                            SyntaxKind.Call => IrKind.Call,
+                            SyntaxKind.Array => IrKind.NewArray,
+                            SyntaxKind.Cast => IrKind.Convert,
+                            SyntaxKind.Unary => IrKind.Unary,
+                            _ => IrKind.Binary,
+                        };
+                        SemanticSymbol? target = kind == IrKind.Call ? fact.Symbol : null;
+                        if (target is not null)
+                        {
+                            for (int a = 0; a < arguments.Length; a += 1)
+                            {
+                                SemanticSymbol parameter = target.FunctionScope!.ParameterAt(a);
+                                if (parameter.IsReference)
+                                {
+                                    // Checked references forward storage, never an owned value.
+                                    continue;
+                                }
+                                arguments[a] = Widen(region, node, arguments[a], parameter.Type!.Value);
+                                // Builtins observe argument values; their temporary owners
+                                // remain in this region for explicit cleanup after the call.
+                                if (target.Builtin == BuiltinKind.None)
+                                {
+                                    arguments[a] = Transfer(region, node, arguments[a]);
+                                }
+                            }
+                        }
+                        if (kind == IrKind.NewArray)
+                        {
+                            SemanticType element = SemanticTypes.ElementOf(fact.Type);
+                            for (int a = 0; a < arguments.Length; a += 1)
+                            {
+                                arguments[a] = Widen(region, node, arguments[a], element);
+                                arguments[a] = Transfer(region, node, arguments[a]);
+                            }
+                        }
+                        IrNode operation = Add(region, kind, node, fact.Type, IrResult.Value,
+                            operation: kind is IrKind.Call or IrKind.NewArray ? null : Text(node), symbol: target);
+                        foreach (IrNode argument in arguments)
+                        {
+                            Input(operation, argument);
+                        }
+                        done(operation);
+                    });
+                    for (int i = count - 1; i >= 0; i -= 1)
+                    {
+                        int slot = i;
+                        Expression(node.ChildAt(first + i), region, loop, value => arguments[slot] = value);
+                    }
+                });
+            }
+            void ClassCall(SyntaxNode node, IrNode region, IrNode? loop, Action<IrNode> done)
+            {
+                SemanticSymbol target = node.Fact!.Symbol!;
+                SemanticSymbol nominal = target.Scope!.Class!;
+                // Semantic checking already resolved constructor versus instance method.
+                bool constructing = target.Name == nominal.Name;
+                int count = target.FunctionScope!.ParameterCount();
+                IrNode[] arguments = new IrNode[count];
+                work.Push(() =>
+                {
+                    for (int a = 1; a < count; a += 1)
+                    {
+                        SemanticSymbol parameter = target.FunctionScope.ParameterAt(a);
+                        if (!parameter.IsReference)
+                        {
+                            arguments[a] = Widen(region, node, arguments[a], parameter.Type!.Value);
+                            arguments[a] = Transfer(region, node, arguments[a]);
+                        }
+                    }
+                    if (constructing)
+                    {
+                        // Allocation occurs after argument effects, before constructor body.
+                        arguments[0] = Add(region, IrKind.NewObject, node,
+                            node.Fact.Type, IrResult.Value, symbol: nominal);
+                    }
+                    if (!constructing)
+                    {
+                        arguments[0] = Transfer(region, node, arguments[0]);
+                    }
+                    IrNode call = Add(region, IrKind.Call, node, target.Type,
+                        IrResult.Value, symbol: target);
+                    foreach (IrNode argument in arguments)
+                    {
+                        Input(call, argument);
+                    }
+                    done(constructing ? arguments[0] : call);
+                });
+                for (int a = count - 1; a >= 1; a -= 1)
+                {
+                    int slot = a;
+                    Expression(node.ChildAt(a), region, loop, value => arguments[slot] = value);
+                }
+                if (!constructing)
+                {
+                    Expression(node.ChildAt(0).ChildAt(0), region, loop,
+                        receiver => arguments[0] = receiver);
+                }
+            }
+            void Block(SyntaxNode syntax, IrNode region, IrNode? loop, IrKind ending, SemanticType type)
+            {
+                bool tail = ending == IrKind.Yield && syntax.ChildCount() != 0
+                    && syntax.ChildAt(syntax.ChildCount() - 1).Kind == SyntaxKind.ExpressionStatement;
+                if (!tail && syntax.Fact!.CanContinue)
+                {
+                    work.Push(() => End(region, ending, syntax, Unit(region, syntax), type));
+                }
+                for (int i = syntax.ChildCount() - 1; i >= 0; i -= 1)
+                {
+                    SyntaxNode statement = syntax.ChildAt(i);
+                    bool yields = tail && i == syntax.ChildCount() - 1;
+                    work.Push(() => Statement(statement, region, loop, yields, type));
+                }
+            }
+            void Statement(SyntaxNode node, IrNode region, IrNode? loop, bool yields, SemanticType type)
+            {
+                switch (node.Kind)
+                {
+                    case SyntaxKind.DiscardResult:
+                        return;
+                    case SyntaxKind.Binding:
+                        SemanticSymbol symbol = node.DeclaredSymbol!;
+                        SupportedType(symbol.Type!.Value, node);
+                        int next = 1;
+                        if (next < node.ChildCount() && node.ChildAt(next).Kind == SyntaxKind.Annotation)
+                        {
+                            next += 1;
+                        }
+                        if (next == node.ChildCount())
+                        {
+                            storage.Add(symbol, Add(region, IrKind.Local, node, symbol.Type,
+                                IrResult.Address, symbol: symbol));
+                        }
+                        else
+                        {
+                            Expression(node.ChildAt(next), region, loop, value =>
+                            {
+                                IrNode local = Add(region,
+                                    symbol.IsReference ? IrKind.Borrow : IrKind.Local,
+                                    node, symbol.Type, IrResult.Address, symbol: symbol);
+                                storage.Add(symbol, local);
+                                if (symbol.IsReference)
+                                {
+                                    Input(local, value);
+                                }
+                                else
+                                {
+                                    Store(local, value, node, region);
+                                }
+                            });
+                        }
+                        return;
+                    case SyntaxKind.Assignment:
+                        SelectStorage(node.ChildAt(0), region, loop, destination =>
+                        {
+                            string assignment = Text(node);
+                            IrNode? old = null;
+                            if (assignment != "=")
+                            {
+                                old = Add(region, IrKind.Load, node.ChildAt(0), destination.Type, IrResult.Value);
+                                Input(old, destination);
+                            }
+                            Expression(node.ChildAt(1), region, loop, value =>
+                            {
+                                if (old is not null)
+                                {
+                                    IrNode combined = Add(region, IrKind.Binary, node, destination.Type,
+                                        IrResult.Value, operation: assignment[..^1]);
+                                    Input(combined, old);
+                                    Input(combined, value);
+                                    value = combined;
+                                }
+                                Store(destination, value, node, region);
+                            });
+                        });
+                        return;
+                    case SyntaxKind.ExpressionStatement:
+                        Expression(node.ChildAt(0), region, loop, value =>
+                        {
+                            if (yields)
+                            {
+                                End(region, IrKind.Yield, node, value, type);
+                            }
+                        });
+                        return;
+                    case SyntaxKind.Return:
+                        if (node.ChildCount() == 0)
+                        {
+                            End(region, IrKind.Return, node, Unit(region, node), declaration.Type!.Value);
+                        }
+                        else
+                        {
+                            Expression(node.ChildAt(0), region, loop,
+                                value => End(region, IrKind.Return, node, value, declaration.Type!.Value));
+                        }
+                        return;
+                    case SyntaxKind.While:
+                        IrNode repetition = Add(region, IrKind.While, node);
+                        IrNode condition = Region(repetition, IrRole.Condition, node.ChildAt(0));
+                        IrNode contents = Region(repetition, IrRole.Body, node.ChildAt(1));
+                        // Normal backedges release body holders, then condition
+                        // holders. A transfer bypasses this sequence and emits
+                        // its own cleanup before the transfer operation.
+                        work.Push(() =>
+                        {
+                            Cleanup(contents, contents, node);
+                            Cleanup(contents, condition, node);
+                        });
+                        BlockStatements(node.ChildAt(1), contents, repetition);
+                        Expression(node.ChildAt(0), condition, repetition, value =>
+                        {
+                            // False-exit cleanup belongs to the path that actually
+                            // evaluated this condition. A condition break may bypass
+                            // later holders entirely, so post-loop cleanup is invalid.
+                            if (owners.TryGetValue(condition, out List<IrNode>? conditionOwners)
+                                && conditionOwners.Count != 0)
+                            {
+                                IrNode choice = Add(condition, IrKind.If, node.ChildAt(0),
+                                    SemanticType.Bool, IrResult.Value);
+                                Input(choice, value);
+                                IrNode whenTrue = Region(choice, IrRole.Then, node.ChildAt(0));
+                                IrNode whenFalse = Region(choice, IrRole.Else, node.ChildAt(0));
+                                End(whenTrue, IrKind.Yield, node.ChildAt(0), value, SemanticType.Bool);
+                                Cleanup(whenFalse, condition, node);
+                                End(whenFalse, IrKind.Yield, node.ChildAt(0), value, SemanticType.Bool);
+                                value = choice;
+                            }
+                            End(condition, IrKind.Yield, node.ChildAt(0), value, SemanticType.Bool);
+                        });
+                        return;
+                    case SyntaxKind.Break:
+                    case SyntaxKind.Continue:
+                        for (IrNode? scope = region; scope != loop; scope = scope!.Parent)
+                        {
+                            if (scope!.Kind == IrKind.Region)
+                            {
+                                Cleanup(region, scope, node);
+                            }
+                        }
+                        // The condition is a sibling of the body, not an ancestor.
+                        Cleanup(region, loop!.ChildAt(0), node);
+                        IrNode transfer = Add(region,
+                            node.Kind == SyntaxKind.Break ? IrKind.Break : IrKind.Continue, node);
+                        loop!.AddTransfer(transfer);
+                        return;
+                    default:
+                        Unsupported(node);
+                        return;
+                }
+            }
+            void BlockStatements(SyntaxNode syntax, IrNode region, IrNode loop)
+            {
+                for (int i = syntax.ChildCount() - 1; i >= 0; i -= 1)
+                {
+                    SyntaxNode statement = syntax.ChildAt(i);
+                    work.Push(() => Statement(statement, region, loop, false, SemanticType.Unit));
+                }
+            }
+            void Store(IrNode destination, IrNode value, SyntaxNode origin, IrNode region)
+            {
+                IrNode converted = Widen(region, origin, value, destination.Type!.Value);
+                converted = Transfer(region, origin, converted);
+                if (Owned(destination.Type))
+                {
+                    IrNode release = Add(region,
+                        Counted(destination.Type) ? IrKind.Unref : IrKind.FreeArray, origin);
+                    Input(release, destination);
+                }
+                IrNode store = Add(region, IrKind.Store, origin);
+                Input(store, destination);
+                Input(store, converted);
+            }
+        }
+    }
+}

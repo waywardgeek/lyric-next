@@ -58,11 +58,17 @@ The agreed next chapters are **Chapter 9: explicit execution and ownership IR**,
 then **Chapter 10: generic specialization and multi-class interfaces**. Chapter 5
 stays where it is to provide early executable behavior. See the [design
 record](notes/ir-interface-design.md) for the semantic-resolution/IR/C-emission
-boundary. These chapters are planned, not implemented.
+boundary. [Chapter 9 — Make Execution Explicit](chapter-09.md) now has a full
+teaching chapter and an IR-only reference backend. Post-review cumulative
+Debug/Release checks and corrected `make spin09` pass; sanitizer evidence predates
+the review fixes. One code review, one text review, and fresh isolated reconstruction
+are complete. The student passed all retained checks with setup-only assistance,
+not implementation patches; see the [reconstruction record](notes/ch09-reconstruction.md).
+Human acceptance remains pending. Chapter 10 remains planned, not implemented.
 
 ## Provisional construction sequence
 
-This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 8 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
+This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 9 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 
 1. **Read characters and report errors.** Establish the executable foundation, character parsing, and the error interface together. Independent positive and negative graders must test successful output and illegal-input diagnostics. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup in this small slice.
 2. **Recognize tokens.** Build on Chapter 1’s UTF-8 validation and source locations to recognize lexical elements and enforce identifier rules. Settle remaining relevant lexical questions before treating this slice as complete.

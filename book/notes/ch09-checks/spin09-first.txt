@@ -1,0 +1,18 @@
+=== Source ===
+func make() -> [i32] { return [3, 7] }
+func main() {
+    var first = make()
+    let second = first
+    first[0] = 9
+    assert(second[0] == 3)
+    println("Independent copy survived")
+}
+
+=== Ownership operations in make ===
+NewArray -> Move -> FreeArray -> Return
+Move empties its holder; later empty-holder cleanup is harmless.
+=== Executed C ===
+Independent copy survived
+=== Invalid source: diagnostic, no partial JSON ===
+"/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ctx8580d/example.ly":1:15: error LYC301: Unknown name 'missing'. (byte 14)
+Temporary source, C, and executable removed.

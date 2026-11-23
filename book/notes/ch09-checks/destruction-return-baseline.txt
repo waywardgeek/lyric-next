@@ -1,0 +1,29 @@
+PASS class-method-receiver
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 482, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 422, in main
+    actual, copies = execute(document, expected_objects)
+                     ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 355, in execute
+    result = call(entry, [])
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 347, in call
+    region(function['body'])
+    ~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 188, in region
+    run(child)
+    ~~~^^^^^^^
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 216, in run
+    values[ident] = call(n['symbolId'], [get(operands[0])], destruction=True)
+                    ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 347, in call
+    region(function['body'])
+    ~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 188, in region
+    run(child)
+    ~~~^^^^^^^
+  File "/Users/bill/projects/lyric-next/graders/ch09/ownership.py", line 342, in run
+    raise Exit(kind, get(operands[0]))
+                         ~~~~~~~~^^^
+IndexError: list index out of range

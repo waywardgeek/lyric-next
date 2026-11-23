@@ -1,0 +1,99 @@
+PASS counted-object-array-push
+PASS counted-object-array-replace
+PASS counted-object-array-zero
+PASS class-object-array
+PASS counted-object-array-copy
+PASS counted-object-array-nested
+PASS counted-object-array-remove
+PASS counted-object-array-return
+PASS counted-branch
+PASS counted-loop
+PASS counted-reference
+PASS counted-array-field
+PASS self-check counted-retain
+PASS self-check counted-release
+PASS counted-alias
+PASS counted-replace
+PASS counted-return
+PASS counted-method
+PASS self-check owned-field-release
+PASS class-array-fields
+PASS class-array-copy
+PASS class-array-nested
+PASS class-final-array
+PASS self-check final-omit
+PASS self-check final-duplicate
+PASS self-check final-early-reclaim
+PASS class-final
+PASS class-final-growth
+PASS class-method-receiver
+PASS class-constructor-argument
+PASS class-method-array
+PASS self-check class-constructor
+PASS self-check generated-reclamation
+PASS class-constructor
+PASS class-alias
+PASS class-method
+PASS class-return
+PASS class-field-ref
+PASS self-check class-growth-store
+PASS class-growth-store
+PASS class-growth-snapshot
+PASS class-receiver-snapshot
+PASS self-check class-method-identities
+PASS class-method-identities
+PASS class-branch
+PASS string-loop
+PASS string-bytes
+PASS string-utf8
+PASS string-empty
+PASS string-copy
+PASS string-return
+PASS string-nested
+PASS capacity-reserve
+PASS capacity-copy
+PASS capacity-truncate
+PASS capacity-resize-zero
+PASS capacity-nested
+PASS capacity-computed
+PASS push
+PASS push-copy
+PASS reserve
+PASS resize
+PASS shrink
+PASS truncate
+PASS resize-zero
+PASS mutate-ref
+PASS mutate-nested
+PASS ref-local
+PASS ref-forward
+PASS ref-array
+PASS ref-copy
+PASS ref-return
+PASS ref-index-order
+PASS self-check index-order
+PASS index-order
+PASS index-read
+PASS index-write
+PASS index-copy
+PASS index-nested
+PASS index-replace
+PASS index-call
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+PASS loop-repeat
+PASS loop-break
+PASS loop-continue
+PASS loop-return
+PASS loop-nested-return
+PASS loop-false
+PASS loop-nested
+85/85 ownership IR cases passed

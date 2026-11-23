@@ -1,0 +1,10 @@
+PASS identity
+PASS storage
+PASS calls
+PASS arithmetic
+PASS signed-compare
+PASS wrapping-cast
+PASS shift
+PASS assertion
+PASS mixed-body
+9/9 IR C-emission cases passed

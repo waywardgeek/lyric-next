@@ -1,0 +1,17 @@
+FAIL literal "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/literal.ly":1:19: error LYC340: This construct is not supported by the current IR lowering slice. (byte 18)
+
+FAIL copy "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/copy.ly":1:19: error LYC340: This construct is not supported by the current IR lowering slice. (byte 18)
+
+FAIL replace "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/replace.ly":1:19: error LYC340: This construct is not supported by the current IR lowering slice. (byte 18)
+
+FAIL return "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/return.ly":1:6: error LYC340: This construct is not supported by the current IR lowering slice. (byte 5)
+
+FAIL parameter "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/parameter.ly":1:11: error LYC340: This construct is not supported by the current IR lowering slice. (byte 10)
+
+FAIL nested "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/nested.ly":1:19: error LYC340: This construct is not supported by the current IR lowering slice. (byte 18)
+
+FAIL branch "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/branch.ly":1:6: error LYC340: This construct is not supported by the current IR lowering slice. (byte 5)
+
+FAIL early-return "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-s85s0vo_/early-return.ly":1:6: error LYC340: This construct is not supported by the current IR lowering slice. (byte 5)
+
+0/8 ownership IR cases passed

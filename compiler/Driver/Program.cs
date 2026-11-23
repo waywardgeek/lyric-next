@@ -14,7 +14,7 @@ internal static class Program
         // as emission; layout remains a representation-only backend choice.
         bool structureOfArrays = false;
         bool unsafeMode = false;
-        if (args.Length >= 2 && args[0] is "--emit-c" or "--check" or "--check-library")
+        if (args.Length >= 2 && args[0] is "--emit-c" or "--check" or "--check-library" or "--inspect-ir")
         {
             for (int i = 1; i < args.Length - 1; i += 1)
             {
@@ -47,7 +47,7 @@ internal static class Program
         }
 
         if (args.Length != 2 || (args[0] != "--inspect-source" && args[0] != "--inspect-tokens"
-            && args[0] != "--emit-c" && args[0] != "--check" && args[0] != "--check-library" && args[0] != "--inspect-syntax" && args[0] != "--inspect-expression"))
+            && args[0] != "--inspect-ir" && args[0] != "--emit-c" && args[0] != "--check" && args[0] != "--check-library" && args[0] != "--inspect-syntax" && args[0] != "--inspect-expression"))
         {
             Console.Error.WriteLine("Usage: Lyric --inspect-source FILE | --unicode-version");
             return 2;
@@ -74,7 +74,8 @@ internal static class Program
             bool inspectSyntax = args[0] == "--inspect-syntax" || args[0] == "--inspect-expression";
             Diagnostic? diagnostic;
             bool emitC = args[0] == "--emit-c";
-            bool check = emitC || args[0] == "--check" || args[0] == "--check-library";
+            bool inspectIr = args[0] == "--inspect-ir";
+            bool check = inspectIr || emitC || args[0] == "--check" || args[0] == "--check-library";
             if (inspectSyntax || check)
             {
                 diagnostic = source.Parse(args[0] == "--inspect-expression");
@@ -86,6 +87,14 @@ internal static class Program
             if (diagnostic is null && check)
             {
                 diagnostic = compilation.Check(emitC || args[0] == "--check", unsafeMode);
+            }
+            if (diagnostic is null && inspectIr)
+            {
+                diagnostic = compilation.LowerIr();
+                if (diagnostic is null)
+                {
+                    compilation.WriteIr(Console.Out);
+                }
             }
             if (diagnostic is null && emitC)
             {

@@ -1,0 +1,7 @@
+# Initial array IR-to-C milestone
+
+EmitSupportedIr now emits scalar-leaf arrays through NewArray, Copy, Move, FreeArray, ArrayLength and ArrayCapacity. Local array declarations initialize empty descriptors when executed; incoming parameter locals preserve caller-transferred contents. NewArray initializes each element then increments length. Byte payloads preserve exact byte values. Copy uses the existing recursive independent-copy helper. Move assigns the descriptor then clears its source; FreeArray calls recursive release. Neither Own nor Cleanup is called by this IR path: ownership inventory remains a lowering concern, and cleanup operations are explicit IR.
+
+The iterative region emitter introduced in the preceding control milestone remains in use. New retained C cases cover array returns/copies, nested arrays, branch results, loop-local arrays and byte strings. Job 2807 passed 20/20 Debug cases at O0/O2. Job 2809 exited zero: clean Release build, 20/20 Release C cases at O0/O2, 21/21 scalar inspection and 92/92 ownership inspection in each configuration, and git diff --check. Saved summaries were read in job 2812; both builds have zero warnings/errors.
+
+No C-side sanitizer/leak proof is claimed by these numeric cases. The independent ownership interpreter is separate evidence. Indexed storage, references, array mutations, classes and generated destruction remain unsupported by this emitter slice and temporarily fall back to syntax emission. No full cumulative run followed these backend edits. No commits or pushes.

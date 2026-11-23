@@ -18,7 +18,8 @@ This is the initial data-model slice, not completed Chapter 9 lowering.
   212 layout executions, eight allocation-policy comparisons and twelve ownership
   balance comparisons per configuration. Inputs stayed fixed during this run.
 
-The compiler does not lower programs into this model yet. The model admits
+At this initial model checkpoint the compiler did not yet lower programs into it.
+Later lowering results and current limits are recorded in `ownership-milestone.md`. The model admits
 incomplete drafts; operation typing, region-shape and use-order validation remain
 future work. No optimizer, generic specialization registry, reachability-pruning
 pass, new sanitizer run, or performance measurement is claimed. Existing runtime

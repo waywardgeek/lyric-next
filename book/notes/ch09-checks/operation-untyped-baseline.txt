@@ -1,0 +1,264 @@
+FAIL counted-object-array-push Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-object-array-replace Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-object-array-zero Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-object-array Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-object-array-copy Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-object-array-nested Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-object-array-remove Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-object-array-return Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-branch Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-loop Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-reference Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-array-field Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-alias Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-replace Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-return Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL counted-method Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-array-fields Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-array-copy Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-array-nested Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-final-array Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-final Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-final-growth Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-method-receiver Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-constructor-argument Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-method-array Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-constructor Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-alias Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-method Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-return Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-field-ref Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-growth-store Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-growth-snapshot Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-receiver-snapshot Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-method-identities Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+FAIL class-branch Unhandled exception. System.InvalidOperationException: Invalid IR operation Local: missing result type.
+   at Lyric.IrProgram.<ValidateOperations>g__Require|8_1(Boolean valid, String reason, <>c__DisplayClass8_0&) in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 181
+   at Lyric.IrProgram.ValidateOperations() in /Users/bill/projects/lyric-next/compiler/IR/Validation.cs:line 157
+   at Lyric.Compilation.LowerIr() in /Users/bill/projects/lyric-next/compiler/IR/Lowering.cs:line 66
+   at Lyric.Program.Main(String[] args) in /Users/bill/projects/lyric-next/compiler/Driver/Program.cs:line 93
+
+PASS string-loop
+PASS string-bytes
+PASS string-utf8
+PASS string-empty
+PASS string-copy
+PASS string-return
+PASS string-nested
+PASS capacity-reserve
+PASS capacity-copy
+PASS capacity-truncate
+PASS capacity-resize-zero
+PASS capacity-nested
+PASS capacity-computed
+PASS push
+PASS push-copy
+PASS reserve
+PASS resize
+PASS shrink
+PASS truncate
+PASS resize-zero
+PASS mutate-ref
+PASS mutate-nested
+PASS ref-local
+PASS ref-forward
+PASS ref-array
+PASS ref-copy
+PASS ref-return
+PASS ref-index-order
+PASS self-check index-order
+PASS index-order
+PASS index-read
+PASS index-write
+PASS index-copy
+PASS index-nested
+PASS index-replace
+PASS index-call
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+PASS loop-repeat
+PASS loop-break
+PASS loop-continue
+PASS loop-return
+PASS loop-nested-return
+PASS loop-false
+PASS loop-nested
+50/85 ownership IR cases passed

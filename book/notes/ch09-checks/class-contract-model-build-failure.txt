@@ -1,0 +1,21 @@
+  Determining projects to restore...
+  Restored /Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-7yhvzfbr/Probe.csproj (in 23 ms).
+/Users/bill/projects/lyric-next/tools/probes/ir-model.cs(228,19): error CS0128: A local variable or function named 'receiver' is already defined in this scope [/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-7yhvzfbr/Probe.csproj]
+
+Build FAILED.
+
+/Users/bill/projects/lyric-next/tools/probes/ir-model.cs(228,19): error CS0128: A local variable or function named 'receiver' is already defined in this scope [/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-7yhvzfbr/Probe.csproj]
+    0 Warning(s)
+    1 Error(s)
+
+Time Elapsed 00:00:01.19
+Traceback (most recent call last):
+  File "/Users/bill/projects/lyric-next/tools/probes/check_ir_model.py", line 26, in <module>
+    subprocess.run([sys.argv[1], "build", str(work / "Probe.csproj"), "-c", configuration,
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    "--nologo", "-tl:off"], cwd=work, check=True, timeout=120)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.8_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/Users/bill/.local/share/ensemble-dotnet10/dotnet', 'build', '/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-7yhvzfbr/Probe.csproj', '-c', 'Debug', '--nologo', '-tl:off']' returned non-zero exit status 1.

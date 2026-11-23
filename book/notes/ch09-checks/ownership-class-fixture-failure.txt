@@ -1,0 +1,74 @@
+FAIL class-constructor "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-constructor.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-alias "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-alias.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-method "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-method.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-return "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-return.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-field-ref "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-field-ref.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-growth-store "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-growth-store.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-growth-compound "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-growth-compound.ly":7:86: error LYC306: Unsupported semantic construct: Assignment. (byte 231)
+
+FAIL class-receiver-snapshot "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-receiver-snapshot.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-method-identities "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-method-identities.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+FAIL class-branch "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-7h5dil0e/class-branch.ly":5:35: error LYC306: Unsupported semantic construct: Assignment. (byte 138)
+
+PASS string-loop
+PASS string-bytes
+PASS string-utf8
+PASS string-empty
+PASS string-copy
+PASS string-return
+PASS string-nested
+PASS capacity-reserve
+PASS capacity-copy
+PASS capacity-truncate
+PASS capacity-resize-zero
+PASS capacity-nested
+PASS capacity-computed
+PASS push
+PASS push-copy
+PASS reserve
+PASS resize
+PASS shrink
+PASS truncate
+PASS resize-zero
+PASS mutate-ref
+PASS mutate-nested
+PASS ref-local
+PASS ref-forward
+PASS ref-array
+PASS ref-copy
+PASS ref-return
+PASS ref-index-order
+PASS self-check index-order
+PASS index-order
+PASS index-read
+PASS index-write
+PASS index-copy
+PASS index-nested
+PASS index-replace
+PASS index-call
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+PASS loop-repeat
+PASS loop-break
+PASS loop-continue
+PASS loop-return
+PASS loop-nested-return
+PASS loop-false
+PASS loop-nested
+50/60 ownership IR cases passed

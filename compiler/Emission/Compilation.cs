@@ -8,9 +8,9 @@ using System.Text.Json;
 
 namespace Lyric;
 
-// This module consumes checked syntax and semantic identities. It does not
-// resolve names or infer types. All maps below are temporary emission work;
-// the existing compilation graph remains the only persistent semantic model.
+// This module emits validated structured IR and its checked semantic identities.
+// Syntax supplies declaration metadata and diagnostic origins, never execution or
+// cleanup reconstruction. All emission maps are transient; the analysis owns IR.
 internal sealed partial class Compilation
 {
     internal partial Diagnostic? EmitC(TextWriter output, bool structureOfArrays)
@@ -18,6 +18,11 @@ internal sealed partial class Compilation
         if (Analysis is null || Analysis.Destroyed)
         {
             throw new InvalidOperationException("Check before emitting C.");
+        }
+        Diagnostic? loweringFailure = LowerIr();
+        if (loweringFailure is not null)
+        {
+            return loweringFailure;
         }
         using StringWriter code = new(CultureInfo.InvariantCulture);
         bool unsafeMode = Analysis.Unsafe;
@@ -28,15 +33,8 @@ internal sealed partial class Compilation
         Dictionary<SemanticSymbol, string> names = new();
         List<SemanticSymbol> functions = new();
         List<SemanticSymbol> classes = new();
-        // Emission-only ownership inventory. Each list corresponds to a real C
-        // scope; transfers empty descriptors so cleanup cannot free moved storage.
-        List<List<(string Name, SemanticType Type)>> owned = new();
-        Stack<int> loopScopes = new();
         int temporary = 0;
         int indentation = 0;
-        // Cleanup diagnostics use the containing source function when there is
-        // no single expression site (for example, an implicit scope exit).
-        string cleanupLocation = "";
         SemanticSymbol? entry = null;
         foreach (SourceFile source in Sources)
         {
@@ -321,6 +319,10 @@ internal sealed partial class Compilation
             }
             foreach (SemanticSymbol classSymbol in classes)
             {
+                Line($"static ly_unit {Name(classSymbol)}_destroy_body(uint64_t index);");
+            }
+            foreach (SemanticSymbol classSymbol in classes)
+            {
                 ClassStorage(classSymbol);
             }
             foreach (SemanticSymbol classSymbol in classes)
@@ -330,18 +332,15 @@ internal sealed partial class Compilation
                     CountedArrays(classSymbol);
                 }
             }
+            foreach (SemanticSymbol classSymbol in classes)
+            {
+                Line($"static ly_unit {Name(classSymbol)}_destroy_body(uint64_t index)");
+                EmitIr(classSymbol.IrDestruction!);
+            }
             foreach (SemanticSymbol function in functions)
             {
                 Line(Signature(function));
-                SyntaxNode declaration = function.Declaration!;
-                cleanupLocation = Location(declaration);
-                for (int i = 0; i < declaration.ChildCount(); i += 1)
-                {
-                    if (declaration.ChildAt(i).Kind == SyntaxKind.Block)
-                    {
-                        Block(declaration.ChildAt(i), function.Type == SemanticType.Unit, function);
-                    }
-                }
+                EmitIr(function.IrBody!);
             }
             Line("int main(void)");
             Line("{");
@@ -366,6 +365,428 @@ internal sealed partial class Compilation
         }
         output.Write(code.ToString());
         return null;
+
+        void EmitIr(IrFunction function)
+        {
+            // Validate supported vocabulary before writing a body. C is buffered
+            // until all emission succeeds; incomplete output is never published.
+            for (int i = 0; i < function.NodeCount(); i += 1)
+            {
+                IrNode node = function.NodeAt(i);
+                if (node.Kind is not (IrKind.Region or IrKind.Constant or IrKind.Local
+                    or IrKind.Load or IrKind.Store or IrKind.Call or IrKind.Return
+                    or IrKind.Unary or IrKind.Binary or IrKind.Convert
+                    or IrKind.If or IrKind.While or IrKind.Yield or IrKind.Break or IrKind.Continue
+                    or IrKind.NewArray or IrKind.Copy or IrKind.Move or IrKind.FreeArray
+                    or IrKind.ArrayLength or IrKind.ArrayCapacity
+                    or IrKind.Borrow or IrKind.SelectIndex
+                    or IrKind.ArrayReserve or IrKind.ArrayResize or IrKind.ArrayTruncate or IrKind.ArrayPush
+                    or IrKind.SelectField or IrKind.AddressOf or IrKind.Ref or IrKind.Unref
+                    or IrKind.NewObject or IrKind.DestroyObject or IrKind.ReclaimObject))
+                {
+                    throw new InvalidOperationException($"Unsupported validated IR operation: {node.Kind}.");
+                }
+            }
+            SemanticSymbol? declaration = function.Declaration;
+            bool generated = function.Kind == IrFunctionKind.Destruction;
+            Dictionary<IrNode, string> values = new();
+            Line("{");
+            indentation += 1;
+            Line("/* Body emitted from validated structured IR. */");
+            string display = CString(JsonSerializer.Serialize(generated
+                ? function.DestructionClass!.Name + ".destroy" : declaration!.Name));
+            Line($"ly_frame ly_activation = {{{display}, ly_current_frame}};");
+            Line("ly_current_frame = &ly_activation;");
+            Dictionary<IrNode, string> labels = new();
+            HashSet<IrNode> parameters = new();
+            // Declare storage once, but execute each assignment only at its IR
+            // position. Condition definitions can outlive their C region block.
+            for (int i = 0; i < function.NodeCount(); i += 1)
+            {
+                IrNode node = function.NodeAt(i);
+                string name = "ly_ir" + temporary.ToString(CultureInfo.InvariantCulture);
+                temporary += 1;
+                labels.Add(node, name);
+                if (node.Result == IrResult.None)
+                {
+                    continue;
+                }
+                bool parameter = false;
+                SemanticScope? scope = declaration?.FunctionScope;
+                if (generated && node.Kind == IrKind.Local && node.Symbol is null)
+                {
+                    values.Add(node, "index");
+                    parameters.Add(node);
+                    continue;
+                }
+                if (node.Kind == IrKind.SelectField)
+                {
+                    // A place saves a handle, not an interior pointer. Every use
+                    // resolves current class storage through that saved handle.
+                    Line($"uint64_t {name};");
+                    values.Add(node, FieldStorage(node.Symbol!, name));
+                    continue;
+                }
+                if (node.Kind is IrKind.Local or IrKind.Borrow)
+                {
+                    for (int p = 0; p < scope!.ParameterCount(); p += 1)
+                    {
+                        parameter |= ReferenceEquals(node.Symbol, scope.ParameterAt(p));
+                    }
+                }
+                if (parameter)
+                {
+                    values.Add(node, node.Kind == IrKind.Borrow
+                        ? $"(*{Name(node.Symbol!)})" : Name(node.Symbol!));
+                    parameters.Add(node);
+                }
+                else
+                {
+                    // A fixed address stores a pointer; Local instead owns the slot itself.
+                    bool pointer = node.Result == IrResult.Address && node.Kind != IrKind.Local;
+                    Line($"{CType(node.Type!.Value)} {(pointer ? "*" : "")}{name};");
+                    values.Add(node, pointer ? $"(*{name})" : name);
+                }
+
+            }
+            Stack<Action> work = new();
+            void Region(IrNode region, string? destination)
+            {
+                work.Push(() => Line(labels[region] + "_end: ;"));
+                for (int i = region.ChildCount() - 1; i >= 0; i -= 1)
+                {
+                    IrNode child = region.ChildAt(i);
+                    work.Push(() => Instruction(child, region, destination));
+                }
+            }
+            IrNode Part(IrNode node, IrRole role)
+            {
+                for (int i = 0; i < node.ChildCount(); i += 1)
+                {
+                    if (node.ChildAt(i).Role == role)
+                    {
+                        return node.ChildAt(i);
+                    }
+                }
+                throw new InvalidOperationException("Validated IR region missing.");
+            }
+            void Instruction(IrNode node, IrNode region, string? destination)
+            {
+                string Operand(int index) => values[node.OperandAt(index).Definition!];
+                if (node.Kind == IrKind.Local)
+                {
+                    if (node.Type!.Value.ArrayDepth > 0 && !parameters.Contains(node))
+                    {
+                        Line($"{values[node]} = (ly_array){{0}};");
+                    }
+                    else if (Counted(node.Type!.Value) && !parameters.Contains(node))
+                    {
+                        Line($"{values[node]} = UINT64_MAX;");
+                    }
+                    return;
+                }
+                if (node.Kind == IrKind.SelectField)
+                {
+                    Line($"{labels[node]} = {Operand(0)};");
+                    return;
+                }
+                if (node.Kind == IrKind.ReclaimObject)
+                {
+                    string owner = Name(node.Symbol!);
+                    Line($"(({owner}_slot *){owner}_slots.data)[{Operand(0)}].state = {owner}_free_state;");
+                    Line($"(({owner}_slot *){owner}_slots.data)[{Operand(0)}].next_free = {owner}_free;");
+                    Line($"{owner}_free = {Operand(0)};");
+                    return;
+                }
+                if (node.Kind is IrKind.Borrow or IrKind.AddressOf)
+                {
+                    if (!parameters.Contains(node))
+                    {
+                        Line($"{labels[node]} = &{Operand(0)};");
+                    }
+                    return;
+                }
+                if (node.Kind == IrKind.SelectIndex)
+                {
+                    // Capture the fixed pointer now, before subsequent arguments or
+                    // assignment effects. Never re-resolve it at the eventual use.
+                    IrNode index = node.OperandAt(1).Definition!;
+                    if (!unsafeMode)
+                    {
+                        string negative = SemanticTypes.IsSigned(index.Type!.Value)
+                            ? $"{Operand(1)} < 0 || " : "";
+                        Line($"if ({negative}(uint64_t){Operand(1)} >= {Operand(0)}.length)");
+                        Line("{");
+                        Line($"    ly_array_failure({Location(node.Origin!)}, \"LYR006: array index out of bounds\");");
+                        Line("}");
+                    }
+                    Line($"{labels[node]} = &(({CType(node.Type!.Value)} *){Operand(0)}.data)[{Operand(1)}];");
+                    return;
+                }
+                if (node.Kind == IrKind.If)
+                {
+                    Line($"if ({Operand(0)}) {{");
+                    work.Push(() => Line("}"));
+                    work.Push(() => Region(Part(node, IrRole.Else), values[node]));
+                    work.Push(() => Line("} else {"));
+                    Region(Part(node, IrRole.Then), values[node]);
+                    return;
+                }
+                if (node.Kind == IrKind.While)
+                {
+                    string loop = labels[node];
+                    Line(loop + "_condition: ;");
+                    Line("{");
+                    Line($"bool {loop}_test;");
+                    work.Push(() => Line(loop + "_exit: ;"));
+                    work.Push(() => Line("}"));
+                    work.Push(() => Line($"goto {loop}_condition;"));
+                    work.Push(() => Region(Part(node, IrRole.Body), null));
+                    work.Push(() => Line($"if (!{loop}_test) goto {loop}_exit;"));
+                    Region(Part(node, IrRole.Condition), loop + "_test");
+                    return;
+                }
+                if (node.Kind is IrKind.Break or IrKind.Continue)
+                {
+                    string suffix = node.Kind == IrKind.Break ? "_exit" : "_condition";
+                    Line($"goto {labels[node.Target!]}{suffix};");
+                    return;
+                }
+                if (node.Kind == IrKind.Yield)
+                {
+                    if (destination is not null)
+                    {
+                        Line($"{destination} = {Operand(0)};");
+                    }
+                    Line($"goto {labels[region]}_end;");
+                    return;
+                }
+                if (node.Kind == IrKind.Store)
+                {
+                    Line($"{Operand(0)} = {Operand(1)};");
+                    return;
+                }
+                if (node.Kind == IrKind.Return)
+                {
+                    Line("ly_current_frame = ly_activation.parent;");
+                    Line($"return {Operand(0)};");
+                    return;
+                }
+                if (node.Kind == IrKind.NewArray)
+                {
+                    SemanticType element = SemanticTypes.ElementOf(node.Type!.Value);
+                    bool bytes = node.Literal?.Kind == IrLiteralKind.Bytes;
+                    int count = bytes ? node.Literal!.ByteCount() : node.OperandCount();
+                    string array = values[node];
+                    Line($"{array} = ly_array_new({count}, sizeof({CType(element)}), {Location(node.Origin!)});");
+                    for (int i = 0; i < count; i += 1)
+                    {
+                        string value = bytes
+                            ? node.Literal!.ByteAt(i).ToString(CultureInfo.InvariantCulture)
+                            : Operand(i);
+                        Line($"(({CType(element)} *){array}.data)[{i}] = {value};");
+                        Line($"{array}.length += 1;");
+                    }
+                    return;
+                }
+                if (node.Kind is IrKind.ArrayReserve or IrKind.ArrayResize
+                    or IrKind.ArrayTruncate or IrKind.ArrayPush)
+                {
+                    // The descriptor selection and argument effects have already
+                    // executed in IR order. The helper does not acquire ownership.
+                    string pointer = labels[node] + "_array";
+                    Line($"ly_array *{pointer} = &{Operand(0)};");
+                    string result = EmitArrayMutation(node.Kind, pointer, Operand(1),
+                        node.OperandAt(0).Definition!.Type!.Value, node.Origin!);
+                    Line($"{values[node]} = {result};");
+                    return;
+                }
+                if (node.Kind == IrKind.Move)
+                {
+                    Line($"{values[node]} = {Operand(0)};");
+                    Moved(Operand(0), node.Type!.Value);
+                    return;
+                }
+                if (node.Kind is IrKind.FreeArray or IrKind.Unref)
+                {
+                    IrNode holder = node.OperandAt(0).Definition!;
+                    Drop(Operand(0), holder.Type!.Value, Location(node.Origin!));
+                    return;
+                }
+                string expression;
+                if (node.Kind == IrKind.Constant)
+                {
+                    expression = node.Literal?.Kind switch
+                    {
+                        IrLiteralKind.Integer => Integer(node.Literal.Integer),
+                        IrLiteralKind.Boolean => node.Literal.Boolean ? "true" : "false",
+                        _ => "(ly_unit){0}",
+                    };
+                }
+                else if (node.Kind is IrKind.Copy or IrKind.Ref)
+                {
+                    expression = Copy(Operand(0), node.Type!.Value, node.Origin!);
+                }
+                else if (node.Kind == IrKind.NewObject)
+                {
+                    expression = $"{Name(node.Symbol!)}_allocate({Location(node.Origin!)})";
+                }
+                else if (node.Kind == IrKind.DestroyObject)
+                {
+                    expression = $"{Name(node.Symbol!)}_destroy({Operand(0)}, {Location(node.Origin!)})";
+                }
+                else if (node.Kind is IrKind.ArrayLength or IrKind.ArrayCapacity)
+                {
+                    string member = node.Kind == IrKind.ArrayLength ? "length" : "capacity";
+                    expression = $"{Operand(0)}.{member}";
+                }
+                else if (node.Kind == IrKind.Load)
+                {
+                    expression = Operand(0);
+                }
+                else if (node.Kind is IrKind.Unary or IrKind.Binary or IrKind.Convert)
+                {
+                    string right = node.OperandCount() == 2 ? Operand(1) : "";
+                    expression = IrScalarExpression(node, Operand(0), right);
+                }
+                else
+                {
+                    SemanticSymbol target = node.Symbol!;
+                    List<string> arguments = new();
+                    for (int a = 0; a < node.OperandCount(); a += 1)
+                    {
+                        bool reference = target.FunctionScope!.ParameterAt(a).IsReference;
+                        arguments.Add(reference ? $"&{Operand(a)}" : Operand(a));
+                    }
+                    expression = target.Builtin switch
+                    {
+                        BuiltinKind.Assert => $"ly_assert({arguments[0]}, {Location(node.Origin!)})",
+                        BuiltinKind.Print => $"ly_print({arguments[0]}, false, {Location(node.Origin!)})",
+                        BuiltinKind.Println => $"ly_print({arguments[0]}, true, {Location(node.Origin!)})",
+                        _ => $"{Name(target)}({string.Join(", ", arguments)})",
+                    };
+                }
+                // Each read/call is sequenced in its own C statement. C argument
+                // evaluation order therefore cannot reorder source-language effects.
+                Line($"{values[node]} = {expression};");
+            }
+            Region(function.Body!, null);
+            while (work.Count != 0)
+            {
+                work.Pop()();
+            }
+            indentation -= 1;
+            Line("}");
+        }
+
+        string IrScalarExpression(IrNode node, string left, string right)
+        {
+            SemanticType type = node.Type!.Value;
+            SemanticType leftType = node.OperandAt(0).Definition!.Type!.Value;
+            string operation = node.Operator!;
+            string typeName = SemanticTypes.Name(type);
+            string location = Location(node.Origin!);
+            if (node.Kind == IrKind.Convert)
+            {
+                if (operation == "!as")
+                {
+                    return $"ly_{typeName}_bits((uint64_t){left})";
+                }
+                if (operation != "widen" && !unsafeMode)
+                {
+                    string outside = $"(uint64_t){left} > {Integer(SemanticTypes.Maximum(type))}";
+                    if (SemanticTypes.IsSigned(leftType))
+                    {
+                        outside = SemanticTypes.IsSigned(type)
+                            ? $"{left} < 0 ? (int64_t){left} < {Integer(SemanticTypes.Minimum(type))} : ({outside})"
+                            : $"{left} < 0 || ({outside})";
+                    }
+                    Line($"if ({outside})");
+                    Line("{");
+                    Line($"    ly_conversion({location}, {CString(typeName)});");
+                    Line("}");
+                }
+                return $"({CType(type)}){left}";
+            }
+            if (node.Kind == IrKind.Unary)
+            {
+                return operation switch
+                {
+                    "!" => $"!{left}",
+                    "!-" => $"ly_{typeName}_wrap_sub(0, {left})",
+                    "-" when unsafeMode => $"(-{left})",
+                    "-" => $"ly_{typeName}_sub(0, {left}, {location})",
+                    _ => throw new InvalidOperationException("Invalid IR unary operation."),
+                };
+            }
+            SemanticType rightType = node.OperandAt(1).Definition!.Type!.Value;
+            if (operation is "==" or "!=" or "<" or "<=" or ">" or ">=")
+            {
+                if (leftType == SemanticType.Bool)
+                {
+                    return $"({left} {operation} {right})";
+                }
+                bool leftSigned = SemanticTypes.IsSigned(leftType);
+                bool rightSigned = SemanticTypes.IsSigned(rightType);
+                if (leftSigned == rightSigned)
+                {
+                    string wide = leftSigned ? "int64_t" : "uint64_t";
+                    return $"(({wide}){left} {operation} ({wide}){right})";
+                }
+                // A negative signed value is smaller than every unsigned value.
+                // Only the nonnegative case may be compared as uint64 magnitudes.
+                string signed = leftSigned ? left : right;
+                bool negative = operation switch
+                {
+                    "!=" => true,
+                    "<" or "<=" => leftSigned,
+                    ">" or ">=" => rightSigned,
+                    _ => false,
+                };
+                string negativeText = negative ? "true" : "false";
+                return $"({signed} < 0 ? {negativeText} : ((uint64_t){left} {operation} (uint64_t){right}))";
+            }
+            if (operation is "<<" or ">>")
+            {
+                string outside = $"(uint64_t){right} >= UINT64_C({SemanticTypes.IntegerWidth(type)})";
+                if (SemanticTypes.IsSigned(rightType))
+                {
+                    outside = $"{right} < 0 || " + outside;
+                }
+                if (!unsafeMode)
+                {
+                    Line($"if ({outside})");
+                    Line("{");
+                    Line($"    ly_shift_count({location});");
+                    Line("}");
+                }
+                string direction = operation == "<<" ? "shl" : "shr";
+                return unsafeMode && operation == ">>"
+                    ? $"({left} >> {right})"
+                    : $"ly_{typeName}_{direction}({left}, (uint64_t){right})";
+            }
+            if (operation is "&" or "|" or "^")
+            {
+                return $"ly_{typeName}_bits((uint64_t){left} {operation} (uint64_t){right})";
+            }
+            bool wrapping = operation is "!+" or "!-" or "!*";
+            string helper = operation switch
+            {
+                "+" or "!+" => "add",
+                "-" or "!-" => "sub",
+                "*" or "!*" => "mul",
+                "/" => "div",
+                "%" => "rem",
+                _ => throw new InvalidOperationException("Invalid IR binary operation."),
+            };
+            if (wrapping)
+            {
+                return $"ly_{typeName}_wrap_{helper}({left}, {right})";
+            }
+            return unsafeMode
+                ? UncheckedArithmetic(type, operation, left, right)
+                : $"ly_{typeName}_{helper}({left}, {right}, {location})";
+        }
 
         void Line(string text)
         {
@@ -541,27 +962,8 @@ internal sealed partial class Compilation
             Line("    ly_array_failure(file, line, column, \"LYR009: invalid object destruction\");");
             Line("}");
             Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_destroying_state;");
-            SemanticSymbol? hook = owner.FinalHook();
-            if (hook is not null)
-            {
-                Line($"(void){Name(hook)}(index);");
-            }
-            // Hook calls may grow this class's metadata and SoA backing. Keep
-            // only the index across the call, then resolve current storage again.
-            // Final observes live fields. Only afterward release their owned
-            // values, resolving each descriptor from the surviving index.
-            foreach (SemanticSymbol field in fields)
-            {
-                SemanticType fieldType = field.Type!.Value;
-                if (fieldType.ArrayDepth > 0)
-                {
-                    Line($"ly_array_drop(&{FieldStorage(field, "index")}, {fieldType.ArrayDepth});");
-                }
-            }
-            Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_free_state;");
-            Line($"(({name}_slot *){name}_slots.data)[index].next_free = {name}_free;");
-            Line($"{name}_free = index;");
-            Line("return (ly_unit){0};");
+            // The validated generated body alone owns hook/field/reclaim order.
+            Line($"return {name}_destroy_body(index);");
             indentation -= 1;
             Line("}");
             if (owner.IsCountedClass())
@@ -676,10 +1078,6 @@ internal sealed partial class Compilation
             return type.ArrayDepth == 0 && type.Class is SemanticSymbol owner
                 && owner.IsCountedClass();
         }
-        bool Owned(SemanticType type)
-        {
-            return type.ArrayDepth > 0 || Counted(type);
-        }
         string Copy(string value, SemanticType type, SyntaxNode node)
         {
             if (Counted(type))
@@ -692,13 +1090,6 @@ internal sealed partial class Compilation
             }
             string scalar = CType(new SemanticType(type.Scalar, 0, type.Class));
             return $"ly_array_copy({value}, {type.ArrayDepth}, sizeof({scalar}), {Location(node)})";
-        }
-        void Own(string name, SemanticType type)
-        {
-            if (Owned(type))
-            {
-                owned[^1].Add((name, type));
-            }
         }
         void Moved(string name, SemanticType type)
         {
@@ -729,105 +1120,6 @@ internal sealed partial class Compilation
                 }
             }
         }
-        void Cleanup(int firstScope, string? except = null)
-        {
-            for (int i = owned.Count - 1; i >= firstScope; i -= 1)
-            {
-                for (int j = owned[i].Count - 1; j >= 0; j -= 1)
-                {
-                    var value = owned[i][j];
-                    if (value.Name != except)
-                    {
-                        Drop(value.Name, value.Type, cleanupLocation);
-                    }
-                }
-            }
-        }
-        // Select existing storage, never a value-copy temporary. Index expressions
-        // are evaluated once, left to right, before the assignment RHS.
-        string Receiver(SyntaxNode node)
-        {
-            SyntaxNode ungrouped = node;
-            while (ungrouped.Kind == SyntaxKind.Group)
-            {
-                ungrouped = ungrouped.ChildAt(0);
-            }
-            if (ungrouped.Kind != SyntaxKind.Name)
-            {
-                return Expression(node);
-            }
-            // A field selection borrows its named receiver. Snapshot its index
-            // before RHS effects, without manufacturing another owning holder.
-            string result = "ly_receiver" + temporary.ToString(CultureInfo.InvariantCulture);
-            temporary += 1;
-            Line($"uint64_t {result} = {Storage(ungrouped)};");
-            return result;
-        }
-        string Storage(SyntaxNode node)
-        {
-            if (node.Kind == SyntaxKind.Name)
-            {
-                SemanticSymbol symbol = node.Fact!.Symbol!;
-                return symbol.IsReference ? $"(*{Name(symbol)})" : Name(symbol);
-            }
-            if (node.Kind == SyntaxKind.Member)
-            {
-                // Preserve identity across RHS effects, not an interior address.
-                string receiver = Receiver(node.ChildAt(0));
-                return FieldStorage(node.Fact!.Symbol!, receiver);
-            }
-            string array = Storage(node.ChildAt(0));
-            string index = Expression(node.ChildAt(1));
-            Bounds(array, index, node);
-            string pointer = "ly_p" + temporary.ToString(CultureInfo.InvariantCulture);
-            temporary += 1;
-            string element = CType(node.Fact!.Type);
-            Line($"{element} *{pointer} = &(({element} *)({array}).data)[(uint64_t){index}];");
-            return "(*" + pointer + ")";
-        }
-        // Capacity observes existing storage without making a value copy. A
-        // computed value still owns its ordinary temporary until scope cleanup.
-        string ArrayDescriptor(SyntaxNode node)
-        {
-            if (node.Kind == SyntaxKind.Group)
-            {
-                return ArrayDescriptor(node.ChildAt(0));
-            }
-            if (node.Kind is SyntaxKind.Name or SyntaxKind.Member)
-            {
-                return Storage(node);
-            }
-            if (node.Kind == SyntaxKind.Index)
-            {
-                string array = ArrayDescriptor(node.ChildAt(0));
-                string index = Expression(node.ChildAt(1));
-                Bounds(array, index, node);
-                // Freeze this selection before evaluating any later nested index.
-                string selected = "ly_descriptor" + temporary.ToString(CultureInfo.InvariantCulture);
-                temporary += 1;
-                Line($"ly_array *{selected} = &((ly_array *)({array}).data)[(uint64_t){index}];");
-                return "(*" + selected + ")";
-            }
-            return Expression(node);
-        }
-        void Bounds(string array, string index, SyntaxNode node)
-        {
-            if (unsafeMode)
-            {
-                return;
-            }
-            string invalid = $"(uint64_t){index} >= ({array}).length";
-            if (SemanticTypes.IsSigned(node.ChildAt(1).Fact!.Type))
-            {
-                invalid = $"{index} < 0 || " + invalid;
-            }
-            Line($"if ({invalid})");
-            Line("{");
-            indentation += 1;
-            Line($"ly_array_failure({Location(node)}, \"LYR006: array index out of bounds\");");
-            indentation -= 1;
-            Line("}");
-        }
         string Signature(SemanticSymbol function)
         {
             List<string> parameters = new();
@@ -840,16 +1132,6 @@ internal sealed partial class Compilation
             }
             string arguments = parameters.Count == 0 ? "void" : string.Join(", ", parameters);
             return $"static {CType(function.Type!.Value)} {Name(function)}({arguments})";
-        }
-        void Unsupported(SyntaxNode node)
-        {
-            Diagnostic diagnostic = node.Source!.SemanticDiagnostic(node,
-                "LYC401", $"Unsupported C emission construct: {node.Kind}.");
-            throw new SemanticFailure(diagnostic);
-        }
-        string Text(SyntaxNode node)
-        {
-            return node.Source!.SourceText(node.TextOffset, node.TextLength);
         }
         string Integer(BigInteger value)
         {
@@ -1072,21 +1354,14 @@ internal sealed partial class Compilation
                 }
             }
         }
-        // Receiver selection precedes argument evaluation. The checker protects
-        // nested selections against invalidation during that interval.
-        string ArrayMethod(SyntaxNode node)
+        // Emit only the concrete descriptor operation. Evaluation order and ownership
+        // transfer are supplied by the caller; IR already expresses both explicitly.
+        string EmitArrayMutation(IrKind operation, string pointer, string argument,
+            SemanticType arrayType, SyntaxNode node)
         {
-            SyntaxNode receiver = node.ChildAt(0).ChildAt(0);
-            SemanticType arrayType = receiver.Fact!.Type;
             SemanticType elementType = SemanticTypes.ElementOf(arrayType);
             string element = CType(elementType);
-            string storage = Storage(receiver);
-            string pointer = "ly_a" + temporary.ToString(CultureInfo.InvariantCulture);
-            temporary += 1;
-            Line($"ly_array *{pointer} = &{storage};");
-            string argument = Expression(node.ChildAt(1));
-            ArrayOperation operation = node.Fact!.ArrayOperation;
-            if (operation == ArrayOperation.Push)
+            if (operation == IrKind.ArrayPush)
             {
                 Line($"if ({pointer}->length == UINT64_MAX)");
                 Line("{");
@@ -1097,15 +1372,14 @@ internal sealed partial class Compilation
                 Line($"ly_array_reserve({pointer}, {pointer}->length + 1, sizeof({element}), {Location(node)});");
                 Line($"(({element} *){pointer}->data)[{pointer}->length] = {argument};");
                 Line($"{pointer}->length += 1;");
-                Moved(argument, elementType);
             }
-            else if (operation == ArrayOperation.Reserve)
+            else if (operation == IrKind.ArrayReserve)
             {
                 Line($"ly_array_reserve({pointer}, {argument}, sizeof({element}), {Location(node)});");
             }
             else
             {
-                if (operation == ArrayOperation.Resize && elementType.ArrayDepth == 0
+                if (operation == IrKind.ArrayResize && elementType.ArrayDepth == 0
                     && elementType.Class is not null)
                 {
                     // Non-nullable handles have no default. Unsafe mode does not
@@ -1125,7 +1399,7 @@ internal sealed partial class Compilation
                 Drop($"(({element} *){pointer}->data)[{pointer}->length]", elementType, Location(node));
                 indentation -= 1;
                 Line("}");
-                if (operation == ArrayOperation.Resize)
+                if (operation == IrKind.ArrayResize)
                 {
                     // Unlike truncate, resize(0) gives up even an empty reservation.
                     Line($"if ({argument} == 0)");
@@ -1151,615 +1425,6 @@ internal sealed partial class Compilation
             temporary += 1;
             Line($"ly_unit {result} = {{0}};");
             return result;
-        }
-        string Expression(SyntaxNode root)
-        {
-            Dictionary<SyntaxNode, string> values = new();
-            Stack<(SyntaxNode Node, int Stage)> work = new();
-            work.Push((root, 0));
-            while (work.Count != 0)
-            {
-                var item = work.Pop();
-                SyntaxNode node = item.Node;
-                SemanticFact fact = node.Fact!;
-                if (node.Kind == SyntaxKind.Unary && Text(node) == "ref")
-                {
-                    // Address acquisition is not a value read or an owned copy.
-                    string pointer = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
-                    temporary += 1;
-                    Line($"{CType(fact.Type)} *{pointer} = &{Storage(node.ChildAt(0))};");
-                    values.Add(node, pointer);
-                    continue;
-                }
-                if (node.Kind == SyntaxKind.Call && fact.Symbol?.Builtin == BuiltinKind.Capacity)
-                {
-                    string descriptor = ArrayDescriptor(node.ChildAt(1));
-                    string capacityResult = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
-                    temporary += 1;
-                    Line($"uint64_t {capacityResult} = ({descriptor}).capacity;");
-                    values.Add(node, capacityResult);
-                    continue;
-                }
-                if (fact.ClassOperation == ClassOperation.Destroy)
-                {
-                    string receiver = Expression(node.ChildAt(0).ChildAt(0));
-                    string destroyed = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
-                    temporary += 1;
-                    Line($"ly_unit {destroyed} = {Name(fact.Symbol!)}_destroy({receiver}, {Location(node)});");
-                    values.Add(node, destroyed);
-                    continue;
-                }
-                if (fact.ArrayOperation != ArrayOperation.None)
-                {
-                    values.Add(node, ArrayMethod(node));
-                    continue;
-                }
-                if (node.Kind == SyntaxKind.Member)
-                {
-                    string receiver = Receiver(node.ChildAt(0));
-                    string field = FieldStorage(fact.Symbol!, receiver);
-                    string value = fact.Type.ArrayDepth > 0 ? Copy(field, fact.Type, node) : field;
-                    string fieldResult = "ly_field" + temporary.ToString(CultureInfo.InvariantCulture);
-                    temporary += 1;
-                    Line($"{CType(fact.Type)} {fieldResult} = {value};");
-                    Own(fieldResult, fact.Type);
-                    values.Add(node, fieldResult);
-                    continue;
-                }
-                if (node.Kind == SyntaxKind.If)
-                {
-                    string branchResult = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
-                    temporary += 1;
-                    string empty = Counted(fact.Type) ? "UINT64_MAX" : "{0}";
-                    Line($"{CType(fact.Type)} {branchResult} = {empty};");
-                    Own(branchResult, fact.Type);
-                    Conditional(node, branchResult);
-                    values.Add(node, branchResult);
-                    continue;
-                }
-                if (node.Kind == SyntaxKind.Binary && Text(node) is "&&" or "||")
-                {
-                    // The result outlives the conditional C block. Only the
-                    // right operand's statements belong inside that block.
-                    if (item.Stage == 0)
-                    {
-                        work.Push((node, 1));
-                        work.Push((node.ChildAt(0), 0));
-                    }
-                    else if (item.Stage == 1)
-                    {
-                        string logicalResult = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
-                        temporary += 1;
-                        values.Add(node, logicalResult);
-                        Line($"bool {logicalResult} = {values[node.ChildAt(0)]};");
-                        string condition = Text(node) == "&&" ? logicalResult : "!" + logicalResult;
-                        Line($"if ({condition})");
-                        Line("{");
-                        indentation += 1;
-                        owned.Add(new());
-                        work.Push((node, 2));
-                        work.Push((node.ChildAt(1), 0));
-                    }
-                    else
-                    {
-                        Line($"{values[node]} = {values[node.ChildAt(1)]};");
-                        Cleanup(owned.Count - 1);
-                        owned.RemoveAt(owned.Count - 1);
-                        indentation -= 1;
-                        Line("}");
-                    }
-                    continue;
-                }
-                // A known constant has no effects in this supported language.
-                // Its checked exact value also avoids host/C literal overflow.
-                if (item.Stage == 0 && fact.IntegerConstant is null
-                    && node.Kind is SyntaxKind.Call or SyntaxKind.Group or SyntaxKind.Binary or SyntaxKind.Unary or SyntaxKind.Cast or SyntaxKind.Array or SyntaxKind.Index)
-                {
-                    work.Push((node, 1));
-                    int first = node.Kind == SyntaxKind.Call ? 1 : 0;
-                    // A cast's type child has no runtime evaluation or value fact.
-                    int last = node.Kind == SyntaxKind.Cast ? 0 : node.ChildCount() - 1;
-                    for (int i = last; i >= first; i -= 1)
-                    {
-                        work.Push((node.ChildAt(i), 0));
-                    }
-                    if (node.Kind == SyntaxKind.Call && node.ChildAt(0).Kind == SyntaxKind.Member)
-                    {
-                        // LIFO scheduling: receiver executes before explicit arguments.
-                        work.Push((node.ChildAt(0).ChildAt(0), 0));
-                    }
-                    continue;
-                }
-                string expression;
-                if (fact.IntegerConstant is not null)
-                {
-                    expression = Integer(fact.IntegerConstant.Value);
-                }
-                else
-                {
-                    switch (node.Kind)
-                    {
-                        case SyntaxKind.Name:
-                            expression = Owned(fact.Type)
-                                ? Copy(Storage(node), fact.Type, node)
-                                : Storage(node);
-                            break;
-                        case SyntaxKind.String:
-                            ReadOnlySpan<byte> bytes = node.Source!.LiteralBytes(node.TextOffset, node.TextLength);
-                            // C supplies a trailing zero, but the explicit Lyric
-                            // length excludes it. Embedded zeros remain ordinary
-                            // bytes; output and ownership never use strlen.
-                            string storage = "ly_b" + temporary.ToString(CultureInfo.InvariantCulture);
-                            temporary += 1;
-                            Line($"static const uint8_t {storage}[] = {CBytes(bytes)};");
-                            expression = Copy($"(ly_array){{(void *){storage}, {bytes.Length.ToString(CultureInfo.InvariantCulture)}, {bytes.Length.ToString(CultureInfo.InvariantCulture)}}}", fact.Type, node);
-                            break;
-                        case SyntaxKind.Array:
-                            SemanticType elementType = SemanticTypes.ElementOf(fact.Type);
-                            string array = "ly_a" + temporary.ToString(CultureInfo.InvariantCulture);
-                            temporary += 1;
-                            Line($"ly_array {array} = ly_array_new({node.ChildCount()}, sizeof({CType(elementType)}), {Location(node)});");
-                            for (int i = 0; i < node.ChildCount(); i += 1)
-                            {
-                                string child = values[node.ChildAt(i)];
-                                Line($"(({CType(elementType)} *){array}.data)[{i}] = {child};");
-                                Moved(child, elementType);
-                                Line($"{array}.length += 1;");
-                            }
-                            expression = array;
-                            break;
-                        case SyntaxKind.Index:
-                            string container = values[node.ChildAt(0)];
-                            string subscript = values[node.ChildAt(1)];
-                            Bounds(container, subscript, node);
-                            string selected = $"(({CType(fact.Type)} *){container}.data)[(uint64_t){subscript}]";
-                            expression = Owned(fact.Type) ? Copy(selected, fact.Type, node) : selected;
-                            break;
-                        case SyntaxKind.Literal:
-                            expression = Text(node);
-                            break;
-                        case SyntaxKind.Unit:
-                            expression = "(ly_unit){0}";
-                            break;
-                        case SyntaxKind.Cast:
-                            string castValue = values[node.ChildAt(0)];
-                            string destination = SemanticTypes.Name(fact.Type);
-                            if (Text(node) == "!as")
-                            {
-                                // Signed-to-unsigned conversion is defined modulo
-                                // 2^64, preserving negative mathematical values for
-                                // subsequent masking to any destination width.
-                                expression = $"ly_{destination}_bits((uint64_t){castValue})";
-                            }
-                            else if (unsafeMode)
-                            {
-                                expression = $"({CType(fact.Type)}){castValue}";
-                            }
-                            else
-                            {
-                                string castHigh = Integer(SemanticTypes.Maximum(fact.Type));
-                                string outside = $"(uint64_t){castValue} > {castHigh}";
-                                if (SemanticTypes.IsSigned(node.ChildAt(0).Fact!.Type))
-                                {
-                                    if (SemanticTypes.IsSigned(fact.Type))
-                                    {
-                                        string castLow = Integer(SemanticTypes.Minimum(fact.Type));
-                                        outside = $"{castValue} < 0 ? (int64_t){castValue} < {castLow} : ({outside})";
-                                    }
-                                    else
-                                    {
-                                        outside = $"{castValue} < 0 || ({outside})";
-                                    }
-                                }
-                                Diagnostic castLocation = node.Source!.SemanticDiagnostic(node, "", "");
-                                string castFile = CString(JsonSerializer.Serialize(node.Source.Path));
-                                Line($"if ({outside})");
-                                Line("{");
-                                indentation += 1;
-                                Line($"ly_conversion({castFile}, {castLocation.Line}, {castLocation.Column}, {CString(destination)});");
-                                indentation -= 1;
-                                Line("}");
-                                // The guard establishes representability before C
-                                // performs any potentially narrowing signed cast.
-                                expression = $"({CType(fact.Type)}){castValue}";
-                            }
-                            break;
-                        case SyntaxKind.Group:
-                            expression = values[node.ChildAt(0)];
-                            break;
-                        case SyntaxKind.Unary when Text(node) == "-":
-                            Diagnostic negationLocation = node.Source!.SemanticDiagnostic(node, "", "");
-                            string negationFile = CString(JsonSerializer.Serialize(node.Source.Path));
-                            expression = unsafeMode
-                                ? $"(-{values[node.ChildAt(0)]})"
-                                : $"ly_{SemanticTypes.Name(fact.Type)}_sub(0, {values[node.ChildAt(0)]}, "
-                                    + $"{negationFile}, {negationLocation.Line}, {negationLocation.Column})";
-                            break;
-                        case SyntaxKind.Unary when Text(node) == "!-":
-                            expression = $"ly_{SemanticTypes.Name(fact.Type)}_wrap_sub(0, {values[node.ChildAt(0)]})";
-                            break;
-                        case SyntaxKind.Unary when Text(node) == "!":
-                            expression = "!" + values[node.ChildAt(0)];
-                            break;
-                        case SyntaxKind.Binary when Text(node) is "==" or "!=" or "<" or "<=" or ">" or ">=":
-                            string leftValue = values[node.ChildAt(0)];
-                            string rightValue = values[node.ChildAt(1)];
-                            bool leftSigned = SemanticTypes.IsSigned(node.ChildAt(0).Fact!.Type);
-                            bool rightSigned = SemanticTypes.IsSigned(node.ChildAt(1).Fact!.Type);
-                            string comparison = Text(node);
-                            if (node.ChildAt(0).Fact!.Type == SemanticType.Bool)
-                            {
-                                expression = $"({leftValue} {comparison} {rightValue})";
-                            }
-                            else if (leftSigned == rightSigned)
-                            {
-                                string wideType = leftSigned ? "int64_t" : "uint64_t";
-                                expression = $"(({wideType}){leftValue} {comparison} ({wideType}){rightValue})";
-                            }
-                            else
-                            {
-                                // Test negativity before converting to magnitude.
-                                // Every nonnegative signed value fits uint64_t.
-                                string signedValue = leftSigned ? leftValue : rightValue;
-                                bool negativeResult = comparison switch
-                                {
-                                    "!=" => true,
-                                    "<" or "<=" => leftSigned,
-                                    ">" or ">=" => rightSigned,
-                                    _ => false,
-                                };
-                                string negativeText = negativeResult ? "true" : "false";
-                                expression = $"({signedValue} < 0 ? {negativeText} : "
-                                    + $"((uint64_t){leftValue} {comparison} (uint64_t){rightValue}))";
-                            }
-                            break;
-                        case SyntaxKind.Binary when Text(node) is "<<" or ">>":
-                            string count = values[node.ChildAt(1)];
-                            int shiftWidth = SemanticTypes.IntegerWidth(fact.Type);
-                            string invalidCount = $"(uint64_t){count} >= UINT64_C({shiftWidth})";
-                            if (SemanticTypes.IsSigned(node.ChildAt(1).Fact!.Type))
-                            {
-                                invalidCount = $"{count} < 0 || " + invalidCount;
-                            }
-                            Diagnostic shiftLocation = node.Source!.SemanticDiagnostic(node, "", "");
-                            string shiftFile = CString(JsonSerializer.Serialize(node.Source.Path));
-                            if (!unsafeMode)
-                            {
-                                Line($"if ({invalidCount})");
-                                Line("{");
-                                indentation += 1;
-                                Line($"ly_shift_count({shiftFile}, {shiftLocation.Line}, {shiftLocation.Column});");
-                                indentation -= 1;
-                                Line("}");
-                            }
-                            string shiftOperation = Text(node) == "<<" ? "shl" : "shr";
-                            expression = unsafeMode && Text(node) == ">>"
-                                ? $"({values[node.ChildAt(0)]} >> {count})"
-                                : $"ly_{SemanticTypes.Name(fact.Type)}_{shiftOperation}("
-                                    + $"{values[node.ChildAt(0)]}, (uint64_t){count})";
-                            break;
-                        case SyntaxKind.Binary when Text(node) is "&" or "|" or "^":
-                            // Unsigned conversion preserves low two's-complement
-                            // bits. Reconstruction masks to the selected width
-                            // and avoids an out-of-range signed C conversion.
-                            expression = $"ly_{SemanticTypes.Name(fact.Type)}_bits("
-                                + $"(uint64_t){values[node.ChildAt(0)]} {Text(node)} "
-                                + $"(uint64_t){values[node.ChildAt(1)]})";
-                            break;
-                        case SyntaxKind.Binary when Text(node) is "!+" or "!-" or "!*":
-                            string wrappingOperation = Text(node) switch
-                            {
-                                "!+" => "add",
-                                "!-" => "sub",
-                                _ => "mul",
-                            };
-                            expression = $"ly_{SemanticTypes.Name(fact.Type)}_wrap_{wrappingOperation}("
-                                + $"{values[node.ChildAt(0)]}, {values[node.ChildAt(1)]})";
-                            break;
-                        case SyntaxKind.Binary:
-                            string operation = Text(node) switch
-                            {
-                                "+" => "add",
-                                "-" => "sub",
-                                "*" => "mul",
-                                "/" => "div",
-                                "%" => "rem",
-                                _ => throw new InvalidOperationException("Unchecked arithmetic operator."),
-                            };
-                            Diagnostic location = node.Source!.SemanticDiagnostic(node, "", "");
-                            string file = CString(JsonSerializer.Serialize(node.Source.Path));
-                            expression = unsafeMode
-                                ? UncheckedArithmetic(fact.Type, Text(node), values[node.ChildAt(0)], values[node.ChildAt(1)])
-                                : $"ly_{SemanticTypes.Name(fact.Type)}_{operation}("
-                                    + $"{values[node.ChildAt(0)]}, {values[node.ChildAt(1)]}, "
-                                    + $"{file}, {location.Line}, {location.Column})";
-                            break;
-                        case SyntaxKind.Call:
-                            SemanticSymbol target = fact.Symbol!;
-                            List<string> arguments = new();
-                            for (int i = 1; i < node.ChildCount(); i += 1)
-                            {
-                                arguments.Add(values[node.ChildAt(i)]);
-                            }
-                            if (target.Builtin == BuiltinKind.Length)
-                            {
-                                expression = $"{arguments[0]}.length";
-                            }
-                            else if (target.Builtin == BuiltinKind.Assert)
-                            {
-                                expression = $"ly_assert({arguments[0]}, {Location(node)})";
-                            }
-                            else if (target.Builtin != BuiltinKind.None)
-                            {
-                                string newline = target.Builtin == BuiltinKind.Println ? "true" : "false";
-                                Diagnostic callLocation = node.Source!.SemanticDiagnostic(node, "", "");
-                                string callFile = CString(JsonSerializer.Serialize(node.Source.Path));
-                                expression = $"ly_print({arguments[0]}, {newline}, {callFile}, "
-                                    + $"{callLocation.Line}, {callLocation.Column})";
-                            }
-                            else
-                            {
-                                SemanticSymbol? owner = target.Scope!.Class;
-                                if (owner is not null && node.ChildAt(0).Kind == SyntaxKind.Name)
-                                {
-                                    string instance = "ly_object" + temporary.ToString(CultureInfo.InvariantCulture);
-                                    temporary += 1;
-                                    Line($"uint64_t {instance} = {Name(owner)}_allocate({Location(node)});");
-                                    arguments.Insert(0, instance);
-                                    Line($"(void){Name(target)}({string.Join(", ", arguments)});");
-                                    expression = instance;
-                                }
-                                else
-                                {
-                                    if (owner is not null)
-                                    {
-                                        arguments.Insert(0, values[node.ChildAt(0).ChildAt(0)]);
-                                    }
-                                    expression = $"{Name(target)}({string.Join(", ", arguments)})";
-                                }
-                            }
-                            break;
-                        default:
-                            Unsupported(node);
-                            return "";
-                    }
-                }
-                string result = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
-                temporary += 1;
-                Line($"{CType(fact.Type)} {result} = {expression};");
-                Own(result, fact.Type);
-                if (node.Kind == SyntaxKind.Group && Owned(fact.Type))
-                {
-                    Moved(values[node.ChildAt(0)], fact.Type);
-                }
-                if (node.Kind == SyntaxKind.Call && fact.Symbol!.Builtin == BuiltinKind.None)
-                {
-                    if (fact.Symbol.Scope!.Class is not null && node.ChildAt(0).Kind == SyntaxKind.Member)
-                    {
-                        SyntaxNode receiver = node.ChildAt(0).ChildAt(0);
-                        Moved(values[receiver], receiver.Fact!.Type);
-                    }
-                    // The callee owns the independent argument values, including
-                    // cleanup on return. Empty caller slots after that transfer.
-                    for (int i = 1; i < node.ChildCount(); i += 1)
-                    {
-                        if (!fact.Symbol.FunctionScope!.ParameterAt(i - 1 + (fact.Symbol.Scope!.Class is null ? 0 : 1)).IsReference)
-                        {
-                            Moved(values[node.ChildAt(i)], node.ChildAt(i).Fact!.Type);
-                        }
-                    }
-                }
-                values.Add(node, result);
-            }
-            return values[root];
-        }
-        void Conditional(SyntaxNode node, string? valueTarget = null)
-        {
-            string condition = Expression(node.ChildAt(0));
-            Line($"if ({condition})");
-            Block(node.ChildAt(1), false, valueTarget: valueTarget);
-            if (node.ChildCount() == 3)
-            {
-                Line("else");
-                SyntaxNode alternative = node.ChildAt(2);
-                if (alternative.Kind == SyntaxKind.If)
-                {
-                    // The alternative's condition temporaries belong inside the
-                    // else, not before the original condition is evaluated.
-                    Line("{");
-                    indentation += 1;
-                    owned.Add(new());
-                    Conditional(alternative, valueTarget);
-                    Cleanup(owned.Count - 1);
-                    owned.RemoveAt(owned.Count - 1);
-                    indentation -= 1;
-                    Line("}");
-                }
-                else
-                {
-                    Block(alternative, false, valueTarget: valueTarget);
-                }
-            }
-        }
-        void Block(SyntaxNode node, bool unitFallthrough, SemanticSymbol? function = null,
-            string? valueTarget = null)
-        {
-            bool wroteValue = false;
-            owned.Add(new());
-            Line("{");
-            indentation += 1;
-            if (function is not null)
-            {
-                string display = CString(JsonSerializer.Serialize(function.Name));
-                Line($"ly_frame ly_activation = {{{display}, ly_current_frame}};");
-                Line("ly_current_frame = &ly_activation;");
-                for (int p = 0; p < function.FunctionScope!.ParameterCount(); p += 1)
-                {
-                    SemanticSymbol parameter = function.FunctionScope.ParameterAt(p);
-                    bool borrowedSelf = p == 0 && function.Scope!.Class is SemanticSymbol owner
-                        && (function.Name == owner.Name || function.IsFinalHook());
-                    if (!parameter.IsReference && !borrowedSelf)
-                    {
-                        Own(Name(parameter), parameter.Type!.Value);
-                    }
-                }
-            }
-            for (int i = 0; i < node.ChildCount(); i += 1)
-            {
-                SyntaxNode statement = node.ChildAt(i);
-                switch (statement.Kind)
-                {
-                    case SyntaxKind.DiscardResult:
-                        break;
-                    case SyntaxKind.Binding:
-                        SemanticSymbol symbol = statement.DeclaredSymbol!;
-                        int next = 1;
-                        if (next < statement.ChildCount() && statement.ChildAt(next).Kind == SyntaxKind.Annotation)
-                        {
-                            next += 1;
-                        }
-                        string? initialValue = next < statement.ChildCount()
-                            ? Expression(statement.ChildAt(next)) : null;
-                        string initializer = initialValue is not null ? " = " + initialValue
-                            : Counted(symbol.Type!.Value) && !symbol.IsReference ? " = UINT64_MAX"
-                            : symbol.Type!.Value.ArrayDepth > 0 ? " = {0}" : "";
-                        string pointerMarker = symbol.IsReference ? " *" : " ";
-                        Line($"{CType(symbol.Type!.Value)}{pointerMarker}{Name(symbol)}{initializer};");
-                        if (!symbol.IsReference)
-                        {
-                            Own(Name(symbol), symbol.Type.Value);
-                        }
-                        if (initialValue is not null && !symbol.IsReference)
-                        {
-                            Moved(initialValue, symbol.Type.Value);
-                        }
-                        break;
-                    case SyntaxKind.Assignment:
-                        SemanticFact targetFact = statement.ChildAt(0).Fact!;
-                        string targetName = Storage(statement.ChildAt(0));
-                        string assignment = Text(statement);
-                        string? oldValue = null;
-                        if (assignment != "=")
-                        {
-                            // Read the selected destination before right-hand effects.
-                            // Storage has already evaluated indices; borrow checking
-                            // ensures that this selected slot remains valid.
-                            oldValue = "ly_t" + temporary.ToString(CultureInfo.InvariantCulture);
-                            temporary += 1;
-                            Line($"{CType(targetFact.Type)} {oldValue} = {targetName};");
-                        }
-                        string value = Expression(statement.ChildAt(1));
-                        if (assignment != "=")
-                        {
-                            string operation = assignment switch
-                            {
-                                "+=" or "!+=" => "add",
-                                "-=" or "!-=" => "sub",
-                                "*=" or "!*=" => "mul",
-                                "/=" => "div",
-                                _ => throw new InvalidOperationException("Unchecked compound assignment."),
-                            };
-                            string typeName = SemanticTypes.Name(targetFact.Type);
-                            if (assignment.StartsWith('!'))
-                            {
-                                value = $"ly_{typeName}_wrap_{operation}({oldValue}, {value})";
-                            }
-                            else if (unsafeMode)
-                            {
-                                value = UncheckedArithmetic(targetFact.Type, assignment[..^1], oldValue!, value);
-                            }
-                            else
-                            {
-                                Diagnostic location = statement.Source!.SemanticDiagnostic(statement, "", "");
-                                string file = CString(JsonSerializer.Serialize(statement.Source.Path));
-                                value = $"ly_{typeName}_{operation}({oldValue}, {value}, "
-                                    + $"{file}, {location.Line}, {location.Column})";
-                            }
-                        }
-                        Drop(targetName, targetFact.Type, Location(statement));
-                        Line($"{targetName} = {value};");
-                        Moved(value, targetFact.Type);
-                        break;
-                    case SyntaxKind.ExpressionStatement:
-                        SyntaxNode expression = statement.ChildAt(0);
-                        if (valueTarget is not null && i == node.ChildCount() - 1)
-                        {
-                            string branchValue = Expression(expression);
-                            Line($"{valueTarget} = {branchValue};");
-                            Moved(branchValue, expression.Fact!.Type);
-                            wroteValue = true;
-                        }
-                        else if (expression.Kind == SyntaxKind.If)
-                        {
-                            Conditional(expression);
-                        }
-                        else
-                        {
-                            string discarded = Expression(expression);
-                            Line($"(void){discarded};");
-                            if (Owned(expression.Fact!.Type))
-                            {
-                                Drop(discarded, expression.Fact.Type, Location(expression));
-                            }
-                        }
-                        break;
-                    case SyntaxKind.While:
-                        // Condition effects must run on every iteration, including
-                        // after continue. C's nearest-loop targets match Lyric here.
-                        Line("while (true)");
-                        Line("{");
-                        indentation += 1;
-                        loopScopes.Push(owned.Count);
-                        owned.Add(new());
-                        string condition = Expression(statement.ChildAt(0));
-                        Line($"if (!{condition})");
-                        Line("{");
-                        indentation += 1;
-                        Cleanup(loopScopes.Peek());
-                        Line("break;");
-                        indentation -= 1;
-                        Line("}");
-                        Block(statement.ChildAt(1), false);
-                        Cleanup(loopScopes.Pop());
-                        owned.RemoveAt(owned.Count - 1);
-                        indentation -= 1;
-                        Line("}");
-                        break;
-                    case SyntaxKind.Break:
-                        Cleanup(loopScopes.Peek());
-                        Line("break;");
-                        break;
-                    case SyntaxKind.Continue:
-                        Cleanup(loopScopes.Peek());
-                        Line("continue;");
-                        break;
-                    case SyntaxKind.Return:
-                        string returned = statement.ChildCount() == 0
-                            ? "(ly_unit){0}" : Expression(statement.ChildAt(0));
-                        Cleanup(0, returned);
-                        Line("ly_current_frame = ly_activation.parent;");
-                        Line($"return {returned};");
-                        break;
-                    default:
-                        Unsupported(statement);
-                        break;
-                }
-            }
-            if (valueTarget is not null && !wroteValue && node.Fact!.CanContinue)
-            {
-                // A continuing branch with no final expression (including an
-                // explicit trailing semicolon) produces unit, not an old value.
-                Line($"{valueTarget} = (ly_unit){{0}};");
-            }
-            Cleanup(owned.Count - 1);
-            owned.RemoveAt(owned.Count - 1);
-            if (unitFallthrough)
-            {
-                Line("ly_current_frame = ly_activation.parent;");
-                Line("return (ly_unit){0};");
-            }
-            indentation -= 1;
-            Line("}");
         }
     }
 }

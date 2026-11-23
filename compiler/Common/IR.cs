@@ -8,9 +8,9 @@ namespace Lyric;
 internal enum IrKind
 {
     Region, If, While, For, Break, Continue, Return, Yield,
-    Constant, Local, SelectField, SelectIndex, Load, Store, Call,
+    Constant, Local, Borrow, SelectField, AddressOf, SelectIndex, Load, Store, Call,
     Unary, Binary, Convert, Copy, Move, Clear,
-    Ref, Unref, NewArray, FreeArray, NewObject, DestroyObject,
+    Ref, Unref, NewArray, FreeArray, NewObject, DestroyObject, ReclaimObject,
     ArrayLength, ArrayCapacity, ArrayReserve, ArrayResize, ArrayTruncate, ArrayPush,
 }
 
@@ -18,7 +18,12 @@ internal enum IrKind
 // executes on normal completion and continue, but not break/return. Yield ends
 // a result-producing region. Short-circuit evaluation lowers to structured If.
 internal enum IrRole { None, Body, Initializer, Condition, Then, Else, Step }
-internal enum IrResult { None, Value, Address }
+// Place is a logical field location, not a captured interior pointer. Address is
+// fixed storage selected at a particular execution point. Neither is an owner.
+internal enum IrResult { None, Value, Place, Address }
+
+// Generated destruction is an execution body, not a fabricated source function.
+internal enum IrFunctionKind { Source, Destruction }
 
 // Explicitly VALUE-LIKE immutable literal. No source or symbol relationships.
 // Bytes are defensively copied and exposed one byte at a time, never as a mutable
@@ -57,6 +62,15 @@ internal sealed partial class IrProgram
     internal partial void Destroy();
     internal partial void AddFunction(IrFunction function);
     internal partial void RemoveFunction(IrFunction function);
+    // Reject incomplete execution trees without mutating them. This structural
+    // check does not certify opcode typing or ownership/use ordering.
+    internal partial void ValidateStructure();
+    // Requires valid structure; checks implemented opcode categories, types and
+    // selected identities, not execution availability or ownership balance.
+    internal partial void ValidateOperations();
+    // Requires structural and operation validity. Checks reachable definition order
+    // and region exits, not storage initialization or ownership liveness.
+    internal partial void ValidateExecution();
     internal partial int FunctionCount();
     internal partial IrFunction FunctionAt(int index);
 }
@@ -68,10 +82,14 @@ internal sealed partial class IrFunction
 {
     internal IrProgram? Program;
     internal SemanticSymbol? Declaration;
+    // Weak class identity, paired with SemanticSymbol.IrDestruction. Program owns us.
+    internal SemanticSymbol? DestructionClass;
+    internal readonly IrFunctionKind Kind;
     internal bool Destroyed;
     private readonly List<IrNode> Nodes = new();
     internal IrNode? Body;
-    internal partial IrFunction(IrProgram program, SemanticSymbol declaration);
+    internal partial IrFunction(IrProgram program, SemanticSymbol declaration,
+        IrFunctionKind kind = IrFunctionKind.Source);
     internal partial void Destroy();
     internal partial void AddNode(IrNode node);
     internal partial void RemoveNode(IrNode node);
@@ -81,15 +99,60 @@ internal sealed partial class IrFunction
     internal partial void RemoveBody(IrNode node);
 }
 
+// Borrow returns a non-owning address. A parameter Borrow receives the caller's
+// address; an operand-bearing Borrow aliases that fixed address. Neither owns or
+// releases its referent. Ref/Unref instead change counted-object ownership.
+// Ref copies a live counted handle into a new owner and increments its count.
+// Unref empties its operand holder before decrementing; empty is harmless and
+// zero executes the class's generated destruction body. Move transfers a holder
+// without changing the count. Constructor/final self slots are borrowed handles,
+// not owning Local slots; field receiver snapshots likewise do not retain.
+//
 // Identity-bearing typed execution node, NEVER a value-like class. Region nodes
 // hold ordered operations; control nodes hold role-labelled regions. Local nodes
 // define temporary storage without inventing source symbols. Operands refer to
-// actual definitions, not integer IDs. Address results select storage; Load/Copy
-// explicitly read it. C emission must preserve this ordering and snapshots.
+// actual definitions, not integer IDs. SelectField takes a saved receiver handle
+// and the actual field Symbol and produces a Place. It does not capture an interior
+// pointer. Load/Copy/Store resolve that place when they execute, so a direct field
+// assignment can survive class-storage growth during its RHS. AddressOf resolves a
+// Place once into a fixed Address; subsequent borrowing never re-resolves it.
+// AddressOf on an existing Address preserves that address. SelectIndex likewise
+// produces a fixed address, not a re-resolvable path. Load/Copy explicitly read
+// selected storage. C emission must preserve this ordering and snapshots.
 //
 // This construction model admits incomplete drafts. It checks relationships, not
 // opcode arity, dominance, complete region shapes, or typing. Those are a later
-// lowering/validation contract. Deleting a definition detaches its uses rather
+// lowering/validation contract. Array Local, Copy, NewArray, Call and If results
+// are owning holders (initially empty for Local); Copy recursively duplicates live
+// contents, not spare capacity. Move empties its holder operand and produces a
+// transfer value with one designated consumer: Store, Call, NewArray, ArrayPush, Return or Yield.
+// NewArray consumes transferred element operands, or a Bytes literal payload
+// with no operands. The latter allocates a fresh [u8] containing exactly those
+// bytes (no trailing sentinel), including on each repeated region execution.
+// The immutable payload is not runtime storage and is never itself released.
+// FreeArray releases and empties a holder; releasing empty storage is harmless.
+// Store receives an already-transferred array after old destination cleanup.
+// SelectIndex takes an array holder/address and an evaluated integer index. It
+// checks initialized-length bounds under the program's safe/unsafe policy, then
+// captures a fixed element address. It neither copies nor owns the parent array.
+// Load reads a scalar element; Copy reads an owned element independently. Writable
+// nested selections use the original descriptor, never a temporary array copy.
+// ArrayReserve/Resize/Truncate/Push take a selected descriptor address followed
+// by the evaluated count or element. Push consumes a transferred owning element;
+// the others consume no owner. Shrink releases removed owning elements. Resize(0)
+// releases reservation too; Truncate(0) retains it. Growth preserves initialized
+// values and uses typed defaults, with the existing allocation/failure contract.
+// ArrayCapacity observes the original selected descriptor (or an owned computed
+// temporary), never a copied reservation. Mutation results are unit values.
+// NewObject allocates a class handle; lowering emits the actual constructor Call
+// separately, after evaluating explicit arguments and before exposing the result.
+// DestroyObject invokes Symbol.IrDestruction with the saved receiver handle.
+// ReclaimObject is the final slot release inside that generated body, not another
+// destruction invocation. The generated body calls the hook, releases owned
+// array fields in declaration order, then reclaims. Last counted release uses
+// the same generated body.
+// These contracts do not make array handles scalar immutable snapshots.
+// Deleting a definition detaches its uses rather
 // than deleting consumers. Such a draft must not be emitted without validation.
 internal sealed partial class IrNode
 {
@@ -131,6 +194,7 @@ internal sealed partial class IrNode
     internal partial void AddUse(IrOperand operand);
     internal partial void RemoveUse(IrOperand operand);
     internal partial int UseCount();
+    internal partial IrOperand UseAt(int index);
     // Weak transfer destination, constrained to same-function loop nodes. Full
     // enclosing-loop validation waits until a draft's structured tree is complete.
     internal partial void AddTransfer(IrNode transfer);
@@ -157,6 +221,11 @@ internal sealed partial class SemanticSymbol
 {
     // One body per concrete declaration; calls reach it through their Symbol.
     internal IrFunction? IrBody;
+    // One generated teardown body per class. Weak backlink; the program owns it.
+    internal IrFunction? IrDestruction;
+    // Attach/detach both ends; reject incompatible or duplicate bodies unchanged.
+    internal partial void AddIrDestruction(IrFunction function);
+    internal partial void RemoveIrDestruction(IrFunction function);
     private readonly List<IrNode> IrSymbols = new();
     private readonly List<IrNode> IrTypes = new();
     internal partial void AddIrFunction(IrFunction function);
@@ -172,4 +241,15 @@ internal sealed partial class SyntaxNode
     private readonly List<IrNode> IrOrigins = new();
     internal partial void AddIrOrigin(IrNode node);
     internal partial void RemoveIrOrigin(IrNode node);
+}
+
+internal sealed partial class Compilation
+{
+    // Lower current checked syntax without changing it. Failure destroys partial
+    // IR and returns a located diagnostic. Internal malformed graphs fail before
+    // successful inspection; this is not a source-language rejection.
+    internal partial Diagnostic? LowerIr();
+    // Serialize a successfully lowered model. IDs are temporary output labels,
+    // never identity stored in the graph. No output on a lowering failure.
+    internal partial void WriteIr(System.IO.TextWriter output);
 }

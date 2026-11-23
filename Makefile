@@ -5,7 +5,7 @@ NODE ?= node
 NPM ?= npm
 GRADERS ?= graders
 
-.PHONY: release spin01 spin02 spin03 spin04 spin05 spin06 spin07 spin08 test grammar-setup grammar-check syntax
+.PHONY: release spin01 spin02 spin03 spin04 spin05 spin06 spin07 spin08 spin09 test grammar-setup grammar-check syntax
 
 release:
 	"$(DOTNET)" build compiler/Lyric.csproj -c Release --nologo --tl:off
@@ -35,6 +35,9 @@ spin07: release
 spin08: release
 	"$(PYTHON)" tools/spin08.py "$(DOTNET)"
 
+spin09: release
+	"$(PYTHON)" tools/spin09.py "$(DOTNET)"
+
 # These are the public retained graders, not a second test implementation.
 # Stop immediately if a build or any grader fails.
 test:
@@ -58,6 +61,9 @@ test:
 		"$(PYTHON)" "$(GRADERS)/ch08/layout.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch08/allocation.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch08/ownership.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch09/ir.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch09/ownership.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch09/c_emission.py" "$(DOTNET)" "$$assembly"; \
 	done
 
 # Explicit one-time setup; ordinary grammar checks do not install dependencies.

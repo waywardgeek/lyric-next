@@ -1,0 +1,35 @@
+PASS identity
+PASS storage
+PASS calls
+PASS arithmetic
+PASS signed-compare
+PASS wrapping-cast
+PASS shift
+PASS assertion
+PASS mixed-body
+PASS condition-break
+PASS condition-continue
+PASS condition-return
+PASS recursive-branch
+PASS branch-value
+PASS short-circuit
+PASS array-return
+PASS array-nested
+PASS array-branch
+PASS array-loop
+PASS array-bytes
+FAIL class-place "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-c-6rd58xv8/class-place.ly":1:127: error LYC330: Object reference may have been invalidated. (byte 126)
+
+PASS class-final-array
+PASS counted-array-final
+PASS mutation-capacity
+PASS mutation-nested
+PASS mutation-argument
+PASS output-borrows
+PASS index-copy
+PASS ref-forward
+PASS ref-array
+PASS ref-return
+PASS ref-index-order
+PASS index-bounds
+32/33 IR C-emission cases passed

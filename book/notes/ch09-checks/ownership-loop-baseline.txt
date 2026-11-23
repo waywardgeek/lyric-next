@@ -1,0 +1,23 @@
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+FAIL loop-repeat "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-5lea71fq/loop-repeat.ly":1:44: error LYC340: This construct is not supported by the current IR lowering slice. (byte 43)
+
+FAIL loop-break "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-5lea71fq/loop-break.ly":1:32: error LYC340: This construct is not supported by the current IR lowering slice. (byte 31)
+
+FAIL loop-continue "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-5lea71fq/loop-continue.ly":1:44: error LYC340: This construct is not supported by the current IR lowering slice. (byte 43)
+
+FAIL loop-return "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-5lea71fq/loop-return.ly":1:45: error LYC340: This construct is not supported by the current IR lowering slice. (byte 44)
+
+FAIL loop-false "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-5lea71fq/loop-false.ly":1:30: error LYC340: This construct is not supported by the current IR lowering slice. (byte 29)
+
+FAIL loop-nested "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-5lea71fq/loop-nested.ly":1:44: error LYC340: This construct is not supported by the current IR lowering slice. (byte 43)
+
+8/14 ownership IR cases passed

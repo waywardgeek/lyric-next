@@ -1,0 +1,21 @@
+PASS identity
+PASS storage
+PASS calls
+PASS arithmetic
+PASS signed-compare
+PASS wrapping-cast
+PASS shift
+PASS assertion
+PASS mixed-body
+PASS condition-break
+PASS condition-continue
+PASS condition-return
+PASS recursive-branch
+PASS branch-value
+PASS short-circuit
+PASS array-return
+PASS array-nested
+PASS array-branch
+PASS array-loop
+PASS array-bytes
+20/20 IR C-emission cases passed

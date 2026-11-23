@@ -1,0 +1,20 @@
+  Determining projects to restore...
+  Restored /Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-6xj94hlc/Probe.csproj (in 23 ms).
+  Probe -> /Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-6xj94hlc/bin/Debug/net10.0/Probe.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.35
+IR model: 136 checks passed
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Probe -> /Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-model-6xj94hlc/bin/Release/net10.0/Probe.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.98
+IR model: 136 checks passed

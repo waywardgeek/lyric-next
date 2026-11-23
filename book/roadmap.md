@@ -23,7 +23,11 @@ interfaces and multi-class interfaces**. Keep Chapter 5 in its current position:
 early executable behavior earns the later refactor, whose runtime helpers and
 retained behavioral checks remain useful. Do not require a comprehensive
 optimization suite or a separate ordinary-interface chapter before cooperating
-types. This records the agreed sequence; implementation has not started.
+types. Chapter 9 implementation, reviews, and independent reconstruction are complete;
+human acceptance is pending. Chapter 10 implementation has not started.
+Chapter 9 introduces no source-language generators or other new language features.
+Its generated cleanup bodies implement Chapter 8 lifetimes in IR; they are not
+iterator/generator functions.
 
 Start with a method-based example that does not require persistent relationships.
 Nullable references, Result/Status/propagation and generators are prerequisites

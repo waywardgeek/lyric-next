@@ -1,0 +1,50 @@
+FAIL push "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/push.ly":1:32: error LYC340: This construct is not supported by the current IR lowering slice. (byte 31)
+
+FAIL push-copy "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/push-copy.ly":1:45: error LYC340: This construct is not supported by the current IR lowering slice. (byte 44)
+
+FAIL reserve "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/reserve.ly":1:32: error LYC340: This construct is not supported by the current IR lowering slice. (byte 31)
+
+FAIL resize "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/resize.ly":1:32: error LYC340: This construct is not supported by the current IR lowering slice. (byte 31)
+
+FAIL shrink "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/shrink.ly":1:38: error LYC340: This construct is not supported by the current IR lowering slice. (byte 37)
+
+FAIL truncate "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/truncate.ly":1:38: error LYC340: This construct is not supported by the current IR lowering slice. (byte 37)
+
+FAIL resize-zero "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/resize-zero.ly":1:34: error LYC340: This construct is not supported by the current IR lowering slice. (byte 33)
+
+FAIL mutate-ref "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/mutate-ref.ly":1:30: error LYC340: This construct is not supported by the current IR lowering slice. (byte 29)
+
+FAIL mutate-nested "/Users/bill/ensemble-edition3-cadence/tmp/lyric-ir-ownership-0y_dohev/mutate-nested.ly":1:37: error LYC340: This construct is not supported by the current IR lowering slice. (byte 36)
+
+PASS ref-local
+PASS ref-forward
+PASS ref-array
+PASS ref-copy
+PASS ref-return
+PASS ref-index-order
+PASS self-check index-order
+PASS index-order
+PASS index-read
+PASS index-write
+PASS index-copy
+PASS index-nested
+PASS index-replace
+PASS index-call
+PASS literal
+PASS self-check copy
+PASS copy
+PASS self-check replace
+PASS replace
+PASS return
+PASS parameter
+PASS nested
+PASS branch
+PASS early-return
+PASS loop-repeat
+PASS loop-break
+PASS loop-continue
+PASS loop-return
+PASS loop-nested-return
+PASS loop-false
+PASS loop-nested
+28/37 ownership IR cases passed
