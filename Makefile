@@ -76,3 +76,21 @@ grammar-check: release
 syntax: release
 	@test -n "$(FILE)" || { printf 'Usage: make syntax FILE=path/to/example.ly\n' >&2; exit 2; }
 	DOTNET="$(DOTNET)" "$(NODE)" tools/peg/check.mjs "$(FILE)"
+
+# Source-derived chapter diagrams; no compiler execution or package downloads.
+.PHONY: diagrams
+diagrams:
+	sh tools/common-diagrams/regenerate.sh "$(DOTNET)"
+	"$(PYTHON)" tools/common-diagrams/test.py
+
+# Existing Pandoc, Chrome, Poppler and a Python with PyMuPDF are prerequisites.
+-include .book-tools.mk
+export BOOK_NODE BOOK_PLAYWRIGHT_MODULE
+BOOK_PYTHON ?= python3.13
+.PHONY: book book-pdf book-print-test
+book: book-pdf
+book-pdf:
+	"$(BOOK_PYTHON)" book/build-print.py
+
+book-print-test:
+	"$(BOOK_PYTHON)" -m unittest discover -s book -p 'test_*print*.py'

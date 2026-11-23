@@ -1,5 +1,23 @@
 # Chapter 4 — Give the Program Meaning
 
+<!-- common-diagram:start -->
+
+![Scopes, declarations and checked expressions. Text relationships and class descriptions follow.](figures/ch04-common.svg)
+
+**New data structures.**
+
+- **SemanticAnalysis:** The compilation-owned analysis of all source trees. Owns every scope and checked fact, including incomplete construction.
+- **SemanticScope:** A lexical namespace that owns declaration symbols. Analysis owns every scope; a function also owns its function scope. Lexical parent/child links are non-owning.
+- **SemanticSymbol:** The identity of a declaration, owned by its scope. User declarations link to syntax; builtins need no invented syntax node. Function symbols also own their function scope.
+- **SemanticFact:** A checked expression: its type, optional constant and resolved declaration. Analysis owns it; syntax and declaration links let checking and emission share the same result.
+- **SemanticFailure:** A value-like exception carrying a Diagnostic to unwind semantic checking. It does not own semantic model objects.
+
+Types are scalar/byte-array enum values at this stage. The structured type descriptor arrives in Chapter 7. Non-owning semantic dependencies still participate in invalidation: deleting a declaration retires facts that depended on it.
+
+[Text relationships and source fields](figures/ch04-relationships.md).
+
+<!-- common-diagram:end -->
+
 ## TL;DR
 
 A syntax tree tells us how source is structured. It does not tell us whether a name exists, whether a call supplies the right arguments, or whether a local has a value when we read it. Add a semantic analysis that answers those questions and retains its answers for later compilation.

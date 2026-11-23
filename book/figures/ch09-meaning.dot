@@ -1,0 +1,18 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"IrFunction" [label="IrFunction", fillcolor="#edf4fb"];
+"IrNode" [label="IrNode", fillcolor="#edf4fb"];
+"IrLiteral" [label="IrLiteral\n(value)", fillcolor="#edf4fb"];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"SyntaxNode" [label="SyntaxNode\n(existing)", fillcolor="#ffffff"];
+"SemanticType" [label="SemanticType\n(existing, value)", fillcolor="#ffffff"];
+"IrFunction" -> "SemanticSymbol" [id="ir-declaration", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="source\ndeclaration", tooltip="IrFunction.Declaration -> SemanticSymbol; reverse SemanticSymbol.IrBody"];
+"IrFunction" -> "SemanticSymbol" [id="ir-destruction", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="destruction\nclass", tooltip="IrFunction.DestructionClass -> SemanticSymbol; reverse SemanticSymbol.IrDestruction"];
+"IrNode" -> "SyntaxNode" [id="origin", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="source origin", tooltip="IrNode.Origin -> SyntaxNode; reverse SyntaxNode.IrOrigins"];
+"IrNode" -> "SemanticSymbol" [id="selected", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="selected\ndeclaration", tooltip="IrNode.Symbol -> SemanticSymbol; reverse SemanticSymbol.IrSymbols"];
+"IrNode" -> "SemanticType" [id="ir-type", color="#687682", penwidth=1.2, style=dotted, arrowhead=onormal, label="", tooltip="IrNode.Type -> SemanticType"];
+"IrNode" -> "IrLiteral" [id="literal", color="#687682", penwidth=1.2, style=dotted, arrowhead=onormal, label="", tooltip="IrNode.Literal -> IrLiteral"];
+"SemanticSymbol" -> "IrNode" [id="typed-ir", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=normal, label="nominal type uses", tooltip="SemanticSymbol.IrTypes -> IrNode; reverse IrNode.Type.Class"];
+}

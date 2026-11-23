@@ -14,3 +14,10 @@ __pycache__/
 
 # Project-local grammar checker dependencies
 node_modules/
+
+# Local publication artifacts
+book/build/
+.book-tools.mk
+# Publication copies are reproducible too; retain chapter sources instead.
+/book/*.pdf
+/book/building-lyric.md

@@ -1,5 +1,22 @@
 # Chapter 8 — Classes, Lifetimes, and Two Storage Layouts
 
+<!-- common-diagram:start -->
+
+![Class scopes and nominal types. Text relationships and class descriptions follow.](figures/ch08-common.svg)
+
+**Changed classes.** No new class-definition object is introduced: a class is a `SemanticSymbol`.
+
+- **SemanticSymbol:** now owns a member scope and records reverse dependencies from symbols and facts that use its class identity.
+- **SemanticScope:** a member scope has both analysis and class owners; it retains both back-references.
+- **SemanticType:** now carries an optional class declaration identity. Equality compares that identity, scalar kind and array depth, not the class name or a recursive type tree.
+- **SemanticFact:** registers its nominal type dependency with the class. Removing the class invalidates dependent semantic objects.
+
+[Text relationships and source fields](figures/ch08-relationships.md).
+
+<!-- common-diagram:end -->
+
+## Introduction
+
 This chapter introduces some of the secret sauce I expect Lyric to use to win application-level benchmarks. Not a clever expression optimization. Not a benchmark trick. We are going to change how ordinary programs store and allocate their objects.
 
 C++ lets you customize memory allocation. In my experience, most application code does not. The facility exists, but getting the benefit requires somebody to design the allocator, integrate it, and keep using it correctly. I want that work built into Lyric's normal class storage, not reserved for the programmer who has time to replace the defaults.

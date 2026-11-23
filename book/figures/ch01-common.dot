@@ -1,0 +1,9 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"Compilation" [label="Compilation", fillcolor="#edf4fb"];
+"SourceFile" [label="SourceFile", fillcolor="#edf4fb"];
+"Diagnostic" [label="Diagnostic\n(value)", fillcolor="#edf4fb"];
+"Compilation" -> "SourceFile" [id="sources", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="", tooltip="Compilation.Sources -> SourceFile; reverse SourceFile.Parent"];
+}

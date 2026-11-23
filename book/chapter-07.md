@@ -1,5 +1,19 @@
 # Chapter 7 — Arrays, Ownership, and Stable References
 
+<!-- common-diagram:start -->
+
+![Array types remain values. Text relationships and class descriptions follow.](figures/ch07-common.svg)
+
+**New data structures.**
+
+- **SemanticType:** An immutable value describing a scalar kind and array nesting depth. It replaces the earlier scalar-only enum; Chapter 8 adds an optional nominal class identity.
+
+`SemanticSymbol` and `SemanticFact` now store this descriptor. Type equality compares scalar kind and nesting depth; there is no recursive hierarchy or intern table in this chapter.
+
+[Text relationships and source fields](figures/ch07-relationships.md).
+
+<!-- common-diagram:end -->
+
 ## TL;DR
 
 Extend your Chapter 6 compiler with dynamic arrays of integers, booleans, and nested arrays. Treat `string` as `[u8]`, not as a separate immutable runtime object. Array assignment, ordinary arguments, and value returns preserve recursively independent values. Add checked indexing, `len` returning `u64`, and writable `push`, `reserve`, `resize`, and `truncate` methods.

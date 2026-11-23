@@ -1,4 +1,6 @@
-# Building Lyric — an agentic construction codebook
+# An Evolving Programming Language for Superintelligence
+
+*Lyric: An Agentic Construction Codebook*
 
 This book is being developed with the implementation, not reconstructed after a finished compiler. The [language specification](../lyric-language-spec.md) defines Lyric's behavior; the book teaches how to construct a compiler that implements it.
 
@@ -87,3 +89,56 @@ Several items will require more than one chapter; others may combine or move ear
 Pair-program each solution and independent graders first, explaining decisions, ownership, failures, and checks. Focus testing on those graders; additional tests and probes are welcome when they improve confidence or development speed. Extract small shared grader helpers as actual repetition warrants. Then write the TL;DR, plain-language teaching, and exercises from demonstrated experience. Graders and fixtures are readable by students but not student-editable; existing target solutions are off-limits. Students may write diagnostic tests, but only designated graders carry forward across executions. Chapter completion includes all retained checks through that chapter and its applicable chapter-only checks. Finish the applicable one-code-review, one-text-review, fresh-student, and human-acceptance sequence before advancing an accepted chapter. Include concrete Take it for a Spin steps; document checks and agent demonstrations do not substitute for human use.
 
 No future chapter, compiler implementation, external dependency installation, or public release is authorized merely by its appearance in this planning sketch.
+
+## Build the PDF locally
+
+From the repository root:
+
+```sh
+make book
+make book-print-test
+```
+
+The PDF is written to `book/build/An Evolving Programming Language for Superintelligence.pdf`. `make book-pdf` is an
+alias for the same build. Each build assembles the current Preface and numbered
+chapters afresh and copies their SVG figures; no stale assembled manuscript is
+used. `book/build/` contains disposable local publication output, not source.
+
+The local pipeline is adapted from Ensemble's book scripts. It requires existing
+Pandoc, Google Chrome (the macOS application), Poppler (`pdftotext` and `pdfinfo`),
+and Python with PyMuPDF. `BOOK_PYTHON` defaults to `python3.13`, the installed Python
+with PyMuPDF on the development machine; override it for another environment:
+
+```sh
+make book BOOK_PYTHON=/path/to/python
+```
+
+For this development machine, ignored `.book-tools.mk` selects the existing Node
+and Playwright paths because direct Chrome CLI teardown fails. Other machines
+can supply the environment overrides below or their own `.book-tools.mk`.
+
+No packages are installed. Chrome runs headlessly with a temporary private profile,
+not the reader's browser session. An optional controlled renderer uses an existing
+Playwright installation, with no downloads:
+
+```sh
+BOOK_NODE=/path/to/node BOOK_PLAYWRIGHT_MODULE=/path/to/playwright make book
+```
+
+The 7×10-inch PDF retains ten-point body and code text. Title, dedication and
+contents are unnumbered; the Preface starts at Roman i; Chapter 0 starts Arabic
+page 1 on a right-hand physical page. The builder measures pagination before
+stamping contents references and footers, then verifies the saved PDF labels,
+links, footer clearance and text sizes. Diagram colors are preserved. The reading PDF prepends `book/cover.png`, while
+the separate print-interior PDF starts with the title page. Cover insertion
+preserves and checks the interior's page labels and navigation links.
+
+The cover master is a 3× Lanczos enlargement of the approved generated artwork:
+3147×4497 pixels, approximately 450 PPI at 7×10 inches. Upscaling preserves the
+composition but does not create original detail. This is front-cover art, not a
+KDP hardcover wrap; final spine, hinge and wrap dimensions require the KDP template
+for the selected paper and final page count.
+
+`make diagrams DOTNET=/path/to/dotnet` regenerates the source-checked diagrams
+separately when Common declarations change. Building a PDF does not compile the
+Lyric compiler, certify its behavior, publish the book, or commit generated files.

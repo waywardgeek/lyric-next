@@ -1,0 +1,129 @@
+"""Print regression checks: python3 -m unittest discover -s book -p 'test_build_print.py'."""
+import importlib.util
+from pathlib import Path
+import tempfile
+import unittest
+
+import pymupdf
+
+spec = importlib.util.spec_from_file_location("build_print", Path(__file__).with_name("build-print.py"))
+build = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(build)
+
+
+class PrintBuildTests(unittest.TestCase):
+    def test_title_and_dedication_precede_contents(self):
+        html = ('<header id="title-block-header">Duplicate title</header>'
+                '<nav id="TOC" role="doc-toc"><ul><li><a href="#preface">Preface</a></li></ul></nav>'
+                '<div class="front-matter">Title</div>'
+                '<div class="dedication">In memory of my father, Doug Cox.</div>'
+                '<h1 id="preface">Preface</h1>')
+        result = build.clean_html(html)
+        self.assertNotIn('Duplicate title', result)
+        self.assertLess(result.index('class="front-matter"'), result.index('class="dedication"'))
+        self.assertLess(result.index('class="dedication"'), result.index('<nav'))
+        self.assertLess(result.index('</nav>'), result.index('<h1 id="preface"'))
+        self.assertIn('<h2>Contents</h2>', result)
+
+    def test_clean_html_and_wrapped_toc_anchor(self):
+        html = '''<nav id="TOC"><ul>
+<li><a href="#contents">Contents</a></li>
+<li><a\nhref="#preface">Preface</a></li>
+</ul></nav><div class="front-matter">Title</div>
+<h1 id="contents">Contents</h1><p>Duplicate markdown contents</p>
+<h1 id="preface">Preface</h1><p>Actual prose</p>'''
+        clean = build.clean_html(html)
+        self.assertEqual(build.toc_entries(clean), [("preface", "Preface")])
+        self.assertNotIn('id="contents"', clean)
+        self.assertNotIn('Duplicate markdown contents', clean)
+        self.assertNotIn('page-break-after: always;', clean)
+        self.assertNotIn('class="recto-spacer"', clean)
+        self.assertIn('Actual prose', clean)
+
+    def test_chapter_separator_cannot_create_a_print_only_page(self):
+        html = ('<h1 id="preface">Preface</h1><p>Front prose</p>'
+                '<hr />\n<h1 id="chapter-0">Chapter 0</h1>'
+                '<p>First thought</p><hr /><p>Second thought</p>')
+        clean = build.clean_html(html)
+        self.assertNotIn('<hr />\n<h1', clean)
+        self.assertIn('<p>First thought</p><hr /><p>Second thought</p>', clean)
+        self.assertIn('<h1 id="chapter-0">Chapter 0</h1>', clean)
+
+    def test_measured_recto_spacer_preserves_already_correct_layout(self):
+        html = '<h1 id="chapter-0-introduction">Chapter 0: Introduction</h1><p>Unchanged prose</p>'
+        self.assertEqual(build.recto_chapter_html(html, 5, "chapter-0-introduction"), html)
+        repaired = build.recto_chapter_html(html, 4, "chapter-0-introduction")
+        self.assertEqual(repaired.count('class="recto-spacer"'), 1)
+        self.assertTrue(repaired.endswith(html))
+        with self.assertRaises(SystemExit):
+            build.recto_chapter_html(repaired, 4, "chapter-0-introduction")
+
+    def test_missing_preface_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            build.clean_html('<nav id="TOC"></nav>')
+
+    def test_toc_parser_requires_every_item(self):
+        with self.assertRaises(SystemExit):
+            build.toc_entries('<nav id="TOC"><ul><li>Missing anchor</li></ul></nav>')
+
+    def test_margins_follow_physical_page_parity(self):
+        self.assertEqual(build.margins(0), (63, 468))
+        self.assertEqual(build.margins(1), (36, 441))
+        self.assertEqual(build.margins(4), (63, 468))
+
+    @unittest.skipUnless(build.GEORGIA.is_file(), 'requires macOS Georgia font')
+    def test_pdf_stamping_labels_black_text_and_wrapped_link(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = Path(tmp) / 'fixture.pdf'
+            doc = pymupdf.open()
+            for _ in range(7):
+                doc.new_page(width=504, height=720)
+            page = doc[0]
+            page.insert_text((63, 100), 'Preface', fontsize=10.5)
+            page.insert_text((63, 115), 'A wrapped title', fontsize=10.5)
+            doc[4].insert_text((63, 100), 'Preface', fontsize=18)
+            doc[6].insert_text((63, 100), 'Chapter 0: Introduction', fontsize=18)
+            target = doc[4].xref
+            doc.xref_set_key(doc.pdf_catalog(), 'Names',
+                             f'<< /Dests << /Names [(chapter-0-introduction) [{doc[6].xref} 0 R /XYZ 0 666 0] (preface) [{target} 0 R /XYZ 0 666 0]] >> >>')
+            for rect in [pymupdf.Rect(63, 88, 115, 103), pymupdf.Rect(63, 103, 150, 118)]:
+                page.insert_link({'kind': pymupdf.LINK_GOTO, 'page': 4, 'from': rect})
+            page = doc.reload_page(page)
+            for link in page.get_links():
+                doc.xref_set_key(link['xref'], 'A', '<< /S /GoTo /D (preface) >>')
+            page.insert_text((63, 145), 'Chapter 0: Introduction', fontsize=10.5)
+            page.insert_link({'kind': pymupdf.LINK_GOTO, 'page': 6,
+                              'from': pymupdf.Rect(63, 133, 180, 148)})
+            page = doc.reload_page(page)
+            for link in page.get_links():
+                if link.get('page') == 6:
+                    doc.xref_set_key(link['xref'], 'A', '<< /S /GoTo /D (chapter-0-introduction) >>')
+            doc.save(pdf)
+            doc.close()
+            first, stamps = build.finish_pagination(pdf, [('preface', 'Preface'),
+                ('chapter-0-introduction', 'Chapter 0: Introduction')],
+                {'Preface': 5, 'Chapter 0: Introduction': 7})
+            self.assertEqual(first, 7)
+            self.assertEqual(len(stamps), 2)
+            build.check_pagination(pdf, first, stamps, preface=5)
+            with pymupdf.open(pdf) as result:
+                self.assertEqual(result.resolve_link('#preface')[0], 4)
+                self.assertEqual(result[0].get_label(), '')
+                self.assertEqual(result[4].get_label(), 'i')
+                self.assertEqual(result[5].get_label(), 'ii')
+                self.assertEqual(result[6].get_label(), '1')
+                # A gray quote must fail the final printed-color check.
+                result[4].insert_text((63, 140), 'Gray quote', color=(.4, .4, .4))
+                result.saveIncr()
+            with self.assertRaises(SystemExit):
+                build.check_pagination(pdf, first, stamps, preface=5)
+
+    def test_verso_chapter_zero_is_rejected(self):
+        with self.assertRaises(SystemExit):
+            build.finish_pagination(Path('unused'), [('preface', 'Preface'),
+                ('chapter-0-introduction', 'Chapter 0: Introduction')],
+                {'Preface': 3, 'Chapter 0: Introduction': 6})
+
+
+if __name__ == '__main__':
+    unittest.main()

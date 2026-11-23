@@ -1,0 +1,13 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"SemanticScope" [label="SemanticScope\n(existing)", fillcolor="#ffffff"];
+"SemanticType" [label="SemanticType\n(existing, value)", fillcolor="#ffffff"];
+"SemanticFact" [label="SemanticFact\n(existing)", fillcolor="#ffffff"];
+"SemanticSymbol" -> "SemanticScope" [id="member-scope", color="#164f86", penwidth=2, style=solid, arrowhead=onormal, label="member scope", tooltip="SemanticSymbol.MemberScope -> SemanticScope; reverse SemanticScope.Class"];
+"SemanticType" -> "SemanticSymbol" [id="nominal", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="nominal class", tooltip="SemanticType.Class -> SemanticSymbol"];
+"SemanticSymbol" -> "SemanticSymbol" [id="typed-symbols", color="#704090", penwidth=1.2, style=dashed, arrowhead=normal, label="typed symbols", tooltip="SemanticSymbol.TypedSymbols -> SemanticSymbol; reverse SemanticSymbol.Type.Class"];
+"SemanticSymbol" -> "SemanticFact" [id="typed-facts", color="#704090", penwidth=1.2, style=dashed, arrowhead=normal, label="typed facts", tooltip="SemanticSymbol.TypedFacts -> SemanticFact; reverse SemanticFact.Type.Class"];
+}

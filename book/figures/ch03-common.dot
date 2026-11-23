@@ -1,0 +1,12 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SourceFile" [label="SourceFile\n(existing)", fillcolor="#ffffff"];
+"SyntaxNode" [label="SyntaxNode", fillcolor="#edf4fb"];
+"SyntaxFailure" [label="SyntaxFailure\n(value)", fillcolor="#edf4fb"];
+"Diagnostic" [label="Diagnostic\n(existing, value)", fillcolor="#ffffff"];
+"SourceFile" -> "SyntaxNode" [id="syntax", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="", tooltip="SourceFile.SyntaxNodes -> SyntaxNode; reverse SyntaxNode.Source"];
+"SyntaxNode" -> "SyntaxNode" [id="syntax-tree", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=normal, label="children", tooltip="SyntaxNode.Children -> SyntaxNode; reverse SyntaxNode.Parent"];
+"SyntaxFailure" -> "Diagnostic" [id="syntax-error", color="#687682", penwidth=1.2, style=dotted, arrowhead=onormal, label="", tooltip="SyntaxFailure.Diagnostic -> Diagnostic"];
+}

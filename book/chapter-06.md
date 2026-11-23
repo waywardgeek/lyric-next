@@ -1,5 +1,7 @@
 # Chapter 6 — Expressions and Control Flow
 
+## Introduction
+
 I want Lyric to win the benchmarks that matter: average real applications, with real memory usage. Not tiny, hand-tuned demonstrations designed to make a language look fast. If we build a language that wins those demonstrations and loses on the programs people actually write, we have missed the point.
 
 Structure-of-arrays storage is a large part of my bet. When a program processes a few fields across many objects, it should not have to drag every other field through the cache with them. That advantage matters when the data stops fitting in cache. Not every access pattern favors SoA, but I expect it to give us an important advantage in real applications. If we do well enough on the rest of the language, at least in unsafe mode, I expect us to win realistic benchmarks. That is the goal, not a result we have already measured.

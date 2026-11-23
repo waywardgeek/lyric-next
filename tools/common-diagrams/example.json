@@ -1,0 +1,89 @@
+{
+  "types": {
+    "Document": {
+      "introduced": 0,
+      "value": false
+    },
+    "Cursor": {
+      "introduced": 0,
+      "value": false
+    },
+    "Paragraph": {
+      "introduced": 0,
+      "value": false
+    },
+    "TextStyle": {
+      "introduced": 0,
+      "value": true
+    },
+    "Layout": {
+      "introduced": 0,
+      "value": false
+    }
+  },
+  "view": {
+    "id": "ch00-diagram-key",
+    "chapter": 0,
+    "nodes": [
+      "Document",
+      "Cursor",
+      "Paragraph",
+      "TextStyle",
+      "Layout"
+    ],
+    "edges": [
+      "paragraphs",
+      "cursor",
+      "selected",
+      "style",
+      "layout"
+    ]
+  },
+  "edges": {
+    "paragraphs": {
+      "owner": "Document",
+      "child": "Paragraph",
+      "kind": "strong",
+      "many": true,
+      "label": "",
+      "field": "paragraphs",
+      "back": ""
+    },
+    "cursor": {
+      "owner": "Document",
+      "child": "Cursor",
+      "kind": "strong",
+      "many": false,
+      "label": "",
+      "field": "cursor",
+      "back": ""
+    },
+    "selected": {
+      "owner": "Cursor",
+      "child": "Paragraph",
+      "kind": "weak",
+      "many": false,
+      "label": "selected",
+      "field": "selected",
+      "back": ""
+    },
+    "style": {
+      "owner": "Paragraph",
+      "child": "TextStyle",
+      "kind": "data",
+      "many": false,
+      "label": "",
+      "field": "style",
+      "back": ""
+    },
+    "layout": {
+      "owner": "Paragraph",
+      "child": "Layout",
+      "kind": "dependency",
+      "many": true,
+      "label": "",
+      "field": "layout",
+      "back": ""
+    }
+  }
+}

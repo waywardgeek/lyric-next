@@ -1,0 +1,18 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SemanticAnalysis" [label="SemanticAnalysis\n(existing)", fillcolor="#ffffff"];
+"IrProgram" [label="IrProgram", fillcolor="#edf4fb"];
+"IrFunction" [label="IrFunction", fillcolor="#edf4fb"];
+"IrNode" [label="IrNode", fillcolor="#edf4fb"];
+"IrOperand" [label="IrOperand", fillcolor="#edf4fb"];
+"SemanticAnalysis" -> "IrProgram" [id="ir", color="#164f86", penwidth=2, style=solid, arrowhead=onormal, label="", tooltip="SemanticAnalysis.Ir -> IrProgram; reverse IrProgram.Analysis"];
+"IrProgram" -> "IrFunction" [id="functions", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="", tooltip="IrProgram.Functions -> IrFunction; reverse IrFunction.Program"];
+"IrFunction" -> "IrNode" [id="nodes", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="arena", tooltip="IrFunction.Nodes -> IrNode; reverse IrNode.Function", tailport=w, headport=w];
+"IrFunction" -> "IrNode" [id="body", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="body", tooltip="IrFunction.Body -> IrNode; reverse IrNode.BodyOwner", tailport=e, headport=e];
+"IrNode" -> "IrNode" [id="ir-tree", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=normal, label="children", tooltip="IrNode.Children -> IrNode; reverse IrNode.Parent", tailport=nw, headport=sw];
+"IrNode" -> "IrNode" [id="loop-target", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="target loop", tooltip="IrNode.Target -> IrNode; reverse IrNode.Transfers", tailport=ne, headport=se];
+"IrNode" -> "IrOperand" [id="operands", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="operands", tooltip="IrNode.Operands -> IrOperand; reverse IrOperand.Consumer", tailport=w, headport=w];
+"IrNode" -> "IrOperand" [id="uses", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=normal, label="definition uses", tooltip="IrNode.Uses -> IrOperand; reverse IrOperand.Definition", tailport=e, headport=e];
+}

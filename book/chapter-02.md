@@ -1,5 +1,19 @@
 # Chapter 2 — Recognize Tokens Without Parser Feedback
 
+<!-- common-diagram:start -->
+
+![Tokens belong to their source. Text relationships and class descriptions follow.](figures/ch02-common.svg)
+
+**New data structures.**
+
+- **Token:** One lexical decision anchored in the original source bytes. Its source owns it; decoded literal bytes are immutable value data.
+
+[Text relationships and source fields](figures/ch02-relationships.md).
+
+<!-- common-diagram:end -->
+
+## Introduction
+
 Parser generators are not the only tools whose tradeoffs change when an AI can write the implementation. The same question applies to Lex and Flex: do we want generated code, or do we want straightforward code that implements a precise specification?
 
 For lexers, this argument is older. I remember people advocating hand-written lexers back in the 1980s. Efficiency was one reason. A scanner is a hot loop, and writing it yourself lets you control exactly what happens for each input byte. Another reason was simply that a lexer for a modest language could often be written in a day or two. If the implementation is that small, how much machinery do we need to avoid writing it?

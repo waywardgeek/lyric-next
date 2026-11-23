@@ -1,5 +1,7 @@
 # Chapter 5 — Run the Program
 
+## Introduction
+
 By the time an LLM can autonomously build an optimizing frontend competitive with the engineering we get from Clang, I expect it will no longer need me in the loop. At that point, all bets are off. It may replace this compiler, this specification, or the language itself with something better that we cannot predict. I am not designing a speculative backend migration for that world. For as long as the human—me—is required, C is our backend.
 
 The world believes very strongly in many things that are false. I only know what some of them are. One is the idea that a serious new programming language should target LLVM IR rather than C, and that doing so is automatically the performance-conscious choice.

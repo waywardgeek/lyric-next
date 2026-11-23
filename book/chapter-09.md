@@ -1,5 +1,27 @@
 # Chapter 9 — Make Execution Explicit
 
+<!-- common-diagram:start -->
+
+![IR ownership and ordered structure. Text relationships and class descriptions follow.](figures/ch09-ownership.svg)
+
+![IR retains checked meaning. Text relationships and class descriptions follow.](figures/ch09-meaning.svg)
+
+**New data structures.**
+
+- **IrProgram:** The execution representation owned by one semantic analysis. Owns all source-function and generated-destruction bodies.
+- **IrFunction:** Owns every node in one function arena, even detached drafts. Its body link selects the root region; its source declaration or destruction-class link identifies what it implements.
+- **IrNode:** One typed operation or structured region. The function owns it; ordered child links describe execution, operands provide inputs, and semantic/source links preserve checked meaning.
+- **IrOperand:** One ordered input use, owned by the consuming node. It points non-owningly to its defining node, which keeps a reverse list of uses.
+- **IrLiteral:** An immutable value-like integer, boolean or byte payload. Byte data is copied at construction; a literal is not a runtime array owner.
+
+The two views separate execution ownership from checked meaning. Nominal type dependencies also maintain reverse links on their class symbol; changing semantic inputs retires the derived IR.
+
+[Text relationships and source fields](figures/ch09-relationships.md).
+
+<!-- common-diagram:end -->
+
+## Introduction
+
 I did not build a low-level intermediate representation for Rune. I regretted that decision when I wrote its LLVM IR generator.
 
 It was horrible.

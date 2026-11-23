@@ -1,0 +1,609 @@
+{
+  "schema": 1,
+  "types": {
+    "Compilation": {
+      "introduced": 1,
+      "description": "Owns the loaded source files and, from Chapter 4 onward, their shared semantic analysis.",
+      "value": false
+    },
+    "SourceFile": {
+      "introduced": 1,
+      "description": "Owns the original immutable UTF-8 bytes and their path. Later chapters attach tokens and syntax nodes to this same source.",
+      "value": false
+    },
+    "Diagnostic": {
+      "introduced": 1,
+      "description": "A value-like error code, message, byte offset, line and column. It stores a location, not a source-object relationship.",
+      "value": true
+    },
+    "Token": {
+      "introduced": 2,
+      "description": "One lexical decision anchored in the original source bytes. Its source owns it; decoded literal bytes are immutable value data.",
+      "value": false
+    },
+    "SyntaxNode": {
+      "introduced": 3,
+      "description": "One parsed construct. Its source owns its lifetime; ordered parent/child links describe syntax without owning neighboring nodes.",
+      "value": false
+    },
+    "SyntaxFailure": {
+      "introduced": 3,
+      "description": "A value-like exception carrying a Diagnostic to unwind a failed parse. Partially built nodes remain owned by the source.",
+      "value": true
+    },
+    "SemanticAnalysis": {
+      "introduced": 4,
+      "description": "The compilation-owned analysis of all source trees. Owns every scope and checked fact, including incomplete construction.",
+      "value": false
+    },
+    "SemanticScope": {
+      "introduced": 4,
+      "description": "A lexical namespace that owns declaration symbols. Analysis owns every scope; a function also owns its function scope. Lexical parent/child links are non-owning.",
+      "value": false
+    },
+    "SemanticSymbol": {
+      "introduced": 4,
+      "description": "The identity of a declaration, owned by its scope. User declarations link to syntax; builtins need no invented syntax node. Function symbols also own their function scope.",
+      "value": false
+    },
+    "SemanticFact": {
+      "introduced": 4,
+      "description": "A checked expression: its type, optional constant and resolved declaration. Analysis owns it; syntax and declaration links let checking and emission share the same result.",
+      "value": false
+    },
+    "SemanticFailure": {
+      "introduced": 4,
+      "description": "A value-like exception carrying a Diagnostic to unwind semantic checking. It does not own semantic model objects.",
+      "value": true
+    },
+    "SemanticType": {
+      "introduced": 7,
+      "description": "An immutable value describing a scalar kind and array nesting depth. It replaces the earlier scalar-only enum; Chapter 8 adds an optional nominal class identity.",
+      "value": true
+    },
+    "IrProgram": {
+      "introduced": 9,
+      "description": "The execution representation owned by one semantic analysis. Owns all source-function and generated-destruction bodies.",
+      "value": false
+    },
+    "IrFunction": {
+      "introduced": 9,
+      "description": "Owns every node in one function arena, even detached drafts. Its body link selects the root region; its source declaration or destruction-class link identifies what it implements.",
+      "value": false
+    },
+    "IrNode": {
+      "introduced": 9,
+      "description": "One typed operation or structured region. The function owns it; ordered child links describe execution, operands provide inputs, and semantic/source links preserve checked meaning.",
+      "value": false
+    },
+    "IrOperand": {
+      "introduced": 9,
+      "description": "One ordered input use, owned by the consuming node. It points non-owningly to its defining node, which keeps a reverse list of uses.",
+      "value": false
+    },
+    "IrLiteral": {
+      "introduced": 9,
+      "description": "An immutable value-like integer, boolean or byte payload. Byte data is copied at construction; a literal is not a runtime array owner.",
+      "value": true
+    }
+  },
+  "relationships": [
+    {
+      "id": "sources",
+      "owner": "Compilation",
+      "field": "Sources",
+      "child": "SourceFile",
+      "kind": "strong",
+      "chapter": 1,
+      "back": "Parent",
+      "label": ""
+    },
+    {
+      "id": "tokens",
+      "owner": "SourceFile",
+      "field": "Tokens",
+      "child": "Token",
+      "kind": "strong",
+      "chapter": 2,
+      "back": "Source",
+      "label": ""
+    },
+    {
+      "id": "syntax",
+      "owner": "SourceFile",
+      "field": "SyntaxNodes",
+      "child": "SyntaxNode",
+      "kind": "strong",
+      "chapter": 3,
+      "back": "Source",
+      "label": ""
+    },
+    {
+      "id": "syntax-tree",
+      "owner": "SyntaxNode",
+      "field": "Children",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 3,
+      "back": "Parent",
+      "label": "children"
+    },
+    {
+      "id": "syntax-error",
+      "owner": "SyntaxFailure",
+      "field": "Diagnostic",
+      "child": "Diagnostic",
+      "kind": "data",
+      "chapter": 3,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "analysis",
+      "owner": "Compilation",
+      "field": "Analysis",
+      "child": "SemanticAnalysis",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Compilation",
+      "label": ""
+    },
+    {
+      "id": "scopes",
+      "owner": "SemanticAnalysis",
+      "field": "Scopes",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Analysis",
+      "label": ""
+    },
+    {
+      "id": "facts",
+      "owner": "SemanticAnalysis",
+      "field": "Facts",
+      "child": "SemanticFact",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Analysis",
+      "label": ""
+    },
+    {
+      "id": "scope-tree",
+      "owner": "SemanticScope",
+      "field": "Children",
+      "child": "SemanticScope",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "Parent",
+      "label": "lexical children"
+    },
+    {
+      "id": "symbols",
+      "owner": "SemanticScope",
+      "field": "Symbols",
+      "child": "SemanticSymbol",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Scope",
+      "label": ""
+    },
+    {
+      "id": "function-scope",
+      "owner": "SemanticSymbol",
+      "field": "FunctionScope",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Function",
+      "label": "function scope"
+    },
+    {
+      "id": "declaration",
+      "owner": "SemanticSymbol",
+      "field": "Declaration",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "DeclaredSymbol",
+      "label": "declaration"
+    },
+    {
+      "id": "fact-node",
+      "owner": "SemanticFact",
+      "field": "Node",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "Fact",
+      "label": "checked expression"
+    },
+    {
+      "id": "fact-symbol",
+      "owner": "SemanticFact",
+      "field": "Symbol",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "Uses",
+      "label": "resolved declaration"
+    },
+    {
+      "id": "semantic-error",
+      "owner": "SemanticFailure",
+      "field": "Diagnostic",
+      "child": "Diagnostic",
+      "kind": "data",
+      "chapter": 4,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "symbol-type",
+      "owner": "SemanticSymbol",
+      "field": "Type",
+      "child": "SemanticType",
+      "kind": "data",
+      "chapter": 7,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "fact-type",
+      "owner": "SemanticFact",
+      "field": "Type",
+      "child": "SemanticType",
+      "kind": "data",
+      "chapter": 7,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "member-scope",
+      "owner": "SemanticSymbol",
+      "field": "MemberScope",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "chapter": 8,
+      "back": "Class",
+      "label": "member scope"
+    },
+    {
+      "id": "nominal",
+      "owner": "SemanticType",
+      "field": "Class",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 8,
+      "back": null,
+      "label": "nominal class"
+    },
+    {
+      "id": "ir",
+      "owner": "SemanticAnalysis",
+      "field": "Ir",
+      "child": "IrProgram",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Analysis",
+      "label": ""
+    },
+    {
+      "id": "functions",
+      "owner": "IrProgram",
+      "field": "Functions",
+      "child": "IrFunction",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Program",
+      "label": ""
+    },
+    {
+      "id": "nodes",
+      "owner": "IrFunction",
+      "field": "Nodes",
+      "child": "IrNode",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Function",
+      "label": "arena"
+    },
+    {
+      "id": "body",
+      "owner": "IrFunction",
+      "field": "Body",
+      "child": "IrNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "BodyOwner",
+      "label": "body"
+    },
+    {
+      "id": "ir-tree",
+      "owner": "IrNode",
+      "field": "Children",
+      "child": "IrNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "Parent",
+      "label": "children"
+    },
+    {
+      "id": "loop-target",
+      "owner": "IrNode",
+      "field": "Target",
+      "child": "IrNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "Transfers",
+      "label": "target loop"
+    },
+    {
+      "id": "operands",
+      "owner": "IrNode",
+      "field": "Operands",
+      "child": "IrOperand",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Consumer",
+      "label": "operands"
+    },
+    {
+      "id": "uses",
+      "owner": "IrNode",
+      "field": "Uses",
+      "child": "IrOperand",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "Definition",
+      "label": "definition uses"
+    },
+    {
+      "id": "ir-declaration",
+      "owner": "IrFunction",
+      "field": "Declaration",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrBody",
+      "label": "source declaration"
+    },
+    {
+      "id": "ir-destruction",
+      "owner": "IrFunction",
+      "field": "DestructionClass",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrDestruction",
+      "label": "destruction class"
+    },
+    {
+      "id": "origin",
+      "owner": "IrNode",
+      "field": "Origin",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrOrigins",
+      "label": "source origin"
+    },
+    {
+      "id": "selected",
+      "owner": "IrNode",
+      "field": "Symbol",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrSymbols",
+      "label": "selected declaration"
+    },
+    {
+      "id": "ir-type",
+      "owner": "IrNode",
+      "field": "Type",
+      "child": "SemanticType",
+      "kind": "data",
+      "chapter": 9,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "literal",
+      "owner": "IrNode",
+      "field": "Literal",
+      "child": "IrLiteral",
+      "kind": "data",
+      "chapter": 9,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "typed-symbols",
+      "owner": "SemanticSymbol",
+      "field": "TypedSymbols",
+      "child": "SemanticSymbol",
+      "kind": "dependency",
+      "chapter": 8,
+      "back": "Type.Class",
+      "label": "typed symbols"
+    },
+    {
+      "id": "typed-facts",
+      "owner": "SemanticSymbol",
+      "field": "TypedFacts",
+      "child": "SemanticFact",
+      "kind": "dependency",
+      "chapter": 8,
+      "back": "Type.Class",
+      "label": "typed facts"
+    },
+    {
+      "id": "typed-ir",
+      "owner": "SemanticSymbol",
+      "field": "IrTypes",
+      "child": "IrNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "Type.Class",
+      "label": "nominal type uses"
+    }
+  ],
+  "views": [
+    {
+      "chapter": 1,
+      "id": "ch01-common",
+      "title": "Sources and diagnostics",
+      "nodes": [
+        "Compilation",
+        "SourceFile",
+        "Diagnostic"
+      ],
+      "edges": [
+        "sources"
+      ]
+    },
+    {
+      "chapter": 2,
+      "id": "ch02-common",
+      "title": "Tokens belong to their source",
+      "nodes": [
+        "SourceFile",
+        "Token"
+      ],
+      "edges": [
+        "tokens"
+      ]
+    },
+    {
+      "chapter": 3,
+      "id": "ch03-common",
+      "title": "Syntax ownership is not tree nesting",
+      "nodes": [
+        "SourceFile",
+        "SyntaxNode",
+        "SyntaxFailure",
+        "Diagnostic"
+      ],
+      "edges": [
+        "syntax",
+        "syntax-tree",
+        "syntax-error"
+      ]
+    },
+    {
+      "chapter": 4,
+      "id": "ch04-common",
+      "title": "Scopes, declarations and checked expressions",
+      "nodes": [
+        "Compilation",
+        "SemanticAnalysis",
+        "SemanticScope",
+        "SemanticSymbol",
+        "SemanticFact",
+        "SyntaxNode",
+        "SemanticFailure",
+        "Diagnostic"
+      ],
+      "edges": [
+        "analysis",
+        "scopes",
+        "facts",
+        "scope-tree",
+        "symbols",
+        "function-scope",
+        "declaration",
+        "fact-node",
+        "fact-symbol",
+        "semantic-error"
+      ]
+    },
+    {
+      "chapter": 7,
+      "id": "ch07-common",
+      "title": "Array types remain values",
+      "nodes": [
+        "SemanticSymbol",
+        "SemanticFact",
+        "SemanticType"
+      ],
+      "edges": [
+        "symbol-type",
+        "fact-type"
+      ]
+    },
+    {
+      "chapter": 8,
+      "id": "ch08-common",
+      "title": "Class scopes and nominal types",
+      "nodes": [
+        "SemanticSymbol",
+        "SemanticScope",
+        "SemanticType",
+        "SemanticFact"
+      ],
+      "edges": [
+        "member-scope",
+        "nominal",
+        "typed-symbols",
+        "typed-facts"
+      ]
+    },
+    {
+      "chapter": 9,
+      "id": "ch09-ownership",
+      "title": "IR ownership and ordered structure",
+      "nodes": [
+        "SemanticAnalysis",
+        "IrProgram",
+        "IrFunction",
+        "IrNode",
+        "IrOperand"
+      ],
+      "edges": [
+        "ir",
+        "functions",
+        "nodes",
+        "body",
+        "ir-tree",
+        "loop-target",
+        "operands",
+        "uses"
+      ]
+    },
+    {
+      "chapter": 9,
+      "id": "ch09-meaning",
+      "title": "IR retains checked meaning",
+      "nodes": [
+        "IrFunction",
+        "IrNode",
+        "IrLiteral",
+        "SemanticSymbol",
+        "SyntaxNode",
+        "SemanticType"
+      ],
+      "edges": [
+        "ir-declaration",
+        "ir-destruction",
+        "origin",
+        "selected",
+        "ir-type",
+        "literal",
+        "typed-ir"
+      ],
+      "rankdir": "TB"
+    }
+  ],
+  "reviewed_files": {
+    "compiler/Model/Model.cs": "cc1d578ba43cf10c2a846edcd52186aa267d6c22a736d6c343ebd76bb7cc6c85",
+    "compiler/Model/Token.cs": "62522414f455c5d30c572b80b9db0ef652590f1955de156725180855d7c66f57",
+    "compiler/Syntax/SyntaxNode.cs": "2d9b4fd093e48ef1bb9f63142498250dca96b97a68faaeee3d0cf9508cc516bc",
+    "compiler/Semantics/SemanticModel.cs": "3ece2bef4992de101609831afc1c1b45ed9518acf72f9e7b1e2dd2571861b23e",
+    "compiler/Semantics/SemanticSymbol.cs": "94b0ce4351a2cafd5fc7a1c5b2e76f827af0c1ff6958118d59f4a04ac8afc35e",
+    "compiler/Semantics/SemanticFact.cs": "0155b555500f4037774e813b3565f97375cbc1b7b5870b566351abacad8e288a",
+    "compiler/Semantics/FunctionScope.cs": "b36bc71190ddb4f1409df555650cda2f0cb313b79ef74f03410e525224698b9c",
+    "compiler/Semantics/ClassModel.cs": "674831b4f74ff718a95d36e7305e1adfbeee548023f33f76babf7bbce0968b63",
+    "compiler/IR/Model.cs": "5283f9e84b0211b13d97e4316cb59b4e38be5c49c6db86a76d1c682af0573a84"
+  }
+}

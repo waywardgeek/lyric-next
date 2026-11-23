@@ -1,5 +1,23 @@
 # Chapter 1 — Read the Source Faithfully
 
+<!-- common-diagram:start -->
+
+![Sources and diagnostics. Text relationships and class descriptions follow.](figures/ch01-common.svg)
+
+**New data structures.**
+
+- **Compilation:** Owns the loaded source files and, from Chapter 4 onward, their shared semantic analysis.
+- **SourceFile:** Owns the original immutable UTF-8 bytes and their path. Later chapters attach tokens and syntax nodes to this same source.
+- **Diagnostic:** A value-like error code, message, byte offset, line and column. It stores a location, not a source-object relationship.
+
+`Diagnostic` is returned as value data, so there is no ownership arrow from a source to its diagnostics.
+
+[Text relationships and source fields](figures/ch01-relationships.md).
+
+<!-- common-diagram:end -->
+
+## Introduction
+
 The character encoding wars took decades to run their course. Microsoft gave us a particularly weird corner of the battlefield: `WCHAR`, `TCHAR`, `wchar_t`, narrow APIs, wide APIs, and macros to pretend we had not just doubled the problem. Those were not three successive spellings of the same solution. They were different pieces of machinery we had to understand before we could get on with our work.
 
 To be fair to Microsoft, Windows committed to Unicode before UTF-8 existed. Sixteen-bit UCS-2 looked like a sensible way to represent the world’s characters. Microsoft got there early, and then had to preserve the APIs it had shipped. The historical choice makes sense. Living with the consequences was still a pain.

@@ -1,0 +1,23 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"Compilation" [label="Compilation\n(existing)", fillcolor="#ffffff"];
+"SemanticAnalysis" [label="SemanticAnalysis", fillcolor="#edf4fb"];
+"SemanticScope" [label="SemanticScope", fillcolor="#edf4fb"];
+"SemanticSymbol" [label="SemanticSymbol", fillcolor="#edf4fb"];
+"SemanticFact" [label="SemanticFact", fillcolor="#edf4fb"];
+"SyntaxNode" [label="SyntaxNode\n(existing)", fillcolor="#ffffff"];
+"SemanticFailure" [label="SemanticFailure\n(value)", fillcolor="#edf4fb"];
+"Diagnostic" [label="Diagnostic\n(existing, value)", fillcolor="#ffffff"];
+"Compilation" -> "SemanticAnalysis" [id="analysis", color="#164f86", penwidth=2, style=solid, arrowhead=onormal, label="", tooltip="Compilation.Analysis -> SemanticAnalysis; reverse SemanticAnalysis.Compilation"];
+"SemanticAnalysis" -> "SemanticScope" [id="scopes", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="", tooltip="SemanticAnalysis.Scopes -> SemanticScope; reverse SemanticScope.Analysis"];
+"SemanticAnalysis" -> "SemanticFact" [id="facts", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="", tooltip="SemanticAnalysis.Facts -> SemanticFact; reverse SemanticFact.Analysis"];
+"SemanticScope" -> "SemanticScope" [id="scope-tree", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=normal, label="lexical children", tooltip="SemanticScope.Children -> SemanticScope; reverse SemanticScope.Parent"];
+"SemanticScope" -> "SemanticSymbol" [id="symbols", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="", tooltip="SemanticScope.Symbols -> SemanticSymbol; reverse SemanticSymbol.Scope"];
+"SemanticSymbol" -> "SemanticScope" [id="function-scope", color="#164f86", penwidth=2, style=solid, arrowhead=onormal, label="function scope", tooltip="SemanticSymbol.FunctionScope -> SemanticScope; reverse SemanticScope.Function"];
+"SemanticSymbol" -> "SyntaxNode" [id="declaration", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="declaration", tooltip="SemanticSymbol.Declaration -> SyntaxNode; reverse SyntaxNode.DeclaredSymbol"];
+"SemanticFact" -> "SyntaxNode" [id="fact-node", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="checked expression", tooltip="SemanticFact.Node -> SyntaxNode; reverse SyntaxNode.Fact"];
+"SemanticFact" -> "SemanticSymbol" [id="fact-symbol", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="resolved declaration", tooltip="SemanticFact.Symbol -> SemanticSymbol; reverse SemanticSymbol.Uses"];
+"SemanticFailure" -> "Diagnostic" [id="semantic-error", color="#687682", penwidth=1.2, style=dotted, arrowhead=onormal, label="", tooltip="SemanticFailure.Diagnostic -> Diagnostic"];
+}

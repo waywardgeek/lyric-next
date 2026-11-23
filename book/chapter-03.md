@@ -1,5 +1,20 @@
 # Chapter 3 — Parse the Language
 
+<!-- common-diagram:start -->
+
+![Syntax ownership is not tree nesting. Text relationships and class descriptions follow.](figures/ch03-common.svg)
+
+**New data structures.**
+
+- **SyntaxNode:** One parsed construct. Its source owns its lifetime; ordered parent/child links describe syntax without owning neighboring nodes.
+- **SyntaxFailure:** A value-like exception carrying a Diagnostic to unwind a failed parse. Partially built nodes remain owned by the source.
+
+[Text relationships and source fields](figures/ch03-relationships.md).
+
+<!-- common-diagram:end -->
+
+## Introduction
+
 Parsing has a crazy history. Much of the foundational work happened in the 1960s. In 1975, Stephen C. Johnson at Bell Labs published *Yacc: Yet Another Compiler-Compiler*. Even then, apparently, we had enough compiler-compilers to need a joke about it.
 
 Yacc's LALR(1) parsers became important tools. But being able to look at a shift/reduce or reduce/reduce conflict and quickly see how to fix the grammar remained a specialized skill. I happen to be good at it. I wrote many such parsers over my career. That does not mean I think everybody else should have to acquire the same expertise before designing a useful input language.

@@ -64,6 +64,24 @@ The compiler's object graph must demonstrate the rules it implements. Constructo
 
 We will define concrete compiler types when an increment earns them. Chapter 0 does not invent a full AST, service registry, universal pass framework, or extensibility system in advance.
 
+### How to read the data-structure diagrams
+
+At the start of each chapter that changes Common, a diagram introduces the new relationships and a short class guide explains the vocabulary. Read them before the implementation: they tell you what the program remembers and who is responsible for its lifetime. Classes marked **existing** appeared earlier; their new relationships belong to the current chapter. Each compiler relationship is drawn once, where it is introduced. A class may therefore appear in several diagrams without repeating its earlier arrows.
+
+The example below is a fictional document editor, not a compiler design or an implementation assignment.
+
+![Illustrative diagram key: a document, its paragraphs and cursor, a style value, and derived layout.](figures/ch00-diagram-key.svg)
+
+Start with **Document**. Its heavy solid blue arrows say that it strongly owns its paragraphs and cursor: destroying the document destroys those children. The filled arrowhead toward **Paragraph** means potentially many paragraphs; the open arrowhead toward **Cursor** means one cursor slot. An open head does not say whether that slot is required or may be empty—the operation's contract supplies that rule. Thickness and multiplicity are independent: one child can be strongly owned, and a collection can be non-owning.
+
+Follow the thin dashed orange arrow from **Cursor** to **Paragraph**. It records the selected paragraph without owning it. Destroying the cursor must detach that relationship, not destroy the paragraph. Destroying a paragraph must likewise clear incoming selections rather than leave dangling references. The label **selected** names the role; labels that merely repeat the destination's class name add nothing.
+
+The gray dotted arrow to **TextStyle** means stored value data. A style describes formatting rather than an independently managed model relationship. Value-like boxes are marked **value**; they do not need holder back-references or relationship-destruction machinery merely to reclaim their memory.
+
+The purple dashed arrow from **Paragraph** to **Layout** records a different obligation: derived information must be retired when its source is invalidated or destroyed. In this example, editing a paragraph makes its old layouts unusable. That dependency does not make a layout the owner of the paragraph or give every object that refers to a paragraph permission to destroy it. The compiler uses this notation for semantic information that depends on a declaration.
+
+Arrows show each relationship once. For relationship-bearing objects, the model maintains the reverse links too; it does not draw a second arrow merely to repeat them. Multiple parents are allowed, and ownership is not necessarily a tree. The adjacent class descriptions and text-relationship companions supply the roles and exact fields when a compact drawing cannot tell the whole story. These are data and lifetime diagrams, not flowcharts: an arrow does not mean “execute this next.”
+
 ### Compiler milestones and their evidence
 
 The edition strategy is described in the Preface. Its implementation milestones require distinct evidence:

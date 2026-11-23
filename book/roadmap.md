@@ -36,6 +36,20 @@ Interface conformance requires behavior, not implicit storage injection or runti
 wrappers. Preserve all participant and endpoint-role mappings in binding and
 specialization identity from the start.
 
+## Proposed future topic — canonical type identities
+
+Bill agreed to introduce the full type hierarchy and type interning together in a
+future chapter, likely alongside specialization; its exact chapter boundary is not
+yet agreed. Use a
+hash table with a complete equality check on collisions to canonicalize immutable
+types, allowing later equality checks to compare canonical object identities.
+Preserve nominal declaration identity; equal spelling is not equal type. Keep
+specialization keys complete, including interface bindings and participant roles.
+
+The current SemanticType is a flat value of scalar kind, array depth and optional
+class identity. Its equality is constant-size, not a recursive hierarchy walk.
+This proposal is not permission to change that representation during diagram work.
+
 ## Relationship prerequisites and the graph
 
 Place nullable references, Result/Status/propagation, and iteration/generators deliberately before the relationship features that require them. These may take separate chapters; do not compress them to preserve provisional chapter numbers.
