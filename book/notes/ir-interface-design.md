@@ -41,7 +41,9 @@ These are responsibilities, not a mandate to put all semantics in today's Check
 function or create five independent whole-program passes. Functional modules use
 the Common vocabulary. Owned IR objects need explicit parents, complete backlinks,
 and invalidation/destruction; copied symbol/service tables are not a substitute.
-The precise IR object model and pass algorithms remain development work.
+The initial structured model is now declared in `compiler/Common/IR.cs`, with
+lifecycle implementations in `compiler/IR/Model.cs`. Lowering, validation,
+optimization, and emission through it remain development work.
 
 ## What the IR must make expressible
 
@@ -108,7 +110,7 @@ Use cumulative behavior as a regression oracle, not as a substitute for checking
 those structural changes. Chapter 5 stays in its current position; no existing
 chapter is moved.
 
-## Agreed next chapters — implementation not started
+## Agreed next chapters — IR data-model increment started
 
 **Chapter 9: Explicit execution and ownership IR.** Refactor the
 existing supported language through the IR with unchanged semantics, AoS/SoA
@@ -142,5 +144,62 @@ Combining the IR and interfaces in Chapter 9 is possible, but joins a substantia
 backend refactor with new language semantics and makes failures harder to isolate.
 Bill chose a short focused IR chapter, then the full cooperating-type mechanism
 without an intervening ordinary-interface-only chapter. Chapters 9 and 10 are the
-agreed sequence. This records the construction plan; implementation has not begun.
-Bill is currently considering further openings for existing chapters.
+agreed sequence. This records the construction plan. Only the initial IR data model has been
+implemented; the existing compiler still emits C from checked syntax.
+
+
+## Structured model: current construction decision
+
+Preserve high-level `if`, `while`, and `for` structure rather than flattening into
+basic blocks and reconstructing C later. `IrNode` represents regions and operations;
+region roles distinguish initializer, condition, body, branches, and step. A loop
+condition's operations execute on every test. Continue must execute a for-step,
+while break/return must not. Conditional computation remains conditional, including
+short-circuit operands. Lowering and validation will establish these contracts;
+the data model alone does not prove them.
+
+`SemanticAnalysis` strongly owns one `IrProgram`, which owns its `IrFunction`s.
+Each function owns all its nodes as an arena. Structured parent/child edges are
+weak, allowing detach/move without destruction; even detached drafts are destroyed
+with the function. Nodes own ordered `IrOperand` use objects. Definitions keep
+reverse uses; deleting a definition clears those weak links without deleting its
+consumers. Such an incomplete draft must be validated before emission. Break and
+continue reference actual loop nodes with reverse transfer lists, not labels.
+
+Nodes distinguish value results from selected storage addresses. Ref/unref,
+array new/free, copy, move, and holder clearing are explicit operations. Ordered
+operations preserve evaluation and snapshots rather than relying on C argument
+order. Nominal result types register reverse dependencies on class symbols;
+selected declarations and source origins likewise retain both relationship ends.
+Source mutation, declaration destruction, or successful semantic type replacement
+retires the IR before its inputs change. Refused type changes leave it intact.
+
+`IrLiteral` is explicitly value-like and immutable. Its byte payload is copied on
+construction and cannot be mutated through its interface. IR nodes, functions,
+and operand objects are identity-bearing and are not value-like exceptions.
+
+This is deliberately separate from the AST: source structure remains intact while
+compiler-generated ownership work is transformed. There is no second resolver,
+SSA layer, basic-block edge graph, or active optimizer in this increment.
+
+## Specialization reuse and unreachable functions — agreed future passes
+
+Repeated requests for the same concrete generic instance must reuse one body.
+A parameter signature alone is insufficient: distinguish original declaration,
+concrete type arguments, selected implementation identity, and complete participant
+and endpoint-role bindings. The specialization phase owns this canonical mapping.
+IR has one body per concrete semantic function declaration and calls retain that
+actual declaration. The data model refuses a second body for the same declaration.
+It does not yet implement generic canonicalization.
+
+Whole-program reachability begins with main and explicitly retained entry points,
+follows concrete call dependencies, and removes unreachable functions, including
+unreachable recursive groups. Generated final hooks, destructors, and ownership or
+allocation helpers count as dependencies too. Relation conveniences such as child
+counts need not survive merely because they were generated. Relation and generic
+elaboration precedes optimization of concrete IR; provenance and selected bindings
+remain available without requiring the optimizer to resolve them again.
+
+These are agreed optimization directions, not implemented passes or measured code
+size improvements. The current node lifecycle permits function removal safely;
+reachability analysis still needs the generated-call dependency contract.

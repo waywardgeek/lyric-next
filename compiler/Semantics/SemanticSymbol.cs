@@ -156,6 +156,8 @@ internal sealed partial class SemanticSymbol
         {
             return;
         }
+        // IR borrows declarations and types; retire it before either disappears.
+        Scope?.Analysis?.ClearIr();
         MemberScope?.Destroy();
         FunctionScope?.Destroy();
         while (TypedFacts.Count != 0)

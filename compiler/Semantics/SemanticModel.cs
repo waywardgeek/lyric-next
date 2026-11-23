@@ -45,6 +45,7 @@ internal sealed partial class SemanticAnalysis
         {
             return;
         }
+        ClearIr();
         Destroyed = true;
         Compilation?.RemoveAnalysis(this);
         // Facts borrow syntax and symbols. Retire those dependencies before

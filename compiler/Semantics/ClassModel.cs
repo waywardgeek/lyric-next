@@ -48,6 +48,8 @@ internal sealed partial class SemanticSymbol
             // type and its reverse membership untouched.
             nominal.TypedSymbols.EnsureCapacity(nominal.TypedSymbols.Count + 1);
         }
+        // Validation/reservation above must succeed before invalidating execution.
+        Scope?.Analysis?.ClearIr();
         Type?.Class?.RemoveTypedSymbol(this);
         if (nominal is not null)
         {

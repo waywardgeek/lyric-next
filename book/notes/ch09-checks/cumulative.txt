@@ -1,0 +1,1942 @@
+"python3" "graders/ch01/check_comparisons.py"
+Grader comparison self-check passed
+  Determining projects to restore...
+  Restored /Users/bill/projects/lyric-next/compiler/Lyric.csproj (in 31 ms).
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Debug/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.98
+PASS version
+PASS usage-0
+PASS usage-1
+PASS usage-2
+PASS usage-3
+PASS missing-file
+PASS empty-path
+PASS diagnostic-unusual-filename
+PASS empty
+PASS ascii
+PASS newlines
+PASS tabs-scalars
+PASS combining-not-normalized
+PASS rtl-letters
+PASS visible-escape-text
+PASS bom-not-stripped-from-spelling
+PASS utf8-width-boundaries
+PASS allowed-property-neighbors
+PASS malformed-0
+PASS malformed-1
+PASS malformed-2
+PASS malformed-3
+PASS malformed-4
+PASS malformed-5
+PASS malformed-6
+PASS malformed-7
+PASS malformed-8
+PASS malformed-9
+PASS malformed-10
+PASS malformed-11
+PASS malformed-12
+PASS malformed-13
+PASS malformed-14
+PASS malformed-15
+PASS malformed-16
+PASS malformed-17
+PASS forbidden-0000
+PASS forbidden-0008
+PASS forbidden-000B
+PASS forbidden-000C
+PASS forbidden-000E
+PASS forbidden-001F
+PASS forbidden-007F
+PASS forbidden-009F
+PASS forbidden-00AD
+PASS forbidden-034F
+PASS forbidden-061C
+PASS forbidden-115F
+PASS forbidden-1160
+PASS forbidden-17B4
+PASS forbidden-17B5
+PASS forbidden-180B
+PASS forbidden-180F
+PASS forbidden-200B
+PASS forbidden-200D
+PASS forbidden-200F
+PASS forbidden-202A
+PASS forbidden-202E
+PASS forbidden-2060
+PASS forbidden-206F
+PASS forbidden-3164
+PASS forbidden-FE00
+PASS forbidden-FE0F
+PASS forbidden-FEFF
+PASS forbidden-FFA0
+PASS forbidden-FFF0
+PASS forbidden-FFF8
+PASS forbidden-1BCA0
+PASS forbidden-1BCA3
+PASS forbidden-1D173
+PASS forbidden-1D17A
+PASS forbidden-E0000
+PASS forbidden-E0100
+PASS forbidden-E0FFF
+PASS forbidden-in-comment
+PASS forbidden-in-string
+PASS forbidden-in-raw
+PASS forbidden-in-symbol
+PASS lone-cr-at-end
+PASS lone-cr-before-text
+PASS lone-cr-double
+PASS earliest-error
+
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+82/82 semantic cases passed
+PASS closed-pipe
+PASS hello
+PASS empty
+PASS bytes
+PASS forward
+PASS branch-assignment
+PASS nested-else-effects
+PASS returned-bytes
+PASS unicode-identifiers
+PASS unit-values
+PASS argument-order
+PASS u8-multiplication-boundaries
+PASS u8-arithmetic-result
+PASS u16-multiplication-boundaries
+PASS u16-arithmetic-result
+PASS u32-multiplication-boundaries
+PASS u32-arithmetic-result
+PASS u64-multiplication-boundaries
+PASS u64-arithmetic-result
+PASS i8-multiplication-boundaries
+PASS i8-arithmetic-result
+PASS i16-multiplication-boundaries
+PASS i16-arithmetic-result
+PASS i32-multiplication-boundaries
+PASS i32-arithmetic-result
+PASS i64-multiplication-boundaries
+PASS i64-arithmetic-result
+PASS operand-order
+PASS assert-true
+PASS assert-once
+PASS assert-unit
+PASS u8-addition
+PASS u8-subtraction
+PASS u8-multiplication
+PASS u16-addition
+PASS u16-subtraction
+PASS u16-multiplication
+PASS u32-addition
+PASS u32-subtraction
+PASS u32-multiplication
+PASS u64-addition
+PASS u64-subtraction
+PASS u64-multiplication
+PASS i8-addition
+PASS i8-subtraction
+PASS i8-multiplication
+PASS i8-negative-add
+PASS i8-negative-sub
+PASS i8-negative-positive-mul
+PASS i8-positive-negative-mul
+PASS i8-negative-negative-mul
+PASS i16-addition
+PASS i16-subtraction
+PASS i16-multiplication
+PASS i16-negative-add
+PASS i16-negative-sub
+PASS i16-negative-positive-mul
+PASS i16-positive-negative-mul
+PASS i16-negative-negative-mul
+PASS i32-addition
+PASS i32-subtraction
+PASS i32-multiplication
+PASS i32-negative-add
+PASS i32-negative-sub
+PASS i32-negative-positive-mul
+PASS i32-positive-negative-mul
+PASS i32-negative-negative-mul
+PASS i64-addition
+PASS i64-subtraction
+PASS i64-multiplication
+PASS i64-negative-add
+PASS i64-negative-sub
+PASS i64-negative-positive-mul
+PASS i64-positive-negative-mul
+PASS i64-negative-negative-mul
+PASS returned-frame
+PASS assert-false
+PASS assert-trace
+PASS unknown-name
+PASS constant-overflow
+80/80 execution cases passed
+PASS signed
+PASS negative-unsigned
+PASS unsigned-negative
+PASS equal-mixed
+PASS positive-mixed
+PASS negation
+PASS short-circuit
+PASS nested-short-circuit
+PASS comparison-effects
+PASS sum
+PASS zero-iterations
+PASS continue-condition
+PASS nested-loop-targets
+PASS loop-return
+PASS fresh-loop-let
+PASS outer-let-break
+PASS width-i8
+PASS width-i16
+PASS width-i32
+PASS width-i64
+PASS width-u8
+PASS width-u16
+PASS width-u32
+PASS width-u64
+PASS skipped-runtime-overflow
+PASS loop-short-circuit-condition
+PASS branch-break-assignment
+PASS inner-let-once-per-outer
+PASS outer-let-return
+PASS empty-loop
+PASS division-i8
+PASS division-i16
+PASS division-i32
+PASS division-i64
+PASS division-u8
+PASS division-u16
+PASS division-u32
+PASS division-u64
+PASS signed-division-i8
+PASS signed-division-i16
+PASS signed-division-i32
+PASS signed-division-i64
+PASS constant-minimum-remainder
+PASS wrapping-runtime-u8
+PASS wrapping-constant-u8
+PASS wrapping-runtime-u16
+PASS wrapping-constant-u16
+PASS wrapping-runtime-u32
+PASS wrapping-constant-u32
+PASS wrapping-runtime-u64
+PASS wrapping-constant-u64
+PASS wrapping-runtime-i8
+PASS wrapping-constant-i8
+PASS wrapping-runtime-i16
+PASS wrapping-constant-i16
+PASS wrapping-runtime-i32
+PASS wrapping-constant-i32
+PASS wrapping-runtime-i64
+PASS wrapping-constant-i64
+PASS shift-width-u8
+PASS shift-width-u16
+PASS shift-width-u32
+PASS shift-width-u64
+PASS shift-width-i8
+PASS shift-width-i16
+PASS shift-width-i32
+PASS shift-width-i64
+PASS signed-right-shift-rounding
+PASS cast-boundaries-u8
+PASS cast-modular-negative-u8
+PASS cast-boundaries-u16
+PASS cast-modular-negative-u16
+PASS cast-boundaries-u32
+PASS cast-modular-negative-u32
+PASS cast-boundaries-u64
+PASS cast-modular-negative-u64
+PASS cast-boundaries-i8
+PASS cast-modular-negative-i8
+PASS cast-boundaries-i16
+PASS cast-modular-negative-i16
+PASS cast-boundaries-i32
+PASS cast-modular-negative-i32
+PASS cast-boundaries-i64
+PASS cast-modular-negative-i64
+PASS cast-single-evaluation
+PASS cast-modular-truncation
+PASS cast-nested-arithmetic
+PASS boolean-equality
+PASS boolean-equality-effects
+PASS compound-operators-i8
+PASS compound-operators-u8
+PASS compound-operators-i16
+PASS compound-operators-u16
+PASS compound-operators-i32
+PASS compound-operators-u32
+PASS compound-operators-i64
+PASS compound-operators-u64
+PASS compound-effects
+PASS compound-widening
+PASS compound-wrap-boundary
+PASS bitwise-i8
+PASS bitwise-u8
+PASS bitwise-signed-i8
+PASS bitwise-i16
+PASS bitwise-u16
+PASS bitwise-signed-i16
+PASS bitwise-i32
+PASS bitwise-u32
+PASS bitwise-signed-i32
+PASS bitwise-i64
+PASS bitwise-u64
+PASS bitwise-signed-i64
+PASS bitwise-widen
+PASS bitwise-effects
+PASS if-string
+PASS if-context
+PASS if-widen
+PASS if-argument-effects
+PASS if-nested
+PASS if-branch-locals
+PASS if-flow
+PASS if-return-arm
+PASS if-break-arm
+PASS if-newline-value
+PASS if-discard-unit
+PASS if-runtime-overflow-skipped
+PASS loop-condition-write-break
+PASS loop-condition-write-false
+PASS loop-condition-break-assigned
+PASS assignment-rhs-return-excluded
+PASS if-typed-neighbor-left
+PASS if-typed-neighbor-right
+PASS if-typed-neighbor-local
+PASS zero-i8-div
+PASS zero-i8-rem
+PASS zero-i16-div
+PASS zero-i16-rem
+PASS zero-i32-div
+PASS zero-i32-rem
+PASS zero-i64-div
+PASS zero-i64-rem
+PASS zero-u8-div
+PASS zero-u8-rem
+PASS zero-u16-div
+PASS zero-u16-rem
+PASS zero-u32-div
+PASS zero-u32-rem
+PASS zero-u64-div
+PASS zero-u64-rem
+PASS division-overflow-i8
+PASS negation-overflow-i8
+PASS division-overflow-i16
+PASS negation-overflow-i16
+PASS division-overflow-i32
+PASS negation-overflow-i32
+PASS division-overflow-i64
+PASS negation-overflow-i64
+PASS shift-count-u8--1
+PASS shift-count-u8-8
+PASS shift-count-u16--1
+PASS shift-count-u16-16
+PASS shift-count-u32--1
+PASS shift-count-u32-32
+PASS shift-count-u64--1
+PASS shift-count-u64-64
+PASS shift-count-i8--1
+PASS shift-count-i8-8
+PASS shift-count-i16--1
+PASS shift-count-i16-16
+PASS shift-count-i32--1
+PASS shift-count-i32-32
+PASS shift-count-i64--1
+PASS shift-count-i64-64
+PASS cast-out-of-range-u8
+PASS cast-out-of-range-u16
+PASS cast-out-of-range-u32
+PASS cast-out-of-range-u64
+PASS cast-out-of-range-i8
+PASS cast-out-of-range-i16
+PASS cast-out-of-range-i32
+PASS cast-out-of-range-i64
+PASS cast-complementary-bound-i8
+PASS cast-complementary-bound-u8
+PASS cast-complementary-bound-i16
+PASS cast-complementary-bound-u16
+PASS cast-complementary-bound-i32
+PASS cast-complementary-bound-u32
+PASS compound-overflow
+PASS compound-zero
+PASS if-width-left
+PASS if-width-right
+PASS if-width-local
+PASS if-annotated-width-left
+PASS if-annotated-width-right
+PASS if-annotated-width-local
+PASS if-statement-transfer-return
+PASS if-statement-transfer-break
+PASS if-statement-transfer-continue
+PASS bad-logical-left
+PASS bad-logical-right
+PASS bad-negation
+PASS bad-comparison
+PASS bad-condition
+PASS zero-path-unassigned
+PASS repeat-immutable
+PASS continue-immutable
+PASS break-possible-assignment
+PASS break-outside
+PASS continue-outside
+PASS nested-repeat-immutable
+PASS branch-continue-immutable
+PASS loop-local-invisible
+PASS first-iteration-unassigned
+PASS break-path-unassigned
+PASS constant-zero-division
+PASS constant-zero-remainder
+PASS constant-division-overflow
+PASS constant-computed-negation-overflow
+PASS constant-shift-count--1
+PASS constant-shift-count-8
+PASS shift-count-type
+PASS constant-cast-range-u8
+PASS constant-cast-range-u16
+PASS constant-cast-range-u32
+PASS constant-cast-range-u64
+PASS constant-cast-range-i8
+PASS constant-cast-range-i16
+PASS constant-cast-range-i32
+PASS constant-cast-range-i64
+PASS cast-does-not-widen-operand
+PASS boolean-integer-equality
+PASS boolean-ordering
+PASS compound-uninitialized
+PASS compound-immutable
+PASS compound-narrowing
+PASS compound-bool
+PASS compound-constant-zero
+PASS bitwise-incompatible
+PASS bitwise-bool
+PASS if-missing-else
+PASS if-mixed-types
+PASS if-semicolon-discards
+PASS if-context-no-narrow
+PASS if-branch-scope
+PASS if-short-circuit-initialization
+PASS if-short-circuit-possible-write
+PASS loop-condition-immutable-repeat
+PASS loop-condition-break-unassigned
+PASS assignment-rhs-double-write
+PASS assignment-rhs-one-arm-write
+250/250 execution cases passed
+PASS arithmetic
+PASS shifts
+PASS sign-bit
+PASS remainder-min
+PASS wrapping
+PASS cast
+PASS wrapping-cast
+PASS mixed-compare
+PASS unsigned-promotion
+PASS array
+PASS shift-width-u8
+PASS shift-width-i8
+PASS shift-width-u16
+PASS shift-width-i16
+PASS shift-width-u32
+PASS shift-width-i32
+PASS shift-width-u64
+PASS shift-width-i64
+PASS assertion retained under unsafe and NDEBUG
+PASS emission-only overflow
+PASS emission-only zero-div
+PASS emission-only zero-rem
+PASS emission-only shift-count
+PASS emission-only cast-range
+PASS emission-only computed-negation
+PASS type checking retained
+PASS borrow checking retained
+PASS unknown and duplicate options rejected
+87/87 unsafe checks passed
+PASS length-u64
+PASS integer-literal
+PASS empty-context
+PASS bool-elements
+PASS byte-string-alias
+PASS nested-literal
+PASS array-return
+PASS copy-independent
+PASS nested-copy-independent
+PASS parameter-copy
+PASS nested-replacement
+PASS self-assignment
+PASS string-copy
+PASS conditional-array
+PASS early-return-array
+PASS loop-array-exits
+PASS short-circuit-array
+PASS array-element-order
+PASS reserve-preserves-size
+PASS push-geometric-growth
+PASS resize-integer-default
+PASS resize-bool-default
+PASS truncate-regrow
+PASS nested-default-regrow
+PASS nested-push-copy
+PASS string-growth
+PASS descriptor-stable-during-argument
+PASS push-self-value
+PASS ref-scalar-parameter
+PASS ref-fixed-alias
+PASS ref-forward-helper
+PASS ref-array-growth
+PASS ref-array-value-copy
+PASS ref-descriptor-survives-growth
+PASS ref-element-last-use
+PASS ref-nonexclusive-scalar
+PASS ref-nested-last-use
+PASS ref-scalar-overlap
+PASS ref-scalar-value-return
+PASS ref-scalar-annotated
+PASS ref-conditional-preview
+PASS borrow-loop-fresh
+PASS borrow-loop-break
+PASS borrow-reacquire
+PASS borrow-returning-arm
+PASS borrow-descriptor-replacement
+PASS borrow-child-descriptor-growth
+PASS borrow-helper-use-before-growth
+PASS borrow-helper-distinct-owners
+PASS borrow-helper-forward-growth
+PASS borrow-helper-recursive-growth
+PASS borrow-forward-safe-order
+PASS borrow-helper-fresh-after-growth
+PASS borrow-mutual-recursion
+PASS alias-preview-widen-scalar-inferred
+PASS alias-preview-widen-scalar-annotated
+PASS alias-preview-widen-element-inferred
+PASS alias-preview-widen-element-annotated
+PASS capacity-reserved-empty
+PASS capacity-copy-tight
+PASS capacity-empty-copy
+PASS capacity-resize-zero
+PASS capacity-empty-release
+PASS capacity-truncate-retains
+PASS capacity-ref-alias
+PASS capacity-nested
+PASS capacity-value-parameter
+PASS negative-index
+PASS past-end-index
+PASS allocation-size-overflow
+PASS alias-preview-overflow-scalar-inferred-i64
+PASS alias-preview-overflow-scalar-inferred-u16
+PASS alias-preview-overflow-scalar-annotated-i64
+PASS alias-preview-overflow-scalar-annotated-u16
+PASS alias-preview-overflow-element-inferred-i64
+PASS alias-preview-overflow-element-inferred-u16
+PASS alias-preview-overflow-element-annotated-i64
+PASS alias-preview-overflow-element-annotated-u16
+PASS borrow-mutual-invalidation
+PASS borrow-helper-later-argument
+PASS borrow-helper-local-stale
+PASS borrow-helper-forward-invalidation
+PASS borrow-helper-forward-overlap
+PASS borrow-helper-recursive-invalidation
+PASS borrow-helper-nested-invalidation
+PASS borrow-alias-mutation
+PASS borrow-child-descriptor-moved
+PASS borrow-call-argument-effects
+PASS borrow-loop-continue
+PASS borrow-after-push
+PASS borrow-after-replacement
+PASS borrow-derived-after-growth
+PASS borrow-branch-invalidation
+PASS borrow-loop-backedge
+PASS borrow-helper-invalidation
+PASS borrow-helper-overlap
+PASS ref-missing-marker
+PASS ref-immutable-storage
+PASS ref-uninitialized-storage
+PASS ref-no-widening
+PASS ref-no-var-alias
+PASS length-no-narrow
+PASS immutable-element
+PASS immutable-nested
+PASS noninteger-index
+PASS immutable-growth
+PASS signed-growth-count
+PASS nested-receiver-invalidation
+PASS indexed-store-invalidation
+PASS nested-receiver-replacement
+PASS scalar-length
+PASS capacity-selection-invalidation
+112/112 execution cases passed
+PASS constructor-field
+PASS shared-identity
+PASS method
+PASS ordinary-final
+PASS counted-scope-final
+PASS counted-alias-final-once
+6/6 execution cases passed
+PASS review-tail-scalar
+PASS review-tail-array
+PASS review-tail-safe
+PASS review-tail-else-if
+PASS review-populate-alias
+PASS review-populate-chain
+PASS review-populate-nested
+PASS review-populate-direct
+PASS review-alias-empty
+PASS array-field-constructor-local-invalid
+PASS array-field-nested-descriptor-growth
+PASS array-field-nested-outer-replace
+PASS array-field-reference
+PASS array-field-element-write
+PASS array-field-descriptor-growth
+PASS array-field-payload-growth
+PASS array-field-payload-resize
+PASS array-field-payload-replace
+PASS array-field-descriptor-replace
+PASS array-field-helper-effect
+PASS array-field-helper-order
+PASS array-field-helper-other-field
+PASS array-field-payload-destroy
+PASS array-field-last-use
+PASS counted-assignment-receiver-cleanup
+PASS counted-else-if-cleanup
+PASS counted-else-if-named
+PASS counted-short-and-cleanup
+PASS counted-short-or-cleanup
+PASS counted-short-named-borrow
+PASS counted-final-self-copy
+PASS counted-final-self-argument
+PASS counted-final-field-read
+PASS counted-conditional-transfer
+PASS counted-conditional-discard
+PASS final-valid
+PASS final-direct-call
+PASS final-result
+PASS final-argument
+PASS final-duplicate
+PASS final-constructor
+PASS final-destroys-self
+PASS final-helper-destroys-class
+PASS final-other-class
+PASS final-effects-reach-caller
+PASS final-cross-class-cycle
+PASS initialized-field
+PASS mutable-object-parameter
+PASS both-branches
+PASS one-branch
+PASS early-return
+PASS initialized-return
+PASS read-before-write
+PASS partial-self-copy
+PASS partial-self-helper
+PASS initialized-self-helper
+PASS other-object-not-self
+PASS owned-array-field
+PASS field-hint
+PASS unknown-field
+PASS constructor-call
+PASS method-call
+PASS returned-handle
+PASS constructor-arity
+PASS no-constructor
+PASS no-reinitialization
+PASS method-ref-offset
+PASS method-borrow-effect
+PASS partial-self-method
+PASS destroy-last-use
+PASS destroy-stale-field
+PASS destroy-stale-alias
+PASS destroy-twice
+PASS destroy-fresh-object
+PASS destroy-does-not-revive-alias
+PASS destroy-helper-effect
+PASS destroy-helper-internal-use
+PASS destroy-conditional-effect
+PASS destroy-during-field-rhs
+PASS destroy-during-later-argument
+PASS growth-keeps-handle
+PASS destroy-constructor-self
+PASS destroy-constructor-return
+PASS destroy-delayed-binding
+PASS destroy-reassign-fresh
+PASS destroy-transitive
+PASS destroy-counted-forbidden
+PASS destroy-arity
+PASS destroy-other-class
+PASS release-helper-fallthrough
+PASS release-helper-return
+PASS release-branch-exit
+PASS release-replacement
+PASS release-break
+PASS release-continue
+PASS release-discarded-temporary
+PASS release-retained-alias
+PASS release-invalidates-returned-object
+PASS release-owned-parameter
+PASS release-final-same-class
+PASS release-temporary-method-receiver
+PASS release-temporary-field-receiver
+PASS temporary-field-control
+PASS retained-method-receiver-control
+PASS release-condition-false-exit
+PASS release-condition-back-edge
+PASS release-condition-continue
+PASS empty-counted-local-no-final
+PASS empty-counted-local-in-final
+PASS first-counted-assignment-no-old-release
+PASS conditional-holder-release-invalidates-return
+PASS conditional-holder-empty-path-control
+PASS field-ref-read
+PASS field-ref-write
+PASS field-ref-growth
+PASS field-ref-last-use
+PASS field-ref-helper-growth
+PASS field-ref-destroy
+PASS field-ref-other-class-growth
+PASS field-ref-reacquire
+PASS field-ref-helper-internal-use
+PASS field-ref-helper-use-first
+PASS field-ref-helper-local-control
+PASS field-ref-helper-forward
+PASS field-ref-constructor-argument
+PASS field-ref-later-argument
+PASS field-ref-final-growth
+PASS field-ref-release-growth
+PASS field-ref-loop-growth
+PASS field-ref-alias-does-not-revive
+PASS field-ref-counted-control
+PASS object-array-explicit
+PASS object-array-inferred
+PASS object-array-stale-element
+PASS object-array-stale-copy
+PASS object-array-helper-destroy
+PASS counted-array-final-self
+PASS counted-array-shrink-effect
+PASS counted-array-replace-effect
+PASS counted-array-scope-effect
+PASS counted-array-temporary-effect
+PASS counted-array-nested-shrink-effect
+PASS counted-array-return-transfer
+PASS counted-array-branch-transfer
+PASS counted-array-empty-final
+PASS counted-array-nested-empty-final
+PASS counted-array-empty-then-push
+PASS counted-array-empty-then-helper
+PASS counted-array-empty-then-nested-store
+PASS counted-array-empty-control
+PASS counted-array-length-temporary
+PASS counted-array-capacity-temporary
+PASS object-array-whole-replacement
+PASS object-array-slot-reuse-not-revival
+154/154 Chapter 8 checking cases passed
+PASS array-field-reference-write aos -O0
+PASS array-field-reference-write aos -O2
+PASS array-field-reference-write soa -O0
+PASS array-field-reference-write soa -O2
+PASS array-field-payload-survives-growth aos -O0
+PASS array-field-payload-survives-growth aos -O2
+PASS array-field-payload-survives-growth soa -O0
+PASS array-field-payload-survives-growth soa -O2
+PASS array-field-descriptor-replacement aos -O0
+PASS array-field-descriptor-replacement aos -O2
+PASS array-field-descriptor-replacement soa -O0
+PASS array-field-descriptor-replacement soa -O2
+PASS array-field-other-field-helper aos -O0
+PASS array-field-other-field-helper aos -O2
+PASS array-field-other-field-helper soa -O0
+PASS array-field-other-field-helper soa -O2
+PASS array-field-capacity-reset aos -O0
+PASS array-field-capacity-reset aos -O2
+PASS array-field-capacity-reset soa -O0
+PASS array-field-capacity-reset soa -O2
+PASS array-field-nested-descriptor aos -O0
+PASS array-field-nested-descriptor aos -O2
+PASS array-field-nested-descriptor soa -O0
+PASS array-field-nested-descriptor soa -O2
+PASS field-reference-write aos -O0
+PASS field-reference-write aos -O2
+PASS field-reference-write soa -O0
+PASS field-reference-write soa -O2
+PASS field-reference-last-use aos -O0
+PASS field-reference-last-use aos -O2
+PASS field-reference-last-use soa -O0
+PASS field-reference-last-use soa -O2
+PASS counted-assignment-receiver aos -O0
+PASS counted-assignment-receiver aos -O2
+PASS counted-assignment-receiver soa -O0
+PASS counted-assignment-receiver soa -O2
+PASS counted-replacement aos -O0
+PASS counted-replacement aos -O2
+PASS counted-replacement soa -O0
+PASS counted-replacement soa -O2
+PASS counted-empty-and-self-assignment aos -O0
+PASS counted-empty-and-self-assignment aos -O2
+PASS counted-empty-and-self-assignment soa -O0
+PASS counted-empty-and-self-assignment soa -O2
+PASS counted-return-alias aos -O0
+PASS counted-return-alias aos -O2
+PASS counted-return-alias soa -O0
+PASS counted-return-alias soa -O2
+PASS counted-loop-continue aos -O0
+PASS counted-loop-continue aos -O2
+PASS counted-loop-continue soa -O0
+PASS counted-loop-continue soa -O2
+PASS counted-loop-break aos -O0
+PASS counted-loop-break aos -O2
+PASS counted-loop-break soa -O0
+PASS counted-loop-break soa -O2
+PASS counted-computed-field aos -O0
+PASS counted-computed-field aos -O2
+PASS counted-computed-field soa -O0
+PASS counted-computed-field soa -O2
+PASS counted-short-cleanup-order aos -O0
+PASS counted-short-cleanup-order aos -O2
+PASS counted-short-cleanup-order soa -O0
+PASS counted-short-cleanup-order soa -O2
+PASS counted-else-if-cleanup-order aos -O0
+PASS counted-else-if-cleanup-order aos -O2
+PASS counted-else-if-cleanup-order soa -O0
+PASS counted-else-if-cleanup-order soa -O2
+PASS counted-alias aos -O0
+PASS counted-alias aos -O2
+PASS counted-alias soa -O0
+PASS counted-alias soa -O2
+PASS counted-method-holder aos -O0
+PASS counted-method-holder aos -O2
+PASS counted-method-holder soa -O0
+PASS counted-method-holder soa -O2
+PASS counted-return-holder aos -O0
+PASS counted-return-holder aos -O2
+PASS counted-return-holder soa -O0
+PASS counted-return-holder soa -O2
+PASS counted-conditional-holder aos -O0
+PASS counted-conditional-holder aos -O2
+PASS counted-conditional-holder soa -O0
+PASS counted-conditional-holder soa -O2
+PASS array-field-rhs-growth aos -O0
+PASS array-field-rhs-growth aos -O2
+PASS array-field-rhs-growth soa -O0
+PASS array-field-rhs-growth soa -O2
+PASS final-owned-field-growth aos -O0
+PASS final-owned-field-growth aos -O2
+PASS final-owned-field-growth soa -O0
+PASS final-owned-field-growth soa -O2
+PASS array-field-copy aos -O0
+PASS array-field-copy aos -O2
+PASS array-field-copy soa -O0
+PASS array-field-copy soa -O2
+PASS nested-field-copy aos -O0
+PASS nested-field-copy aos -O2
+PASS nested-field-copy soa -O0
+PASS nested-field-copy soa -O2
+PASS field-return-survives aos -O0
+PASS field-return-survives aos -O2
+PASS field-return-survives soa -O0
+PASS field-return-survives soa -O2
+PASS field-self-assignment aos -O0
+PASS field-self-assignment aos -O2
+PASS field-self-assignment soa -O0
+PASS field-self-assignment soa -O2
+PASS final-string-field aos -O0
+PASS final-string-field aos -O2
+PASS final-string-field soa -O0
+PASS final-string-field soa -O2
+PASS array-field-reuse aos -O0
+PASS array-field-reuse aos -O2
+PASS array-field-reuse soa -O0
+PASS array-field-reuse soa -O2
+PASS final-reads-field aos -O0
+PASS final-reads-field aos -O2
+PASS final-reads-field soa -O0
+PASS final-reads-field soa -O2
+PASS final-return aos -O0
+PASS final-return aos -O2
+PASS final-return soa -O0
+PASS final-return soa -O2
+PASS final-other-class aos -O0
+PASS final-other-class aos -O2
+PASS final-other-class soa -O0
+PASS final-other-class soa -O2
+PASS final-growth aos -O0
+PASS final-growth aos -O2
+PASS final-growth soa -O0
+PASS final-growth soa -O2
+PASS destroy-reconstruct aos -O0
+PASS destroy-reconstruct aos -O2
+PASS destroy-reconstruct soa -O0
+PASS destroy-reconstruct soa -O2
+PASS repeated-reuse aos -O0
+PASS repeated-reuse aos -O2
+PASS repeated-reuse soa -O0
+PASS repeated-reuse soa -O2
+PASS helper-destroy aos -O0
+PASS helper-destroy aos -O2
+PASS helper-destroy soa -O0
+PASS helper-destroy soa -O2
+PASS construct-read aos -O0
+PASS construct-read aos -O2
+PASS construct-read soa -O0
+PASS construct-read soa -O2
+PASS shared-handle aos -O0
+PASS shared-handle aos -O2
+PASS shared-handle soa -O0
+PASS shared-handle soa -O2
+PASS growth-keeps-identity aos -O0
+PASS growth-keeps-identity aos -O2
+PASS growth-keeps-identity soa -O0
+PASS growth-keeps-identity soa -O2
+PASS field-rhs-growth aos -O0
+PASS field-rhs-growth aos -O2
+PASS field-rhs-growth soa -O0
+PASS field-rhs-growth soa -O2
+PASS object-array-shared-identity aos -O0
+PASS object-array-shared-identity aos -O2
+PASS object-array-shared-identity soa -O0
+PASS object-array-shared-identity soa -O2
+PASS object-array-reserve-push-shrink aos -O0
+PASS object-array-reserve-push-shrink aos -O2
+PASS object-array-reserve-push-shrink soa -O0
+PASS object-array-reserve-push-shrink soa -O2
+PASS object-array-nested-empty-growth aos -O0
+PASS object-array-nested-empty-growth aos -O2
+PASS object-array-nested-empty-growth soa -O0
+PASS object-array-nested-empty-growth soa -O2
+PASS counted-array-copies aos -O0
+PASS counted-array-copies aos -O2
+PASS counted-array-copies soa -O0
+PASS counted-array-copies soa -O2
+PASS counted-array-nested aos -O0
+PASS counted-array-nested aos -O2
+PASS counted-array-nested soa -O0
+PASS counted-array-nested soa -O2
+PASS counted-array-return aos -O0
+PASS counted-array-return aos -O2
+PASS counted-array-return soa -O0
+PASS counted-array-return soa -O2
+PASS counted-array-element-self-assignment aos -O0
+PASS counted-array-element-self-assignment aos -O2
+PASS counted-array-element-self-assignment soa -O0
+PASS counted-array-element-self-assignment soa -O2
+PASS counted-array-owned-parameter aos -O0
+PASS counted-array-owned-parameter aos -O2
+PASS counted-array-owned-parameter soa -O0
+PASS counted-array-owned-parameter soa -O2
+PASS ordinary-array-fresh-replacement aos -O0
+PASS ordinary-array-fresh-replacement aos -O2
+PASS ordinary-array-fresh-replacement soa -O0
+PASS ordinary-array-fresh-replacement soa -O2
+PASS ordinary-array-default-growth-safe aos -O0
+PASS ordinary-array-default-growth-safe aos -O2
+PASS ordinary-array-default-growth-safe soa -O0
+PASS ordinary-array-default-growth-safe soa -O2
+PASS ordinary-array-default-growth-unsafe aos -O0
+PASS ordinary-array-default-growth-unsafe aos -O2
+PASS ordinary-array-default-growth-unsafe soa -O0
+PASS ordinary-array-default-growth-unsafe soa -O2
+PASS counted-array-default-growth-safe aos -O0
+PASS counted-array-default-growth-safe aos -O2
+PASS counted-array-default-growth-safe soa -O0
+PASS counted-array-default-growth-safe soa -O2
+PASS counted-array-default-growth-unsafe aos -O0
+PASS counted-array-default-growth-unsafe aos -O2
+PASS counted-array-default-growth-unsafe soa -O0
+PASS counted-array-default-growth-unsafe soa -O2
+212/212 layout executions passed
+PASS aos -O0 allocation calls [3, 3]
+PASS aos -O0 class growth calls 19
+PASS aos -O2 allocation calls [3, 3]
+PASS aos -O2 class growth calls 19
+PASS soa -O0 allocation calls [2, 2]
+PASS soa -O0 class growth calls 20
+PASS soa -O2 allocation calls [2, 2]
+PASS soa -O2 class growth calls 20
+4/4 free-slot allocation and 4/4 class growth comparisons passed
+PASS ordinary aos -O0 outstanding blocks [3, 3]
+PASS ordinary aos -O2 outstanding blocks [3, 3]
+PASS ordinary soa -O0 outstanding blocks [3, 3]
+PASS ordinary soa -O2 outstanding blocks [3, 3]
+PASS counted aos -O0 outstanding blocks [3, 3]
+PASS counted aos -O2 outstanding blocks [3, 3]
+PASS counted soa -O0 outstanding blocks [3, 3]
+PASS counted soa -O2 outstanding blocks [3, 3]
+PASS counted-array aos -O0 outstanding blocks [3, 3]
+PASS counted-array aos -O2 outstanding blocks [3, 3]
+PASS counted-array soa -O0 outstanding blocks [3, 3]
+PASS counted-array soa -O2 outstanding blocks [3, 3]
+12/12 owned-field/array balance comparisons passed
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Lyric -> /Users/bill/projects/lyric-next/compiler/bin/Release/net10.0/Lyric.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.84
+PASS version
+PASS usage-0
+PASS usage-1
+PASS usage-2
+PASS usage-3
+PASS missing-file
+PASS empty-path
+PASS diagnostic-unusual-filename
+PASS empty
+PASS ascii
+PASS newlines
+PASS tabs-scalars
+PASS combining-not-normalized
+PASS rtl-letters
+PASS visible-escape-text
+PASS bom-not-stripped-from-spelling
+PASS utf8-width-boundaries
+PASS allowed-property-neighbors
+PASS malformed-0
+PASS malformed-1
+PASS malformed-2
+PASS malformed-3
+PASS malformed-4
+PASS malformed-5
+PASS malformed-6
+PASS malformed-7
+PASS malformed-8
+PASS malformed-9
+PASS malformed-10
+PASS malformed-11
+PASS malformed-12
+PASS malformed-13
+PASS malformed-14
+PASS malformed-15
+PASS malformed-16
+PASS malformed-17
+PASS forbidden-0000
+PASS forbidden-0008
+PASS forbidden-000B
+PASS forbidden-000C
+PASS forbidden-000E
+PASS forbidden-001F
+PASS forbidden-007F
+PASS forbidden-009F
+PASS forbidden-00AD
+PASS forbidden-034F
+PASS forbidden-061C
+PASS forbidden-115F
+PASS forbidden-1160
+PASS forbidden-17B4
+PASS forbidden-17B5
+PASS forbidden-180B
+PASS forbidden-180F
+PASS forbidden-200B
+PASS forbidden-200D
+PASS forbidden-200F
+PASS forbidden-202A
+PASS forbidden-202E
+PASS forbidden-2060
+PASS forbidden-206F
+PASS forbidden-3164
+PASS forbidden-FE00
+PASS forbidden-FE0F
+PASS forbidden-FEFF
+PASS forbidden-FFA0
+PASS forbidden-FFF0
+PASS forbidden-FFF8
+PASS forbidden-1BCA0
+PASS forbidden-1BCA3
+PASS forbidden-1D173
+PASS forbidden-1D17A
+PASS forbidden-E0000
+PASS forbidden-E0100
+PASS forbidden-E0FFF
+PASS forbidden-in-comment
+PASS forbidden-in-string
+PASS forbidden-in-raw
+PASS forbidden-in-symbol
+PASS lone-cr-at-end
+PASS lone-cr-before-text
+PASS lone-cr-double
+PASS earliest-error
+
+82 passed; 0 failed
+PASS: 99826 NFC vectors; XID classification for all 1112064 Unicode scalars; 7 malformed requests
+58/58 token cases passed
+66/66 syntax trees passed
+143/143 syntax recognition cases passed
+7/7 parser boundary cases passed
+82/82 semantic cases passed
+PASS closed-pipe
+PASS hello
+PASS empty
+PASS bytes
+PASS forward
+PASS branch-assignment
+PASS nested-else-effects
+PASS returned-bytes
+PASS unicode-identifiers
+PASS unit-values
+PASS argument-order
+PASS u8-multiplication-boundaries
+PASS u8-arithmetic-result
+PASS u16-multiplication-boundaries
+PASS u16-arithmetic-result
+PASS u32-multiplication-boundaries
+PASS u32-arithmetic-result
+PASS u64-multiplication-boundaries
+PASS u64-arithmetic-result
+PASS i8-multiplication-boundaries
+PASS i8-arithmetic-result
+PASS i16-multiplication-boundaries
+PASS i16-arithmetic-result
+PASS i32-multiplication-boundaries
+PASS i32-arithmetic-result
+PASS i64-multiplication-boundaries
+PASS i64-arithmetic-result
+PASS operand-order
+PASS assert-true
+PASS assert-once
+PASS assert-unit
+PASS u8-addition
+PASS u8-subtraction
+PASS u8-multiplication
+PASS u16-addition
+PASS u16-subtraction
+PASS u16-multiplication
+PASS u32-addition
+PASS u32-subtraction
+PASS u32-multiplication
+PASS u64-addition
+PASS u64-subtraction
+PASS u64-multiplication
+PASS i8-addition
+PASS i8-subtraction
+PASS i8-multiplication
+PASS i8-negative-add
+PASS i8-negative-sub
+PASS i8-negative-positive-mul
+PASS i8-positive-negative-mul
+PASS i8-negative-negative-mul
+PASS i16-addition
+PASS i16-subtraction
+PASS i16-multiplication
+PASS i16-negative-add
+PASS i16-negative-sub
+PASS i16-negative-positive-mul
+PASS i16-positive-negative-mul
+PASS i16-negative-negative-mul
+PASS i32-addition
+PASS i32-subtraction
+PASS i32-multiplication
+PASS i32-negative-add
+PASS i32-negative-sub
+PASS i32-negative-positive-mul
+PASS i32-positive-negative-mul
+PASS i32-negative-negative-mul
+PASS i64-addition
+PASS i64-subtraction
+PASS i64-multiplication
+PASS i64-negative-add
+PASS i64-negative-sub
+PASS i64-negative-positive-mul
+PASS i64-positive-negative-mul
+PASS i64-negative-negative-mul
+PASS returned-frame
+PASS assert-false
+PASS assert-trace
+PASS unknown-name
+PASS constant-overflow
+80/80 execution cases passed
+PASS signed
+PASS negative-unsigned
+PASS unsigned-negative
+PASS equal-mixed
+PASS positive-mixed
+PASS negation
+PASS short-circuit
+PASS nested-short-circuit
+PASS comparison-effects
+PASS sum
+PASS zero-iterations
+PASS continue-condition
+PASS nested-loop-targets
+PASS loop-return
+PASS fresh-loop-let
+PASS outer-let-break
+PASS width-i8
+PASS width-i16
+PASS width-i32
+PASS width-i64
+PASS width-u8
+PASS width-u16
+PASS width-u32
+PASS width-u64
+PASS skipped-runtime-overflow
+PASS loop-short-circuit-condition
+PASS branch-break-assignment
+PASS inner-let-once-per-outer
+PASS outer-let-return
+PASS empty-loop
+PASS division-i8
+PASS division-i16
+PASS division-i32
+PASS division-i64
+PASS division-u8
+PASS division-u16
+PASS division-u32
+PASS division-u64
+PASS signed-division-i8
+PASS signed-division-i16
+PASS signed-division-i32
+PASS signed-division-i64
+PASS constant-minimum-remainder
+PASS wrapping-runtime-u8
+PASS wrapping-constant-u8
+PASS wrapping-runtime-u16
+PASS wrapping-constant-u16
+PASS wrapping-runtime-u32
+PASS wrapping-constant-u32
+PASS wrapping-runtime-u64
+PASS wrapping-constant-u64
+PASS wrapping-runtime-i8
+PASS wrapping-constant-i8
+PASS wrapping-runtime-i16
+PASS wrapping-constant-i16
+PASS wrapping-runtime-i32
+PASS wrapping-constant-i32
+PASS wrapping-runtime-i64
+PASS wrapping-constant-i64
+PASS shift-width-u8
+PASS shift-width-u16
+PASS shift-width-u32
+PASS shift-width-u64
+PASS shift-width-i8
+PASS shift-width-i16
+PASS shift-width-i32
+PASS shift-width-i64
+PASS signed-right-shift-rounding
+PASS cast-boundaries-u8
+PASS cast-modular-negative-u8
+PASS cast-boundaries-u16
+PASS cast-modular-negative-u16
+PASS cast-boundaries-u32
+PASS cast-modular-negative-u32
+PASS cast-boundaries-u64
+PASS cast-modular-negative-u64
+PASS cast-boundaries-i8
+PASS cast-modular-negative-i8
+PASS cast-boundaries-i16
+PASS cast-modular-negative-i16
+PASS cast-boundaries-i32
+PASS cast-modular-negative-i32
+PASS cast-boundaries-i64
+PASS cast-modular-negative-i64
+PASS cast-single-evaluation
+PASS cast-modular-truncation
+PASS cast-nested-arithmetic
+PASS boolean-equality
+PASS boolean-equality-effects
+PASS compound-operators-i8
+PASS compound-operators-u8
+PASS compound-operators-i16
+PASS compound-operators-u16
+PASS compound-operators-i32
+PASS compound-operators-u32
+PASS compound-operators-i64
+PASS compound-operators-u64
+PASS compound-effects
+PASS compound-widening
+PASS compound-wrap-boundary
+PASS bitwise-i8
+PASS bitwise-u8
+PASS bitwise-signed-i8
+PASS bitwise-i16
+PASS bitwise-u16
+PASS bitwise-signed-i16
+PASS bitwise-i32
+PASS bitwise-u32
+PASS bitwise-signed-i32
+PASS bitwise-i64
+PASS bitwise-u64
+PASS bitwise-signed-i64
+PASS bitwise-widen
+PASS bitwise-effects
+PASS if-string
+PASS if-context
+PASS if-widen
+PASS if-argument-effects
+PASS if-nested
+PASS if-branch-locals
+PASS if-flow
+PASS if-return-arm
+PASS if-break-arm
+PASS if-newline-value
+PASS if-discard-unit
+PASS if-runtime-overflow-skipped
+PASS loop-condition-write-break
+PASS loop-condition-write-false
+PASS loop-condition-break-assigned
+PASS assignment-rhs-return-excluded
+PASS if-typed-neighbor-left
+PASS if-typed-neighbor-right
+PASS if-typed-neighbor-local
+PASS zero-i8-div
+PASS zero-i8-rem
+PASS zero-i16-div
+PASS zero-i16-rem
+PASS zero-i32-div
+PASS zero-i32-rem
+PASS zero-i64-div
+PASS zero-i64-rem
+PASS zero-u8-div
+PASS zero-u8-rem
+PASS zero-u16-div
+PASS zero-u16-rem
+PASS zero-u32-div
+PASS zero-u32-rem
+PASS zero-u64-div
+PASS zero-u64-rem
+PASS division-overflow-i8
+PASS negation-overflow-i8
+PASS division-overflow-i16
+PASS negation-overflow-i16
+PASS division-overflow-i32
+PASS negation-overflow-i32
+PASS division-overflow-i64
+PASS negation-overflow-i64
+PASS shift-count-u8--1
+PASS shift-count-u8-8
+PASS shift-count-u16--1
+PASS shift-count-u16-16
+PASS shift-count-u32--1
+PASS shift-count-u32-32
+PASS shift-count-u64--1
+PASS shift-count-u64-64
+PASS shift-count-i8--1
+PASS shift-count-i8-8
+PASS shift-count-i16--1
+PASS shift-count-i16-16
+PASS shift-count-i32--1
+PASS shift-count-i32-32
+PASS shift-count-i64--1
+PASS shift-count-i64-64
+PASS cast-out-of-range-u8
+PASS cast-out-of-range-u16
+PASS cast-out-of-range-u32
+PASS cast-out-of-range-u64
+PASS cast-out-of-range-i8
+PASS cast-out-of-range-i16
+PASS cast-out-of-range-i32
+PASS cast-out-of-range-i64
+PASS cast-complementary-bound-i8
+PASS cast-complementary-bound-u8
+PASS cast-complementary-bound-i16
+PASS cast-complementary-bound-u16
+PASS cast-complementary-bound-i32
+PASS cast-complementary-bound-u32
+PASS compound-overflow
+PASS compound-zero
+PASS if-width-left
+PASS if-width-right
+PASS if-width-local
+PASS if-annotated-width-left
+PASS if-annotated-width-right
+PASS if-annotated-width-local
+PASS if-statement-transfer-return
+PASS if-statement-transfer-break
+PASS if-statement-transfer-continue
+PASS bad-logical-left
+PASS bad-logical-right
+PASS bad-negation
+PASS bad-comparison
+PASS bad-condition
+PASS zero-path-unassigned
+PASS repeat-immutable
+PASS continue-immutable
+PASS break-possible-assignment
+PASS break-outside
+PASS continue-outside
+PASS nested-repeat-immutable
+PASS branch-continue-immutable
+PASS loop-local-invisible
+PASS first-iteration-unassigned
+PASS break-path-unassigned
+PASS constant-zero-division
+PASS constant-zero-remainder
+PASS constant-division-overflow
+PASS constant-computed-negation-overflow
+PASS constant-shift-count--1
+PASS constant-shift-count-8
+PASS shift-count-type
+PASS constant-cast-range-u8
+PASS constant-cast-range-u16
+PASS constant-cast-range-u32
+PASS constant-cast-range-u64
+PASS constant-cast-range-i8
+PASS constant-cast-range-i16
+PASS constant-cast-range-i32
+PASS constant-cast-range-i64
+PASS cast-does-not-widen-operand
+PASS boolean-integer-equality
+PASS boolean-ordering
+PASS compound-uninitialized
+PASS compound-immutable
+PASS compound-narrowing
+PASS compound-bool
+PASS compound-constant-zero
+PASS bitwise-incompatible
+PASS bitwise-bool
+PASS if-missing-else
+PASS if-mixed-types
+PASS if-semicolon-discards
+PASS if-context-no-narrow
+PASS if-branch-scope
+PASS if-short-circuit-initialization
+PASS if-short-circuit-possible-write
+PASS loop-condition-immutable-repeat
+PASS loop-condition-break-unassigned
+PASS assignment-rhs-double-write
+PASS assignment-rhs-one-arm-write
+250/250 execution cases passed
+PASS arithmetic
+PASS shifts
+PASS sign-bit
+PASS remainder-min
+PASS wrapping
+PASS cast
+PASS wrapping-cast
+PASS mixed-compare
+PASS unsigned-promotion
+PASS array
+PASS shift-width-u8
+PASS shift-width-i8
+PASS shift-width-u16
+PASS shift-width-i16
+PASS shift-width-u32
+PASS shift-width-i32
+PASS shift-width-u64
+PASS shift-width-i64
+PASS assertion retained under unsafe and NDEBUG
+PASS emission-only overflow
+PASS emission-only zero-div
+PASS emission-only zero-rem
+PASS emission-only shift-count
+PASS emission-only cast-range
+PASS emission-only computed-negation
+PASS type checking retained
+PASS borrow checking retained
+PASS unknown and duplicate options rejected
+87/87 unsafe checks passed
+PASS length-u64
+PASS integer-literal
+PASS empty-context
+PASS bool-elements
+PASS byte-string-alias
+PASS nested-literal
+PASS array-return
+PASS copy-independent
+PASS nested-copy-independent
+PASS parameter-copy
+PASS nested-replacement
+PASS self-assignment
+PASS string-copy
+PASS conditional-array
+PASS early-return-array
+PASS loop-array-exits
+PASS short-circuit-array
+PASS array-element-order
+PASS reserve-preserves-size
+PASS push-geometric-growth
+PASS resize-integer-default
+PASS resize-bool-default
+PASS truncate-regrow
+PASS nested-default-regrow
+PASS nested-push-copy
+PASS string-growth
+PASS descriptor-stable-during-argument
+PASS push-self-value
+PASS ref-scalar-parameter
+PASS ref-fixed-alias
+PASS ref-forward-helper
+PASS ref-array-growth
+PASS ref-array-value-copy
+PASS ref-descriptor-survives-growth
+PASS ref-element-last-use
+PASS ref-nonexclusive-scalar
+PASS ref-nested-last-use
+PASS ref-scalar-overlap
+PASS ref-scalar-value-return
+PASS ref-scalar-annotated
+PASS ref-conditional-preview
+PASS borrow-loop-fresh
+PASS borrow-loop-break
+PASS borrow-reacquire
+PASS borrow-returning-arm
+PASS borrow-descriptor-replacement
+PASS borrow-child-descriptor-growth
+PASS borrow-helper-use-before-growth
+PASS borrow-helper-distinct-owners
+PASS borrow-helper-forward-growth
+PASS borrow-helper-recursive-growth
+PASS borrow-forward-safe-order
+PASS borrow-helper-fresh-after-growth
+PASS borrow-mutual-recursion
+PASS alias-preview-widen-scalar-inferred
+PASS alias-preview-widen-scalar-annotated
+PASS alias-preview-widen-element-inferred
+PASS alias-preview-widen-element-annotated
+PASS capacity-reserved-empty
+PASS capacity-copy-tight
+PASS capacity-empty-copy
+PASS capacity-resize-zero
+PASS capacity-empty-release
+PASS capacity-truncate-retains
+PASS capacity-ref-alias
+PASS capacity-nested
+PASS capacity-value-parameter
+PASS negative-index
+PASS past-end-index
+PASS allocation-size-overflow
+PASS alias-preview-overflow-scalar-inferred-i64
+PASS alias-preview-overflow-scalar-inferred-u16
+PASS alias-preview-overflow-scalar-annotated-i64
+PASS alias-preview-overflow-scalar-annotated-u16
+PASS alias-preview-overflow-element-inferred-i64
+PASS alias-preview-overflow-element-inferred-u16
+PASS alias-preview-overflow-element-annotated-i64
+PASS alias-preview-overflow-element-annotated-u16
+PASS borrow-mutual-invalidation
+PASS borrow-helper-later-argument
+PASS borrow-helper-local-stale
+PASS borrow-helper-forward-invalidation
+PASS borrow-helper-forward-overlap
+PASS borrow-helper-recursive-invalidation
+PASS borrow-helper-nested-invalidation
+PASS borrow-alias-mutation
+PASS borrow-child-descriptor-moved
+PASS borrow-call-argument-effects
+PASS borrow-loop-continue
+PASS borrow-after-push
+PASS borrow-after-replacement
+PASS borrow-derived-after-growth
+PASS borrow-branch-invalidation
+PASS borrow-loop-backedge
+PASS borrow-helper-invalidation
+PASS borrow-helper-overlap
+PASS ref-missing-marker
+PASS ref-immutable-storage
+PASS ref-uninitialized-storage
+PASS ref-no-widening
+PASS ref-no-var-alias
+PASS length-no-narrow
+PASS immutable-element
+PASS immutable-nested
+PASS noninteger-index
+PASS immutable-growth
+PASS signed-growth-count
+PASS nested-receiver-invalidation
+PASS indexed-store-invalidation
+PASS nested-receiver-replacement
+PASS scalar-length
+PASS capacity-selection-invalidation
+112/112 execution cases passed
+PASS constructor-field
+PASS shared-identity
+PASS method
+PASS ordinary-final
+PASS counted-scope-final
+PASS counted-alias-final-once
+6/6 execution cases passed
+PASS review-tail-scalar
+PASS review-tail-array
+PASS review-tail-safe
+PASS review-tail-else-if
+PASS review-populate-alias
+PASS review-populate-chain
+PASS review-populate-nested
+PASS review-populate-direct
+PASS review-alias-empty
+PASS array-field-constructor-local-invalid
+PASS array-field-nested-descriptor-growth
+PASS array-field-nested-outer-replace
+PASS array-field-reference
+PASS array-field-element-write
+PASS array-field-descriptor-growth
+PASS array-field-payload-growth
+PASS array-field-payload-resize
+PASS array-field-payload-replace
+PASS array-field-descriptor-replace
+PASS array-field-helper-effect
+PASS array-field-helper-order
+PASS array-field-helper-other-field
+PASS array-field-payload-destroy
+PASS array-field-last-use
+PASS counted-assignment-receiver-cleanup
+PASS counted-else-if-cleanup
+PASS counted-else-if-named
+PASS counted-short-and-cleanup
+PASS counted-short-or-cleanup
+PASS counted-short-named-borrow
+PASS counted-final-self-copy
+PASS counted-final-self-argument
+PASS counted-final-field-read
+PASS counted-conditional-transfer
+PASS counted-conditional-discard
+PASS final-valid
+PASS final-direct-call
+PASS final-result
+PASS final-argument
+PASS final-duplicate
+PASS final-constructor
+PASS final-destroys-self
+PASS final-helper-destroys-class
+PASS final-other-class
+PASS final-effects-reach-caller
+PASS final-cross-class-cycle
+PASS initialized-field
+PASS mutable-object-parameter
+PASS both-branches
+PASS one-branch
+PASS early-return
+PASS initialized-return
+PASS read-before-write
+PASS partial-self-copy
+PASS partial-self-helper
+PASS initialized-self-helper
+PASS other-object-not-self
+PASS owned-array-field
+PASS field-hint
+PASS unknown-field
+PASS constructor-call
+PASS method-call
+PASS returned-handle
+PASS constructor-arity
+PASS no-constructor
+PASS no-reinitialization
+PASS method-ref-offset
+PASS method-borrow-effect
+PASS partial-self-method
+PASS destroy-last-use
+PASS destroy-stale-field
+PASS destroy-stale-alias
+PASS destroy-twice
+PASS destroy-fresh-object
+PASS destroy-does-not-revive-alias
+PASS destroy-helper-effect
+PASS destroy-helper-internal-use
+PASS destroy-conditional-effect
+PASS destroy-during-field-rhs
+PASS destroy-during-later-argument
+PASS growth-keeps-handle
+PASS destroy-constructor-self
+PASS destroy-constructor-return
+PASS destroy-delayed-binding
+PASS destroy-reassign-fresh
+PASS destroy-transitive
+PASS destroy-counted-forbidden
+PASS destroy-arity
+PASS destroy-other-class
+PASS release-helper-fallthrough
+PASS release-helper-return
+PASS release-branch-exit
+PASS release-replacement
+PASS release-break
+PASS release-continue
+PASS release-discarded-temporary
+PASS release-retained-alias
+PASS release-invalidates-returned-object
+PASS release-owned-parameter
+PASS release-final-same-class
+PASS release-temporary-method-receiver
+PASS release-temporary-field-receiver
+PASS temporary-field-control
+PASS retained-method-receiver-control
+PASS release-condition-false-exit
+PASS release-condition-back-edge
+PASS release-condition-continue
+PASS empty-counted-local-no-final
+PASS empty-counted-local-in-final
+PASS first-counted-assignment-no-old-release
+PASS conditional-holder-release-invalidates-return
+PASS conditional-holder-empty-path-control
+PASS field-ref-read
+PASS field-ref-write
+PASS field-ref-growth
+PASS field-ref-last-use
+PASS field-ref-helper-growth
+PASS field-ref-destroy
+PASS field-ref-other-class-growth
+PASS field-ref-reacquire
+PASS field-ref-helper-internal-use
+PASS field-ref-helper-use-first
+PASS field-ref-helper-local-control
+PASS field-ref-helper-forward
+PASS field-ref-constructor-argument
+PASS field-ref-later-argument
+PASS field-ref-final-growth
+PASS field-ref-release-growth
+PASS field-ref-loop-growth
+PASS field-ref-alias-does-not-revive
+PASS field-ref-counted-control
+PASS object-array-explicit
+PASS object-array-inferred
+PASS object-array-stale-element
+PASS object-array-stale-copy
+PASS object-array-helper-destroy
+PASS counted-array-final-self
+PASS counted-array-shrink-effect
+PASS counted-array-replace-effect
+PASS counted-array-scope-effect
+PASS counted-array-temporary-effect
+PASS counted-array-nested-shrink-effect
+PASS counted-array-return-transfer
+PASS counted-array-branch-transfer
+PASS counted-array-empty-final
+PASS counted-array-nested-empty-final
+PASS counted-array-empty-then-push
+PASS counted-array-empty-then-helper
+PASS counted-array-empty-then-nested-store
+PASS counted-array-empty-control
+PASS counted-array-length-temporary
+PASS counted-array-capacity-temporary
+PASS object-array-whole-replacement
+PASS object-array-slot-reuse-not-revival
+154/154 Chapter 8 checking cases passed
+PASS array-field-reference-write aos -O0
+PASS array-field-reference-write aos -O2
+PASS array-field-reference-write soa -O0
+PASS array-field-reference-write soa -O2
+PASS array-field-payload-survives-growth aos -O0
+PASS array-field-payload-survives-growth aos -O2
+PASS array-field-payload-survives-growth soa -O0
+PASS array-field-payload-survives-growth soa -O2
+PASS array-field-descriptor-replacement aos -O0
+PASS array-field-descriptor-replacement aos -O2
+PASS array-field-descriptor-replacement soa -O0
+PASS array-field-descriptor-replacement soa -O2
+PASS array-field-other-field-helper aos -O0
+PASS array-field-other-field-helper aos -O2
+PASS array-field-other-field-helper soa -O0
+PASS array-field-other-field-helper soa -O2
+PASS array-field-capacity-reset aos -O0
+PASS array-field-capacity-reset aos -O2
+PASS array-field-capacity-reset soa -O0
+PASS array-field-capacity-reset soa -O2
+PASS array-field-nested-descriptor aos -O0
+PASS array-field-nested-descriptor aos -O2
+PASS array-field-nested-descriptor soa -O0
+PASS array-field-nested-descriptor soa -O2
+PASS field-reference-write aos -O0
+PASS field-reference-write aos -O2
+PASS field-reference-write soa -O0
+PASS field-reference-write soa -O2
+PASS field-reference-last-use aos -O0
+PASS field-reference-last-use aos -O2
+PASS field-reference-last-use soa -O0
+PASS field-reference-last-use soa -O2
+PASS counted-assignment-receiver aos -O0
+PASS counted-assignment-receiver aos -O2
+PASS counted-assignment-receiver soa -O0
+PASS counted-assignment-receiver soa -O2
+PASS counted-replacement aos -O0
+PASS counted-replacement aos -O2
+PASS counted-replacement soa -O0
+PASS counted-replacement soa -O2
+PASS counted-empty-and-self-assignment aos -O0
+PASS counted-empty-and-self-assignment aos -O2
+PASS counted-empty-and-self-assignment soa -O0
+PASS counted-empty-and-self-assignment soa -O2
+PASS counted-return-alias aos -O0
+PASS counted-return-alias aos -O2
+PASS counted-return-alias soa -O0
+PASS counted-return-alias soa -O2
+PASS counted-loop-continue aos -O0
+PASS counted-loop-continue aos -O2
+PASS counted-loop-continue soa -O0
+PASS counted-loop-continue soa -O2
+PASS counted-loop-break aos -O0
+PASS counted-loop-break aos -O2
+PASS counted-loop-break soa -O0
+PASS counted-loop-break soa -O2
+PASS counted-computed-field aos -O0
+PASS counted-computed-field aos -O2
+PASS counted-computed-field soa -O0
+PASS counted-computed-field soa -O2
+PASS counted-short-cleanup-order aos -O0
+PASS counted-short-cleanup-order aos -O2
+PASS counted-short-cleanup-order soa -O0
+PASS counted-short-cleanup-order soa -O2
+PASS counted-else-if-cleanup-order aos -O0
+PASS counted-else-if-cleanup-order aos -O2
+PASS counted-else-if-cleanup-order soa -O0
+PASS counted-else-if-cleanup-order soa -O2
+PASS counted-alias aos -O0
+PASS counted-alias aos -O2
+PASS counted-alias soa -O0
+PASS counted-alias soa -O2
+PASS counted-method-holder aos -O0
+PASS counted-method-holder aos -O2
+PASS counted-method-holder soa -O0
+PASS counted-method-holder soa -O2
+PASS counted-return-holder aos -O0
+PASS counted-return-holder aos -O2
+PASS counted-return-holder soa -O0
+PASS counted-return-holder soa -O2
+PASS counted-conditional-holder aos -O0
+PASS counted-conditional-holder aos -O2
+PASS counted-conditional-holder soa -O0
+PASS counted-conditional-holder soa -O2
+PASS array-field-rhs-growth aos -O0
+PASS array-field-rhs-growth aos -O2
+PASS array-field-rhs-growth soa -O0
+PASS array-field-rhs-growth soa -O2
+PASS final-owned-field-growth aos -O0
+PASS final-owned-field-growth aos -O2
+PASS final-owned-field-growth soa -O0
+PASS final-owned-field-growth soa -O2
+PASS array-field-copy aos -O0
+PASS array-field-copy aos -O2
+PASS array-field-copy soa -O0
+PASS array-field-copy soa -O2
+PASS nested-field-copy aos -O0
+PASS nested-field-copy aos -O2
+PASS nested-field-copy soa -O0
+PASS nested-field-copy soa -O2
+PASS field-return-survives aos -O0
+PASS field-return-survives aos -O2
+PASS field-return-survives soa -O0
+PASS field-return-survives soa -O2
+PASS field-self-assignment aos -O0
+PASS field-self-assignment aos -O2
+PASS field-self-assignment soa -O0
+PASS field-self-assignment soa -O2
+PASS final-string-field aos -O0
+PASS final-string-field aos -O2
+PASS final-string-field soa -O0
+PASS final-string-field soa -O2
+PASS array-field-reuse aos -O0
+PASS array-field-reuse aos -O2
+PASS array-field-reuse soa -O0
+PASS array-field-reuse soa -O2
+PASS final-reads-field aos -O0
+PASS final-reads-field aos -O2
+PASS final-reads-field soa -O0
+PASS final-reads-field soa -O2
+PASS final-return aos -O0
+PASS final-return aos -O2
+PASS final-return soa -O0
+PASS final-return soa -O2
+PASS final-other-class aos -O0
+PASS final-other-class aos -O2
+PASS final-other-class soa -O0
+PASS final-other-class soa -O2
+PASS final-growth aos -O0
+PASS final-growth aos -O2
+PASS final-growth soa -O0
+PASS final-growth soa -O2
+PASS destroy-reconstruct aos -O0
+PASS destroy-reconstruct aos -O2
+PASS destroy-reconstruct soa -O0
+PASS destroy-reconstruct soa -O2
+PASS repeated-reuse aos -O0
+PASS repeated-reuse aos -O2
+PASS repeated-reuse soa -O0
+PASS repeated-reuse soa -O2
+PASS helper-destroy aos -O0
+PASS helper-destroy aos -O2
+PASS helper-destroy soa -O0
+PASS helper-destroy soa -O2
+PASS construct-read aos -O0
+PASS construct-read aos -O2
+PASS construct-read soa -O0
+PASS construct-read soa -O2
+PASS shared-handle aos -O0
+PASS shared-handle aos -O2
+PASS shared-handle soa -O0
+PASS shared-handle soa -O2
+PASS growth-keeps-identity aos -O0
+PASS growth-keeps-identity aos -O2
+PASS growth-keeps-identity soa -O0
+PASS growth-keeps-identity soa -O2
+PASS field-rhs-growth aos -O0
+PASS field-rhs-growth aos -O2
+PASS field-rhs-growth soa -O0
+PASS field-rhs-growth soa -O2
+PASS object-array-shared-identity aos -O0
+PASS object-array-shared-identity aos -O2
+PASS object-array-shared-identity soa -O0
+PASS object-array-shared-identity soa -O2
+PASS object-array-reserve-push-shrink aos -O0
+PASS object-array-reserve-push-shrink aos -O2
+PASS object-array-reserve-push-shrink soa -O0
+PASS object-array-reserve-push-shrink soa -O2
+PASS object-array-nested-empty-growth aos -O0
+PASS object-array-nested-empty-growth aos -O2
+PASS object-array-nested-empty-growth soa -O0
+PASS object-array-nested-empty-growth soa -O2
+PASS counted-array-copies aos -O0
+PASS counted-array-copies aos -O2
+PASS counted-array-copies soa -O0
+PASS counted-array-copies soa -O2
+PASS counted-array-nested aos -O0
+PASS counted-array-nested aos -O2
+PASS counted-array-nested soa -O0
+PASS counted-array-nested soa -O2
+PASS counted-array-return aos -O0
+PASS counted-array-return aos -O2
+PASS counted-array-return soa -O0
+PASS counted-array-return soa -O2
+PASS counted-array-element-self-assignment aos -O0
+PASS counted-array-element-self-assignment aos -O2
+PASS counted-array-element-self-assignment soa -O0
+PASS counted-array-element-self-assignment soa -O2
+PASS counted-array-owned-parameter aos -O0
+PASS counted-array-owned-parameter aos -O2
+PASS counted-array-owned-parameter soa -O0
+PASS counted-array-owned-parameter soa -O2
+PASS ordinary-array-fresh-replacement aos -O0
+PASS ordinary-array-fresh-replacement aos -O2
+PASS ordinary-array-fresh-replacement soa -O0
+PASS ordinary-array-fresh-replacement soa -O2
+PASS ordinary-array-default-growth-safe aos -O0
+PASS ordinary-array-default-growth-safe aos -O2
+PASS ordinary-array-default-growth-safe soa -O0
+PASS ordinary-array-default-growth-safe soa -O2
+PASS ordinary-array-default-growth-unsafe aos -O0
+PASS ordinary-array-default-growth-unsafe aos -O2
+PASS ordinary-array-default-growth-unsafe soa -O0
+PASS ordinary-array-default-growth-unsafe soa -O2
+PASS counted-array-default-growth-safe aos -O0
+PASS counted-array-default-growth-safe aos -O2
+PASS counted-array-default-growth-safe soa -O0
+PASS counted-array-default-growth-safe soa -O2
+PASS counted-array-default-growth-unsafe aos -O0
+PASS counted-array-default-growth-unsafe aos -O2
+PASS counted-array-default-growth-unsafe soa -O0
+PASS counted-array-default-growth-unsafe soa -O2
+212/212 layout executions passed
+PASS aos -O0 allocation calls [3, 3]
+PASS aos -O0 class growth calls 19
+PASS aos -O2 allocation calls [3, 3]
+PASS aos -O2 class growth calls 19
+PASS soa -O0 allocation calls [2, 2]
+PASS soa -O0 class growth calls 20
+PASS soa -O2 allocation calls [2, 2]
+PASS soa -O2 class growth calls 20
+4/4 free-slot allocation and 4/4 class growth comparisons passed
+PASS ordinary aos -O0 outstanding blocks [3, 3]
+PASS ordinary aos -O2 outstanding blocks [3, 3]
+PASS ordinary soa -O0 outstanding blocks [3, 3]
+PASS ordinary soa -O2 outstanding blocks [3, 3]
+PASS counted aos -O0 outstanding blocks [3, 3]
+PASS counted aos -O2 outstanding blocks [3, 3]
+PASS counted soa -O0 outstanding blocks [3, 3]
+PASS counted soa -O2 outstanding blocks [3, 3]
+PASS counted-array aos -O0 outstanding blocks [3, 3]
+PASS counted-array aos -O2 outstanding blocks [3, 3]
+PASS counted-array soa -O0 outstanding blocks [3, 3]
+PASS counted-array soa -O2 outstanding blocks [3, 3]
+12/12 owned-field/array balance comparisons passed
