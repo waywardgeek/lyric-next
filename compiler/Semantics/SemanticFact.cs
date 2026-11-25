@@ -30,6 +30,11 @@ internal sealed partial class SemanticAnalysis
 
 internal sealed partial class SemanticFact
 {
+    internal partial SemanticType Type
+    {
+        get => TypeLink ?? throw new InvalidOperationException("Fact has no live type.");
+    }
+
     internal partial SemanticFact(SemanticAnalysis analysis, SyntaxNode node,
         SemanticType type, SemanticSymbol? symbol, BigInteger? integerConstant, bool canContinue,
         ArrayOperation arrayOperation, ClassOperation classOperation)
@@ -41,14 +46,7 @@ internal sealed partial class SemanticFact
         analysis.AddFact(this);
         try
         {
-            if (type.Class is not null)
-            {
-                type.Class.AddTypedFact(this, type);
-            }
-            else
-            {
-                Type = type;
-            }
+            type.AddFact(this);
             node.AddFact(this);
             symbol?.AddUse(this);
         }
@@ -67,7 +65,7 @@ internal sealed partial class SemanticFact
         {
             return;
         }
-        Type.Class?.RemoveTypedFact(this);
+        TypeLink?.RemoveFact(this);
         Symbol?.RemoveUse(this);
         Node?.RemoveFact(this);
         Destroyed = true;

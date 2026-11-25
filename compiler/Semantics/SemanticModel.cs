@@ -58,6 +58,7 @@ internal sealed partial class SemanticAnalysis
         {
             Scopes[Scopes.Count - 1].Destroy();
         }
+        DestroyTypes();
     }
 }
 
@@ -142,8 +143,9 @@ internal sealed partial class SemanticScope
         {
             return;
         }
-        Class?.RemoveMemberScope(this);
+        MemberOwner?.RemoveMemberScope(this);
         Function?.RemoveFunctionScope(this);
+        InitializerField?.RemoveInitializerScope(this);
         Parent?.RemoveChild(this);
         while (Children.Count != 0)
         {

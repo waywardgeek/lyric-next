@@ -182,11 +182,21 @@ internal sealed partial class SourceFile
             else if (At("("))
             {
                 Take();
-                result = Node(SyntaxKind.TypeGroup, -1, Type());
+                SyntaxNode first = Type();
+                // Preserve the comma only for the new one-element tuple shape.
+                // Older grouping and multi-element inspection trees stay stable.
+                int singleTupleComma = At(",") ? cursor : -1;
                 if (At(","))
                 {
                     Take();
-                    result.AddChild(Type());
+                    if (At(")"))
+                    {
+                        result = Node(SyntaxKind.TypeGroup, singleTupleComma, first);
+                    }
+                    else
+                    {
+                        result = Node(SyntaxKind.TypeGroup, -1, first, Type());
+                    }
                     while (At(","))
                     {
                         Take();
@@ -196,6 +206,10 @@ internal sealed partial class SourceFile
                         }
                         result.AddChild(Type());
                     }
+                }
+                else
+                {
+                    result = Node(SyntaxKind.TypeGroup, -1, first);
                 }
                 Expect(")");
             }
@@ -554,7 +568,10 @@ internal sealed partial class SourceFile
                     Take();
                     SyntaxNode tuple = Node(SyntaxKind.PatternTuple, -1, Pattern());
                     Expect(",");
-                    tuple.AddChild(Pattern());
+                    if (!At(")"))
+                    {
+                        tuple.AddChild(Pattern());
+                    }
                     while (At(","))
                     {
                         Take();
@@ -698,7 +715,11 @@ internal sealed partial class SourceFile
                 if (At(","))
                 {
                     Take();
-                    SyntaxNode tuple = Node(SyntaxKind.Tuple, -1, first, Expression());
+                    SyntaxNode tuple = Node(SyntaxKind.Tuple, -1, first);
+                    if (!At(")"))
+                    {
+                        tuple.AddChild(Expression());
+                    }
                     while (At(","))
                     {
                         Take();
@@ -1003,6 +1024,13 @@ internal sealed partial class SourceFile
                     if (At("self"))
                     {
                         parameter = Node(SyntaxKind.Parameter, Take());
+                        // A receiver may explicitly request reference semantics.
+                        // Signature checking determines which annotations are legal.
+                        if (At(":"))
+                        {
+                            Take();
+                            parameter.AddChild(Type());
+                        }
                     }
                     else
                     {
@@ -1137,20 +1165,18 @@ internal sealed partial class SourceFile
             SkipSeparators();
             while (!At("}"))
             {
-                SyntaxNode? function = null;
-                if (isClass)
+                // Structs and classes share member syntax, not value/lifetime
+                // semantics. Preserve the same function tree in either body.
+                SyntaxNode? function = Attempt(() =>
                 {
-                    function = Attempt(() =>
+                    int visibility = At("pub") ? Take() : -1;
+                    SyntaxNode member = Function();
+                    if (visibility >= 0)
                     {
-                        int visibility = At("pub") ? Take() : -1;
-                        SyntaxNode member = Function();
-                        if (visibility >= 0)
-                        {
-                            member.AddChild(Node(SyntaxKind.Visibility, visibility));
-                        }
-                        return member;
-                    });
-                }
+                        member.AddChild(Node(SyntaxKind.Visibility, visibility));
+                    }
+                    return member;
+                });
                 aggregate.AddChild(function ?? Field());
                 if (!MemberSeparator())
                 {

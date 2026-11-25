@@ -2,31 +2,31 @@ using System;
 
 namespace Lyric;
 
-// Class declarations own member scopes and retain reverse dependencies for every
-// persistent use of their nominal type. No name lookup reconstructs these edges.
+// Class and struct declarations own member scopes. Canonical types now hold persistent type
+// users; no name lookup reconstructs their nominal dependencies.
 internal sealed partial class SemanticSymbol
 {
     internal partial void AddMemberScope(SemanticScope scope)
     {
-        if (Destroyed || Kind != SymbolKind.Class || Scope is null
-            || MemberScope is not null || scope.Destroyed || scope.Class is not null
+        if (Destroyed || Kind is not (SymbolKind.Class or SymbolKind.Struct) || Scope is null
+            || MemberScope is not null || scope.Destroyed || scope.MemberOwner is not null
             || scope.Function is not null || scope.Analysis != Scope.Analysis
             || scope.Parent != Scope)
         {
-            throw new InvalidOperationException("Cannot attach class member scope.");
+            throw new InvalidOperationException("Cannot attach nominal member scope.");
         }
         MemberScope = scope;
-        scope.Class = this;
+        scope.MemberOwner = this;
     }
 
     internal partial void RemoveMemberScope(SemanticScope scope)
     {
-        if (MemberScope != scope || scope.Class != this)
+        if (MemberScope != scope || scope.MemberOwner != this)
         {
-            throw new InvalidOperationException("Member scope has a different class owner.");
+            throw new InvalidOperationException("Member scope has a different nominal owner.");
         }
         MemberScope = null;
-        scope.Class = null;
+        scope.MemberOwner = null;
     }
 
     internal partial void SetType(SemanticType? type)
@@ -35,77 +35,21 @@ internal sealed partial class SemanticSymbol
         {
             throw new InvalidOperationException("Cannot type a destroyed symbol.");
         }
-        SemanticSymbol? nominal = type?.Class;
-        if (nominal is not null)
-        {
-            if (Kind == SymbolKind.Class || nominal.Destroyed || nominal.Kind != SymbolKind.Class
-                || Scope?.Analysis is null || Scope.Analysis.Destroyed
-                || nominal.Scope?.Analysis != Scope.Analysis)
-            {
-                throw new InvalidOperationException("Nominal type belongs to an invalid or different analysis.");
-            }
-            // Reserve before detaching: an allocation failure leaves the existing
-            // type and its reverse membership untouched.
-            nominal.TypedSymbols.EnsureCapacity(nominal.TypedSymbols.Count + 1);
-        }
-        // Validation/reservation above must succeed before invalidating execution.
+        // Refuse/reserve before changing either the old link or the current IR.
+        type?.ReserveSymbol(this);
         Scope?.Analysis?.ClearIr();
-        Type?.Class?.RemoveTypedSymbol(this);
-        if (nominal is not null)
-        {
-            Type = null;
-            nominal.AddTypedSymbol(this, type!.Value);
-        }
-        else
-        {
-            Type = type;
-        }
+        Type?.RemoveSymbol(this);
+        type?.AddSymbol(this);
     }
+}
 
-    internal partial void AddTypedSymbol(SemanticSymbol symbol, SemanticType type)
+internal sealed partial class SemanticScope
+{
+    internal partial SemanticSymbol? Class
     {
-        if (Destroyed || Kind != SymbolKind.Class || type.Class != this
-            || symbol.Destroyed || symbol.Kind == SymbolKind.Class || symbol.Type?.Class is not null
-            || Scope?.Analysis is null || Scope.Analysis.Destroyed
-            || symbol.Scope?.Analysis != Scope.Analysis)
+        get
         {
-            throw new InvalidOperationException("Cannot attach nominal symbol dependency.");
+            return MemberOwner?.Kind == SymbolKind.Class ? MemberOwner : null;
         }
-        TypedSymbols.Add(symbol);
-        symbol.Type = type;
-    }
-
-    internal partial void RemoveTypedSymbol(SemanticSymbol symbol)
-    {
-        int index = TypedSymbols.LastIndexOf(symbol);
-        if (symbol.Type?.Class != this || index < 0)
-        {
-            throw new InvalidOperationException("Symbol has a different nominal type owner.");
-        }
-        TypedSymbols.RemoveAt(index);
-        symbol.Type = null;
-    }
-
-    internal partial void AddTypedFact(SemanticFact fact, SemanticType type)
-    {
-        if (Destroyed || Kind != SymbolKind.Class || type.Class != this
-            || fact.Destroyed || fact.Type.Class is not null || Scope?.Analysis is null
-            || Scope.Analysis.Destroyed || fact.Analysis != Scope.Analysis)
-        {
-            throw new InvalidOperationException("Cannot attach nominal fact dependency.");
-        }
-        TypedFacts.Add(fact);
-        fact.Type = type;
-    }
-
-    internal partial void RemoveTypedFact(SemanticFact fact)
-    {
-        int index = TypedFacts.LastIndexOf(fact);
-        if (fact.Type.Class != this || index < 0)
-        {
-            throw new InvalidOperationException("Fact has a different nominal type owner.");
-        }
-        TypedFacts.RemoveAt(index);
-        fact.Type = SemanticType.Unit;
     }
 }

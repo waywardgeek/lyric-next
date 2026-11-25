@@ -1,0 +1,13 @@
+digraph Common {
+label="Chapter 10 — REVISED MODEL"; labelloc=t; fontsize=17;
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SemanticAnalysis" [label="SemanticAnalysis\n(existing)", fillcolor="#ffffff"];
+"SemanticType" [label="SemanticType\n(existing)", fillcolor="#ffffff"];
+"SemanticTypeComponent" [label="SemanticTypeComponent", fillcolor="#edf4fb"];
+"SemanticAnalysis" -> "SemanticType" [id="canonical-types", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="NEW\ninterned\nidentities", tooltip="SemanticAnalysis.TypeBuckets -> SemanticType; reverse SemanticType.Analysis"];
+"SemanticType" -> "SemanticType" [id="array-types", color="#704090", penwidth=1.2, style=dashed, arrowhead=normal, label="NEW\ndependent\narrays", tooltip="SemanticType.Arrays -> SemanticType; reverse SemanticType.Element"];
+"SemanticType" -> "SemanticTypeComponent" [id="tuple-positions", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="NEW\nordered\npositions", tooltip="SemanticType.Components -> SemanticTypeComponent; reverse SemanticTypeComponent.Tuple"];
+"SemanticType" -> "SemanticTypeComponent" [id="component-users", color="#704090", penwidth=1.2, style=dashed, arrowhead=normal, label="NEW\ncomponent\nuses", tooltip="SemanticType.ComponentUses -> SemanticTypeComponent; reverse SemanticTypeComponent.Component"];
+}

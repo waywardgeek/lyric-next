@@ -18,6 +18,10 @@ Types are scalar/byte-array enum values at this stage. The structured type descr
 
 <!-- common-diagram:end -->
 
+<!-- canonical-forward-link -->
+**Later revision:** Chapter 10 replaces the flat type descriptor and class-only type-user links with canonical identities, and extends scopes and body identities. [See the explicitly revised model](chapter-10.md). This figure describes the model at this chapter.
+
+
 ## TL;DR
 
 A syntax tree tells us how source is structured. It does not tell us whether a name exists, whether a call supplies the right arguments, or whether a local has a value when we read it. Add a semantic analysis that answers those questions and retains its answers for later compilation.

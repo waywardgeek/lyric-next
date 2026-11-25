@@ -519,9 +519,9 @@
     "expression": false
   },
   {
-    "id": "no-single-tuple",
+    "id": "single-tuple",
     "source": "(1,)",
-    "accept": false,
+    "accept": true,
     "expression": true
   },
   {
@@ -621,9 +621,9 @@
     "expression": false
   },
   {
-    "id": "no-struct-method",
+    "id": "struct-method",
     "source": "struct S { func f() }",
-    "accept": false,
+    "accept": true,
     "expression": false
   },
   {
@@ -705,9 +705,9 @@
     "expression": false
   },
   {
-    "id": "no-pattern-single-tuple",
+    "id": "pattern-single-tuple",
     "source": "func f() { let (x,) = y }",
-    "accept": false,
+    "accept": true,
     "expression": false
   },
   {
@@ -806,5 +806,70 @@
     "source": "f<A<B>> c",
     "accept": true,
     "expression": true
+  },
+  {
+    "id": "single-tuple-type",
+    "source": "type One = (i32,)",
+    "accept": true,
+    "expression": false
+  },
+  {
+    "id": "nested-single-tuple",
+    "source": "((1,),)",
+    "accept": true,
+    "expression": true
+  },
+  {
+    "id": "no-double-tuple-comma",
+    "source": "(1,,)",
+    "accept": false,
+    "expression": true
+  },
+  {
+    "id": "no-double-type-comma",
+    "source": "type Bad = (i32,,)",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "no-double-pattern-comma",
+    "source": "func f() { let (x,,) = y }",
+    "accept": false,
+    "expression": false
+  },
+  {
+    "id": "struct-value-method",
+    "source": "struct Point { x: i32\nfunc sum(self) -> i32 { return self.x } }",
+    "accept": true
+  },
+  {
+    "id": "struct-reference-method",
+    "source": "struct Point { x: i32\nfunc translate(self: ref Point, dx: i32) { self.x = self.x + dx } }",
+    "accept": true
+  },
+  {
+    "id": "struct-static-method",
+    "source": "struct Point { x: i32\nfunc origin() -> Point { return Point { x: 0 } } }",
+    "accept": true
+  },
+  {
+    "id": "struct-separate-method",
+    "source": "struct Point { x: i32\nfunc sum(self) -> i32; }\nfunc Point.sum(self) -> i32 { return self.x }",
+    "accept": true
+  },
+  {
+    "id": "struct-visible-method",
+    "source": "struct Point { pub func sum(self) -> i32; x: i32 }",
+    "accept": true
+  },
+  {
+    "id": "struct-method-missing-parameter-type",
+    "source": "struct Point { func bad(self, x:) }",
+    "accept": false
+  },
+  {
+    "id": "struct-method-missing-result-type",
+    "source": "struct Point { func bad(self) -> }",
+    "accept": false
   }
 ]

@@ -41,7 +41,7 @@ internal static class IrModelProbe
             SemanticAnalysis analysis = new(compilation);
             SemanticScope scope = new(analysis, null);
             SemanticSymbol declaration = new(scope, null, "execution", SymbolKind.Function,
-                SemanticType.Bool, false);
+                analysis.ScalarType(ScalarKind.Bool), false);
             IrProgram program = new(analysis);
             IrFunction function = new(program, declaration);
             IrNode body = new(function, IrKind.Region, IrRole.Body);
@@ -52,14 +52,14 @@ internal static class IrModelProbe
             {
                 // A valid operand edge does not imply an executed definition.
                 IrNode later = new(function, IrKind.Constant, result: IrResult.Value,
-                    type: SemanticType.Bool, literal: new IrLiteral(true));
+                    type: analysis.ScalarType(ScalarKind.Bool), literal: new IrLiteral(true));
                 result = Negate(body, later);
                 body.AddChild(later);
             }
             if (scenario is 1 or 2 or 6)
             {
                 IrNode choice = new(function, IrKind.If, result: IrResult.Value,
-                    type: SemanticType.Bool);
+                    type: analysis.ScalarType(ScalarKind.Bool));
                 body.AddChild(choice);
                 _ = new IrOperand(choice, initial);
                 IrNode yes = new(function, IrKind.Region, IrRole.Then);
@@ -85,7 +85,7 @@ internal static class IrModelProbe
                 if (scenario is 9 or 10 or 11)
                 {
                     IrNode choice = new(function, IrKind.If, result: IrResult.Value,
-                        type: SemanticType.Bool);
+                        type: analysis.ScalarType(ScalarKind.Bool));
                     condition.AddChild(choice);
                     _ = new IrOperand(choice, initial);
                     IrNode yes = new(function, IrKind.Region, IrRole.Then);
@@ -105,7 +105,7 @@ internal static class IrModelProbe
                 }
                 if (scenario is 14 or 15)
                 {
-                    SemanticType arrayType = new(ScalarKind.I32, 1);
+                    SemanticType arrayType = SemanticTypes.ArrayOf(analysis.ScalarType(ScalarKind.I32));
                     IrNode slot = new(function, IrKind.Local, result: IrResult.Address, type: arrayType);
                     contents.AddChild(slot);
                     IrNode array = new(function, IrKind.NewArray, result: IrResult.Value, type: arrayType);
@@ -131,7 +131,7 @@ internal static class IrModelProbe
             IrNode? delayedStore = null;
             if (scenario is 12 or 13)
             {
-                SemanticType arrayType = new(ScalarKind.I32, 1);
+                SemanticType arrayType = SemanticTypes.ArrayOf(analysis.ScalarType(ScalarKind.I32));
                 IrNode slot = new(function, IrKind.Local, result: IrResult.Address, type: arrayType);
                 body.AddChild(slot);
                 IrNode array = new(function, IrKind.NewArray, result: IrResult.Value, type: arrayType);
@@ -164,7 +164,7 @@ internal static class IrModelProbe
             {
                 // This forward reference is unreachable, but still type/structure valid.
                 IrNode later = new(function, IrKind.Constant, result: IrResult.Value,
-                    type: SemanticType.Bool, literal: new IrLiteral(false));
+                    type: analysis.ScalarType(ScalarKind.Bool), literal: new IrLiteral(false));
                 _ = Negate(body, later);
                 body.AddChild(later);
             }
@@ -186,14 +186,14 @@ internal static class IrModelProbe
             IrNode Boolean(IrNode region)
             {
                 IrNode value = new(function, IrKind.Constant, result: IrResult.Value,
-                    type: SemanticType.Bool, literal: new IrLiteral(true));
+                    type: analysis.ScalarType(ScalarKind.Bool), literal: new IrLiteral(true));
                 region.AddChild(value);
                 return value;
             }
             IrNode Negate(IrNode region, IrNode operand)
             {
                 IrNode value = new(function, IrKind.Unary, result: IrResult.Value,
-                    type: SemanticType.Bool, operation: "!");
+                    type: analysis.ScalarType(ScalarKind.Bool), operation: "!");
                 region.AddChild(value);
                 _ = new IrOperand(value, operand);
                 return value;
@@ -213,13 +213,13 @@ internal static class IrModelProbe
         SemanticAnalysis analysis = new(compilation);
         SemanticScope scope = new(analysis, null);
         SemanticSymbol declaration = new(scope, null, "structure", SymbolKind.Function,
-            SemanticType.Unit, false);
+            analysis.ScalarType(ScalarKind.Unit), false);
         IrProgram program = new(analysis);
         IrFunction function = new(program, declaration);
         IrNode body = new(function, IrKind.Region, IrRole.Body);
         function.AddBody(body);
         IrNode unit = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.Unit);
+            type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(unit);
         IrNode finish = new(function, IrKind.Return);
         body.AddChild(finish);
@@ -258,25 +258,25 @@ internal static class IrModelProbe
         SemanticAnalysis analysis = new(compilation);
         SemanticScope scope = new(analysis, null);
         SemanticSymbol declaration = new(scope, null, "operations", SymbolKind.Function,
-            SemanticType.Unit, false);
+            analysis.ScalarType(ScalarKind.Unit), false);
         SemanticSymbol callee = new(scope, null, "callee", SymbolKind.Function,
-            SemanticType.Unit, false);
+            analysis.ScalarType(ScalarKind.Unit), false);
         SemanticSymbol nominal = new(scope, null, "Record", SymbolKind.Class, null, false);
         SemanticSymbol otherClass = new(scope, null, "OtherRecord", SymbolKind.Class, null, false);
         SemanticScope members = new(analysis, scope);
         nominal.AddMemberScope(members);
         SemanticSymbol field = new(members, null, "item", SymbolKind.Field,
-            SemanticType.Unit, true);
-        SemanticType instance = new(ScalarKind.Unit, 0, nominal);
+            analysis.ScalarType(ScalarKind.Unit), true);
+        SemanticType instance = analysis.ClassType(nominal);
         SemanticScope parameters = new(callee);
         _ = new SemanticSymbol(parameters, null, "item", SymbolKind.Parameter,
-            SemanticType.Unit, true, isReference: true);
+            analysis.ScalarType(ScalarKind.Unit), true, isReference: true);
         IrProgram program = new(analysis);
         IrFunction function = new(program, declaration);
         IrNode body = new(function, IrKind.Region, IrRole.Body);
         function.AddBody(body);
         IrNode unit = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.Unit);
+            type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(unit);
         IrNode finish = new(function, IrKind.Return);
         body.AddChild(finish);
@@ -288,11 +288,11 @@ internal static class IrModelProbe
         IrNode local = new(function, IrKind.Local, result: IrResult.Address);
         body.AddChild(local);
         Refuses(program.ValidateOperations, "untyped local accepted");
-        local.SetType(SemanticType.Unit);
+        local.SetType(analysis.ScalarType(ScalarKind.Unit));
         program.ValidateOperations();
-        Check(local.Type == SemanticType.Unit, "typed local repair failed");
+        Check(local.Type == analysis.ScalarType(ScalarKind.Unit), "typed local repair failed");
         IrNode load = new(function, IrKind.Load, result: IrResult.Value,
-            type: SemanticType.Unit);
+            type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(load);
         _ = new IrOperand(load, unit);
         Refuses(program.ValidateOperations, "load from plain value accepted");
@@ -301,25 +301,25 @@ internal static class IrModelProbe
             type: instance, symbol: nominal);
         body.AddChild(objectReceiver);
         IrNode otherReceiver = new(function, IrKind.NewObject, result: IrResult.Value,
-            type: new SemanticType(ScalarKind.Unit, 0, otherClass), symbol: otherClass);
+            type: analysis.ClassType(otherClass), symbol: otherClass);
         body.AddChild(otherReceiver);
         IrNode place = new(function, IrKind.SelectField, result: IrResult.Place,
-            type: SemanticType.Unit, symbol: field);
+            type: analysis.ScalarType(ScalarKind.Unit), symbol: field);
         body.AddChild(place);
         IrOperand selectedReceiver = new(place, otherReceiver);
         Refuses(program.ValidateOperations, "field accepted a different nominal objectReceiver");
         selectedReceiver.Destroy();
         _ = new IrOperand(place, objectReceiver);
         program.ValidateOperations();
-        place.SetType(SemanticType.I32);
+        place.SetType(analysis.ScalarType(ScalarKind.I32));
         Refuses(program.ValidateOperations, "field selection changed declared type");
-        place.SetType(SemanticType.Unit);
-        objectReceiver.SetType(new SemanticType(ScalarKind.Unit, 0, otherClass));
+        place.SetType(analysis.ScalarType(ScalarKind.Unit));
+        objectReceiver.SetType(analysis.ClassType(otherClass));
         Refuses(program.ValidateOperations, "allocation changed nominal class");
         objectReceiver.SetType(instance);
         program.ValidateOperations();
         IrNode borrow = new(function, IrKind.Borrow, result: IrResult.Address,
-            type: SemanticType.Unit);
+            type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(borrow);
         _ = new IrOperand(borrow, place);
         Refuses(program.ValidateOperations, "borrow of re-resolvable place accepted");
@@ -338,21 +338,21 @@ internal static class IrModelProbe
         otherReceiver.Destroy();
         program.ValidateOperations();
         Check(!function.Destroyed, "class contract repairs changed function");
-        IrNode wrongResult = new(function, IrKind.Constant, type: SemanticType.Unit);
+        IrNode wrongResult = new(function, IrKind.Constant, type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(wrongResult);
         Refuses(program.ValidateOperations, "result-free constant accepted");
         wrongResult.Destroy();
         IrNode typedLoad = new(function, IrKind.Load, result: IrResult.Value,
-            type: SemanticType.I32);
+            type: analysis.ScalarType(ScalarKind.I32));
         body.AddChild(typedLoad);
         _ = new IrOperand(typedLoad, local);
         Refuses(program.ValidateOperations, "load changed storage type");
-        typedLoad.SetType(SemanticType.Unit);
+        typedLoad.SetType(analysis.ScalarType(ScalarKind.Unit));
         program.ValidateOperations();
         typedLoad.Destroy();
 
         IrNode integer = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.I32, literal: new IrLiteral(BigInteger.Zero));
+            type: analysis.ScalarType(ScalarKind.I32), literal: new IrLiteral(BigInteger.Zero));
         body.AddChild(integer);
         IrNode store = new(function, IrKind.Store);
         body.AddChild(store);
@@ -362,23 +362,23 @@ internal static class IrModelProbe
         store.Destroy();
 
         IrNode array = new(function, IrKind.NewArray, result: IrResult.Value,
-            type: SemanticType.ByteArray);
+            type: SemanticTypes.ArrayOf(analysis.ScalarType(ScalarKind.U8)));
         body.AddChild(array);
         _ = new IrOperand(array, integer);
         Refuses(program.ValidateOperations, "incompatible array element accepted");
-        array.SetType(SemanticTypes.ArrayOf(SemanticType.I32));
+        array.SetType(SemanticTypes.ArrayOf(analysis.ScalarType(ScalarKind.I32)));
         program.ValidateOperations();
         IrNode index = new(function, IrKind.SelectIndex, result: IrResult.Address,
-            type: SemanticType.U8);
+            type: analysis.ScalarType(ScalarKind.U8));
         body.AddChild(index);
         _ = new IrOperand(index, array);
         _ = new IrOperand(index, integer);
         Refuses(program.ValidateOperations, "index selection changed element type");
-        index.SetType(SemanticType.I32);
+        index.SetType(analysis.ScalarType(ScalarKind.I32));
         program.ValidateOperations();
-        Check(index.Type == SemanticType.I32, "type repairs failed");
+        Check(index.Type == analysis.ScalarType(ScalarKind.I32), "type repairs failed");
         IrNode call = new(function, IrKind.Call, result: IrResult.Value,
-            type: SemanticType.Unit, symbol: callee);
+            type: analysis.ScalarType(ScalarKind.Unit), symbol: callee);
         body.AddChild(call);
         Refuses(program.ValidateOperations, "call missing argument accepted");
         IrOperand argument = new(call, unit);
@@ -386,20 +386,20 @@ internal static class IrModelProbe
         argument.Destroy();
         _ = new IrOperand(call, local);
         program.ValidateOperations();
-        local.SetType(SemanticType.I32);
+        local.SetType(analysis.ScalarType(ScalarKind.I32));
         Refuses(program.ValidateOperations, "reference argument changed type");
-        local.SetType(SemanticType.Unit);
-        call.SetType(SemanticType.I32);
+        local.SetType(analysis.ScalarType(ScalarKind.Unit));
+        call.SetType(analysis.ScalarType(ScalarKind.I32));
         Refuses(program.ValidateOperations, "call changed result type");
-        call.SetType(SemanticType.Unit);
+        call.SetType(analysis.ScalarType(ScalarKind.Unit));
         program.ValidateOperations();
         Check(call.OperandCount() == 1, "call repair changed operands");
         // Mutations act on a descriptor, never on an unselected array value.
         IrNode arraySlot = new(function, IrKind.Local, result: IrResult.Address,
-            type: SemanticTypes.ArrayOf(SemanticType.I32));
+            type: SemanticTypes.ArrayOf(analysis.ScalarType(ScalarKind.I32)));
         body.AddChild(arraySlot);
         IrNode resize = new(function, IrKind.ArrayResize, result: IrResult.Value,
-            type: SemanticType.Unit);
+            type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(resize);
         IrOperand receiver = new(resize, array);
         IrOperand size = new(resize, integer);
@@ -415,7 +415,7 @@ internal static class IrModelProbe
         program.ValidateOperations();
         resize.Destroy();
         IrNode push = new(function, IrKind.ArrayPush, result: IrResult.Value,
-            type: SemanticType.Unit);
+            type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(push);
         _ = new IrOperand(push, arraySlot);
         IrOperand element = new(push, unit);
@@ -424,13 +424,13 @@ internal static class IrModelProbe
         _ = new IrOperand(push, integer);
         program.ValidateOperations();
         IrNode capacity = new(function, IrKind.ArrayCapacity, result: IrResult.Value,
-            type: SemanticType.I32);
+            type: analysis.ScalarType(ScalarKind.I32));
         body.AddChild(capacity);
         _ = new IrOperand(capacity, arraySlot);
         Refuses(program.ValidateOperations, "capacity accepted non-u64 result");
-        capacity.SetType(new SemanticType(ScalarKind.U64, 0));
+        capacity.SetType(analysis.ScalarType(ScalarKind.U64));
         program.ValidateOperations();
-        Check(push.OperandCount() == 2 && capacity.Type == new SemanticType(ScalarKind.U64, 0),
+        Check(push.OperandCount() == 2 && capacity.Type == analysis.ScalarType(ScalarKind.U64),
             "array operation repair changed graph");
         // Unit storage cannot acquire array or counted-object ownership merely
         // because an operation has the right operand count and result category.
@@ -440,7 +440,7 @@ internal static class IrModelProbe
             bool produces = kind is IrKind.Copy or IrKind.Ref or IrKind.Move;
             IrNode invalidOwner = new(function, kind,
                 result: produces ? IrResult.Value : IrResult.None,
-                type: produces ? SemanticType.Unit : null);
+                type: produces ? analysis.ScalarType(ScalarKind.Unit) : null);
             body.AddChild(invalidOwner);
             _ = new IrOperand(invalidOwner, local);
             Refuses(program.ValidateOperations, "ownership operation accepted unit: " + kind);
@@ -470,7 +470,7 @@ internal static class IrModelProbe
         program.ValidateOperations();
         transferStore.Destroy();
         IrNode transferLength = new(function, IrKind.ArrayLength, result: IrResult.Value,
-            type: new SemanticType(ScalarKind.U64, 0));
+            type: analysis.ScalarType(ScalarKind.U64));
         body.AddChild(transferLength);
         _ = new IrOperand(transferLength, transferValue);
         Refuses(program.ValidateOperations, "nonconsuming transfer observation accepted");
@@ -514,12 +514,12 @@ internal static class IrModelProbe
         // Each malformed operator is isolated; removal restores a valid graph.
         foreach (var item in new[]
         {
-            (IrKind.Unary, "unknown", unit, SemanticType.Unit),
-            (IrKind.Unary, "-", unit, SemanticType.Unit),
-            (IrKind.Unary, "!", integer, SemanticType.Bool),
-            (IrKind.Convert, "unknown", integer, SemanticType.I32),
-            (IrKind.Convert, "widen", integer, SemanticType.U8),
-            (IrKind.Convert, "as", unit, SemanticType.I32),
+            (IrKind.Unary, "unknown", unit, analysis.ScalarType(ScalarKind.Unit)),
+            (IrKind.Unary, "-", unit, analysis.ScalarType(ScalarKind.Unit)),
+            (IrKind.Unary, "!", integer, analysis.ScalarType(ScalarKind.Bool)),
+            (IrKind.Convert, "unknown", integer, analysis.ScalarType(ScalarKind.I32)),
+            (IrKind.Convert, "widen", integer, analysis.ScalarType(ScalarKind.U8)),
+            (IrKind.Convert, "as", unit, analysis.ScalarType(ScalarKind.I32)),
         })
         {
             IrNode invalidOperator = new(function, item.Item1,
@@ -531,11 +531,11 @@ internal static class IrModelProbe
             program.ValidateOperations();
         }
         IrNode wideSigned = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.I64, literal: new IrLiteral(BigInteger.Zero));
+            type: analysis.ScalarType(ScalarKind.I64), literal: new IrLiteral(BigInteger.Zero));
         IrNode wideUnsigned = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.U64, literal: new IrLiteral(BigInteger.Zero));
+            type: analysis.ScalarType(ScalarKind.U64), literal: new IrLiteral(BigInteger.Zero));
         IrNode boolean = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.Bool, literal: new IrLiteral(true));
+            type: analysis.ScalarType(ScalarKind.Bool), literal: new IrLiteral(true));
         body.AddChild(wideSigned);
         body.AddChild(wideUnsigned);
         body.AddChild(boolean);
@@ -546,7 +546,7 @@ internal static class IrModelProbe
             bool comparison = tag is "==" or "!=" or "<" or "<=" or ">" or ">=";
             bool shift = tag is "<<" or ">>";
             IrNode validBinary = new(function, IrKind.Binary, result: IrResult.Value,
-                type: comparison ? SemanticType.Bool : shift ? SemanticType.I32 : SemanticType.I64,
+                type: comparison ? analysis.ScalarType(ScalarKind.Bool) : shift ? analysis.ScalarType(ScalarKind.I32) : analysis.ScalarType(ScalarKind.I64),
                 operation: tag);
             body.AddChild(validBinary);
             _ = new IrOperand(validBinary, comparison ? wideSigned : integer);
@@ -558,28 +558,28 @@ internal static class IrModelProbe
         foreach (string tag in new[] { "==", "!=" })
         {
             IrNode equality = new(function, IrKind.Binary, result: IrResult.Value,
-                type: SemanticType.Bool, operation: tag);
+                type: analysis.ScalarType(ScalarKind.Bool), operation: tag);
             body.AddChild(equality);
             _ = new IrOperand(equality, boolean);
             _ = new IrOperand(equality, boolean);
             program.ValidateOperations();
-            Check(equality.Type == SemanticType.Bool, "boolean equality rejected");
+            Check(equality.Type == analysis.ScalarType(ScalarKind.Bool), "boolean equality rejected");
             equality.Destroy();
         }
         foreach (var item in new[]
         {
-            ("unknown", integer, integer, SemanticType.I32),
-            ("&&", boolean, boolean, SemanticType.Bool),
-            ("||", boolean, boolean, SemanticType.Bool),
-            ("+", unit, integer, SemanticType.I32),
-            ("+", local, integer, SemanticType.I32),
-            ("+", wideSigned, wideUnsigned, SemanticType.I64),
-            ("+", integer, wideSigned, SemanticType.I32),
-            ("<<", integer, wideSigned, SemanticType.I64),
-            (">>", integer, boolean, SemanticType.I32),
-            ("<", boolean, boolean, SemanticType.Bool),
-            ("==", boolean, integer, SemanticType.Bool),
-            ("==", integer, integer, SemanticType.I32),
+            ("unknown", integer, integer, analysis.ScalarType(ScalarKind.I32)),
+            ("&&", boolean, boolean, analysis.ScalarType(ScalarKind.Bool)),
+            ("||", boolean, boolean, analysis.ScalarType(ScalarKind.Bool)),
+            ("+", unit, integer, analysis.ScalarType(ScalarKind.I32)),
+            ("+", local, integer, analysis.ScalarType(ScalarKind.I32)),
+            ("+", wideSigned, wideUnsigned, analysis.ScalarType(ScalarKind.I64)),
+            ("+", integer, wideSigned, analysis.ScalarType(ScalarKind.I32)),
+            ("<<", integer, wideSigned, analysis.ScalarType(ScalarKind.I64)),
+            (">>", integer, boolean, analysis.ScalarType(ScalarKind.I32)),
+            ("<", boolean, boolean, analysis.ScalarType(ScalarKind.Bool)),
+            ("==", boolean, integer, analysis.ScalarType(ScalarKind.Bool)),
+            ("==", integer, integer, analysis.ScalarType(ScalarKind.I32)),
         })
         {
             IrNode invalidBinary = new(function, IrKind.Binary, result: IrResult.Value,
@@ -597,7 +597,7 @@ internal static class IrModelProbe
         {
             IrNode invalidControl = new(function, item.Item1,
                 result: item.Item1 == IrKind.If ? IrResult.Value : IrResult.None,
-                type: item.Item1 == IrKind.If ? SemanticType.Unit : null);
+                type: item.Item1 == IrKind.If ? analysis.ScalarType(ScalarKind.Unit) : null);
             body.AddChild(invalidControl);
             _ = new IrOperand(invalidControl, item.Item2);
             Refuses(program.ValidateOperations, "invalid control value accepted: " + item.Item1);
@@ -608,7 +608,7 @@ internal static class IrModelProbe
         {
             IrNode control = new(function, conditionRegion ? IrKind.While : IrKind.If,
                 result: conditionRegion ? IrResult.None : IrResult.Value,
-                type: conditionRegion ? null : SemanticType.I32);
+                type: conditionRegion ? null : analysis.ScalarType(ScalarKind.I32));
             body.AddChild(control);
             if (!conditionRegion)
             {
@@ -639,13 +639,13 @@ internal static class IrModelProbe
         SemanticAnalysis analysis = new(compilation);
         SemanticScope scope = new(analysis, null);
         SemanticSymbol declaration = new(scope, null, "constants", SymbolKind.Function,
-            SemanticType.Unit, false);
+            analysis.ScalarType(ScalarKind.Unit), false);
         IrProgram program = new(analysis);
         IrFunction function = new(program, declaration);
         IrNode body = new(function, IrKind.Region, IrRole.Body);
         function.AddBody(body);
         IrNode unit = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.Unit);
+            type: analysis.ScalarType(ScalarKind.Unit));
         body.AddChild(unit);
         IrNode finish = new(function, IrKind.Return);
         body.AddChild(finish);
@@ -656,16 +656,16 @@ internal static class IrModelProbe
         // The surrounding graph is valid. Each draft adds exactly one payload defect.
         foreach ((SemanticType type, IrLiteral? literal) in new (SemanticType, IrLiteral?)[]
         {
-            (SemanticType.Bool, new IrLiteral(new BigInteger(7))),
-            (SemanticType.Bool, null),
-            (SemanticType.I32, null),
-            (SemanticType.I32, new IrLiteral(true)),
-            (SemanticType.Unit, new IrLiteral(BigInteger.Zero)),
-            (SemanticType.U8, new IrLiteral(new BigInteger(-1))),
-            (SemanticType.U8, new IrLiteral(new BigInteger(256))),
-            (SemanticType.I8, new IrLiteral(new BigInteger(128))),
-            (SemanticType.ByteArray, new IrLiteral(new byte[] { 1 })),
-            (SemanticType.F32, new IrLiteral(BigInteger.Zero)),
+            (analysis.ScalarType(ScalarKind.Bool), new IrLiteral(new BigInteger(7))),
+            (analysis.ScalarType(ScalarKind.Bool), null),
+            (analysis.ScalarType(ScalarKind.I32), null),
+            (analysis.ScalarType(ScalarKind.I32), new IrLiteral(true)),
+            (analysis.ScalarType(ScalarKind.Unit), new IrLiteral(BigInteger.Zero)),
+            (analysis.ScalarType(ScalarKind.U8), new IrLiteral(new BigInteger(-1))),
+            (analysis.ScalarType(ScalarKind.U8), new IrLiteral(new BigInteger(256))),
+            (analysis.ScalarType(ScalarKind.I8), new IrLiteral(new BigInteger(128))),
+            (SemanticTypes.ArrayOf(analysis.ScalarType(ScalarKind.U8)), new IrLiteral(new byte[] { 1 })),
+            (analysis.ScalarType(ScalarKind.F32), new IrLiteral(BigInteger.Zero)),
         })
         {
             IrNode invalid = new(function, IrKind.Constant, result: IrResult.Value,
@@ -677,8 +677,8 @@ internal static class IrModelProbe
             program.ValidateOperations();
         }
         // Boundary values must not be accidentally excluded by the new range check.
-        foreach (SemanticType type in new[] { SemanticType.I8, SemanticType.U8,
-            SemanticType.I64, SemanticType.U64 })
+        foreach (SemanticType type in new[] { analysis.ScalarType(ScalarKind.I8), analysis.ScalarType(ScalarKind.U8),
+            analysis.ScalarType(ScalarKind.I64), analysis.ScalarType(ScalarKind.U64) })
         {
             foreach (BigInteger value in new[] { SemanticTypes.Minimum(type), SemanticTypes.Maximum(type) })
             {
@@ -701,8 +701,9 @@ internal static class IrModelProbe
         Check(source.Parse(false) is null && compilation.Check(false) is null
             && compilation.LowerIr() is null, "publication fixture failed lowering");
         IrFunction function = source.SyntaxRoot()!.ChildAt(0).DeclaredSymbol!.IrBody!;
+        SemanticAnalysis analysis = function.Program!.Analysis!;
         IrNode draft = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.Bool, literal: new IrLiteral(true));
+            type: analysis.ScalarType(ScalarKind.Bool), literal: new IrLiteral(true));
         using System.IO.StringWriter output = new();
         Refuses(() => compilation.WriteIr(output), "publication accepted a detached draft");
         Check(output.ToString().Length == 0 && !draft.Destroyed,
@@ -726,12 +727,12 @@ internal static class IrModelProbe
         SemanticAnalysis analysis = new(compilation);
         SemanticScope scope = new(analysis, null);
         SemanticSymbol declaration = new(scope, null, "f", SymbolKind.Function,
-            SemanticType.Unit, false);
+            analysis.ScalarType(ScalarKind.Unit), false);
         SemanticSymbol second = new(scope, null, "g", SymbolKind.Function,
-            SemanticType.Unit, false);
+            analysis.ScalarType(ScalarKind.Unit), false);
         SemanticSymbol nominal = new(scope, null, "Thing", SymbolKind.Class, null, false);
         SemanticSymbol field = new(scope, null, "field", SymbolKind.Field,
-            SemanticType.I32, true);
+            analysis.ScalarType(ScalarKind.I32), true);
         IrProgram program = new(analysis);
         IrFunction function = new(program, declaration);
         IrFunction other = new(program, second);
@@ -781,12 +782,12 @@ internal static class IrModelProbe
         loop.AddTransfer(transfer);
         Check(transfer.Target == loop, "loop target not registered");
         IrNode foreign = new(other, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.I32);
+            type: analysis.ScalarType(ScalarKind.I32));
         Refuses(() => body.AddChild(foreign), "cross-function tree accepted");
         Refuses(() => loop.AddTransfer(foreign), "nontransfer target accepted");
 
         IrNode value = new(function, IrKind.Constant, result: IrResult.Value,
-            type: SemanticType.I32, origin: origin, literal: new IrLiteral(new BigInteger(7)));
+            type: analysis.ScalarType(ScalarKind.I32), origin: origin, literal: new IrLiteral(new BigInteger(7)));
         IrNode use = new(function, IrKind.Ref, symbol: nominal);
         IrOperand operand = new(use, value);
         Check(use.OperandCount() == 1 && value.UseCount() == 1
@@ -804,25 +805,25 @@ internal static class IrModelProbe
             "consumer did not destroy operand");
 
         IrNode typed = new(function, IrKind.Local, result: IrResult.Address,
-            type: new SemanticType(ScalarKind.Unit, 0, nominal));
+            type: analysis.ClassType(nominal));
         Compilation separateCompilation = new();
         SemanticAnalysis separateAnalysis = new(separateCompilation);
         SemanticScope separateScope = new(separateAnalysis, null);
         SemanticSymbol separateClass = new(separateScope, null, "Other", SymbolKind.Class, null, false);
-        Refuses(() => typed.SetType(new SemanticType(ScalarKind.Unit, 0, separateClass)),
+        Refuses(() => typed.SetType(separateAnalysis.ClassType(separateClass)),
             "cross-analysis nominal type accepted");
         Check(typed.Type?.Class == nominal && analysis.Ir == program,
             "refused type change mutated valid IR");
-        typed.SetType(SemanticType.I32);
-        typed.SetType(new SemanticType(ScalarKind.Unit, 0, nominal));
+        typed.SetType(analysis.ScalarType(ScalarKind.I32));
+        typed.SetType(analysis.ClassType(nominal));
         // Logical locations and captured addresses share ordinary operand
         // relationships, but have distinct execution contracts. This probe checks
         // the relationships only, not relocation or opcode type validation.
         IrNode place = new(function, IrKind.SelectField, result: IrResult.Place,
-            type: SemanticType.I32, symbol: field);
+            type: analysis.ScalarType(ScalarKind.I32), symbol: field);
         IrOperand receiverUse = new(place, typed);
         IrNode address = new(function, IrKind.AddressOf, result: IrResult.Address,
-            type: SemanticType.I32);
+            type: analysis.ScalarType(ScalarKind.I32));
         IrOperand placeUse = new(address, place);
         Check(place.Result == IrResult.Place && address.Result == IrResult.Address
             && place.Symbol == field && receiverUse.Definition == typed

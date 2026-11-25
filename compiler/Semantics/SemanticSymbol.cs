@@ -8,10 +8,10 @@ internal sealed partial class SemanticScope
     {
         for (SemanticScope? scope = this; scope is not null; scope = scope.Parent)
         {
-            // Fields and methods require a receiver or class qualification.
+            // Fields and methods require a receiver or nominal qualification.
             // Their scope remains in the parent graph for ownership/navigation,
             // but is not an unqualified lexical namespace.
-            if (scope.Class is not null)
+            if (scope.MemberOwner is not null)
             {
                 continue;
             }
@@ -22,6 +22,17 @@ internal sealed partial class SemanticScope
             }
         }
         return null;
+    }
+
+    internal partial System.Collections.Generic.IEnumerable<SemanticSymbol> Fields()
+    {
+        foreach (SemanticSymbol symbol in Symbols)
+        {
+            if (symbol.Kind == SymbolKind.Field)
+            {
+                yield return symbol;
+            }
+        }
     }
 
     internal partial SemanticSymbol? LookupMember(string name)
@@ -38,7 +49,7 @@ internal sealed partial class SemanticScope
 
     internal partial void AddSymbol(SemanticSymbol symbol)
     {
-        SemanticSymbol? existing = Class is null
+        SemanticSymbol? existing = MemberOwner is null
             ? Lookup(symbol.Name)
             : LookupMember(symbol.Name);
         if (Destroyed || Analysis is null || Analysis.Destroyed || symbol.Destroyed
@@ -54,7 +65,7 @@ internal sealed partial class SemanticScope
     {
         int index = Symbols.LastIndexOf(symbol);
         if (symbol.Scope != this || index < 0 || !symbol.Destroyed
-            || symbol.Declaration is not null)
+            || symbol.Declaration is not null || symbol.Implementation is not null)
         {
             throw new InvalidOperationException("Only a destroyed symbol can leave its scope.");
         }
@@ -65,6 +76,11 @@ internal sealed partial class SemanticScope
 
 internal sealed partial class SemanticSymbol
 {
+    internal partial SyntaxNode? BodySyntax()
+    {
+        return Implementation ?? Declaration;
+    }
+
     internal partial bool IsCountedClass()
     {
         if (Kind != SymbolKind.Class || Declaration is null)
@@ -122,10 +138,14 @@ internal sealed partial class SemanticSymbol
         string name, SymbolKind kind, SemanticType? type, bool mutable,
         BuiltinKind builtin, bool acceptsArray, bool isReference)
     {
-        if (isReference && (kind is not (SymbolKind.Local or SymbolKind.Parameter)
+        // Reference fields belong only to value structs. Object fields still
+        // cannot retain nonowning storage aliases beyond a synchronous use.
+        bool referenceStorage = kind is SymbolKind.Local or SymbolKind.Parameter
+            || (kind == SymbolKind.Field && scope.MemberOwner?.Kind == SymbolKind.Struct);
+        if (isReference && (!referenceStorage
             || type is null || acceptsArray || !mutable))
         {
-            throw new ArgumentException("A writable storage alias requires a concrete local or parameter type.");
+            throw new ArgumentException("A writable storage alias requires a concrete local, parameter, or struct field type.");
         }
         IsReference = isReference;
         if (acceptsArray && (kind != SymbolKind.Parameter || type is not null))
@@ -160,15 +180,10 @@ internal sealed partial class SemanticSymbol
         Scope?.Analysis?.ClearIr();
         MemberScope?.Destroy();
         FunctionScope?.Destroy();
-        while (TypedFacts.Count != 0)
-        {
-            TypedFacts[TypedFacts.Count - 1].Destroy();
-        }
-        while (TypedSymbols.Count != 0)
-        {
-            TypedSymbols[TypedSymbols.Count - 1].Destroy();
-        }
+        InitializerScope?.Destroy();
+        NominalType?.Destroy();
         SetType(null);
+        Implementation?.RemoveImplementedSymbol(this);
         Declaration?.RemoveDeclaredSymbol(this);
         // Removing a declaration invalidates its checked uses. Destroy facts,
         // not their syntax nodes, so no resolved reference survives this symbol.
@@ -183,10 +198,38 @@ internal sealed partial class SemanticSymbol
 
 internal sealed partial class SyntaxNode
 {
+    internal partial void AddImplementedSymbol(SemanticSymbol symbol)
+    {
+        SemanticAnalysis? analysis = symbol.Scope?.Analysis;
+        if (Destroyed || Kind != SyntaxKind.Function || Source is null || Source.Destroyed
+            || DeclaredSymbol is not null || ImplementedSymbol is not null
+            || symbol.Destroyed || symbol.Kind != SymbolKind.Function
+            || symbol.Declaration is null || symbol.Declaration == this
+            || symbol.Implementation is not null || analysis is null || analysis.Destroyed
+            || analysis.Compilation is null || analysis.Compilation != Source.Parent)
+        {
+            throw new InvalidOperationException("Cannot attach a separate function implementation.");
+        }
+        analysis.ClearIr();
+        ImplementedSymbol = symbol;
+        symbol.Implementation = this;
+    }
+
+    internal partial void RemoveImplementedSymbol(SemanticSymbol symbol)
+    {
+        if (ImplementedSymbol != symbol || symbol.Implementation != this)
+        {
+            throw new InvalidOperationException("Implementation has a different symbol.");
+        }
+        symbol.Scope?.Analysis?.ClearIr();
+        ImplementedSymbol = null;
+        symbol.Implementation = null;
+    }
+
     internal partial void AddDeclaredSymbol(SemanticSymbol symbol)
     {
         SemanticAnalysis? analysis = symbol.Scope?.Analysis;
-        if (Destroyed || Source is null || Source.Destroyed || DeclaredSymbol is not null
+        if (Destroyed || Source is null || Source.Destroyed || ImplementedSymbol is not null || DeclaredSymbol is not null
             || symbol.Destroyed || symbol.Declaration is not null || analysis is null
             || analysis.Destroyed || analysis.Compilation is null
             || analysis.Compilation != Source.Parent)

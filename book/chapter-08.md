@@ -15,6 +15,10 @@
 
 <!-- common-diagram:end -->
 
+<!-- canonical-forward-link -->
+**Later revision:** Chapter 10 replaces the flat type descriptor and class-only type-user links with canonical identities, and extends scopes and body identities. [See the explicitly revised model](chapter-10.md). This figure describes the model at this chapter.
+
+
 ## Introduction
 
 This chapter introduces some of the secret sauce I expect Lyric to use to win application-level benchmarks. Not a clever expression optimization. Not a benchmark trick. We are going to change how ordinary programs store and allocate their objects.

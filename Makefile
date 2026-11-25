@@ -5,7 +5,7 @@ NODE ?= node
 NPM ?= npm
 GRADERS ?= graders
 
-.PHONY: release spin01 spin02 spin03 spin04 spin05 spin06 spin07 spin08 spin09 test grammar-setup grammar-check syntax
+.PHONY: release spin01 spin02 spin03 spin04 spin05 spin06 spin07 spin08 spin09 spin10 test grammar-setup grammar-check syntax
 
 release:
 	"$(DOTNET)" build compiler/Lyric.csproj -c Release --nologo --tl:off
@@ -38,6 +38,9 @@ spin08: release
 spin09: release
 	"$(PYTHON)" tools/spin09.py "$(DOTNET)"
 
+spin10: release
+	"$(PYTHON)" tools/spin10.py "$(DOTNET)"
+
 # These are the public retained graders, not a second test implementation.
 # Stop immediately if a build or any grader fails.
 test:
@@ -64,6 +67,12 @@ test:
 		"$(PYTHON)" "$(GRADERS)/ch09/ir.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch09/ownership.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch09/c_emission.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch10/canonical.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch10/tuples.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch10/structs.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch10/struct_values.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch10/array_defaults.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch10/borrowed_structs.py" "$(DOTNET)" "$$assembly"; \
 	done
 
 # Explicit one-time setup; ordinary grammar checks do not install dependencies.
@@ -81,7 +90,6 @@ syntax: release
 .PHONY: diagrams
 diagrams:
 	sh tools/common-diagrams/regenerate.sh "$(DOTNET)"
-	"$(PYTHON)" tools/common-diagrams/test.py
 
 # Existing Pandoc, Chrome, Poppler and a Python with PyMuPDF are prerequisites.
 -include .book-tools.mk

@@ -1,6 +1,6 @@
 # Agreed next construction increments
 
-This is the dependency spine agreed with Bill, not a fixed table of contents or authorization to skip verification. Chapter 8 is complete through reviews and independent reconstruction; Bill accepted it and reports running `spin08`. Bill has prioritized accelerating multi-class interfaces and approved Chapters 9 and 10 below. Later relationship chapter boundaries remain provisional.
+This is the dependency spine agreed with Bill, not a fixed table of contents or authorization to skip verification. Chapters 8 through 10 are complete through reviews, independent reconstruction, and Bill’s acceptance of their walkthroughs. Composite types and canonical type identity now form Chapter 10; specialization and multi-class interfaces follow that foundation. Later relationship chapter boundaries remain provisional.
 
 ## Chapter 8 — Standalone classes and lifetime policies
 
@@ -17,38 +17,39 @@ calls and storage, and generated bodies participate in effect/lifetime checks.
 The C emitter does not resolve interfaces. See the [IR and interface design
 record](notes/ir-interface-design.md) for decisions, reasons and open details.
 
-The agreed next boundary is **Chapter 9 for the IR refactor**, followed by
-**Chapter 10 combining necessary generic-function specialization, ordinary
-interfaces and multi-class interfaces**. Keep Chapter 5 in its current position:
-early executable behavior earns the later refactor, whose runtime helpers and
-retained behavioral checks remain useful. Do not require a comprehensive
-optimization suite or a separate ordinary-interface chapter before cooperating
-types. Chapter 9 implementation, reviews, and independent reconstruction are complete;
-human acceptance is pending. Chapter 10 implementation has not started.
-Chapter 9 introduces no source-language generators or other new language features.
-Its generated cleanup bodies implement Chapter 8 lifetimes in IR; they are not
-iterator/generator functions.
+Chapter 9's structured execution/ownership IR and IR-only C backend are complete
+and human-accepted, including `spin09`. Keep Chapter 5's early C backend in place:
+it earns the later refactor rather than making the reader wait for executable code.
+
+## Chapter 10 — Composite types and canonical type identity
+
+Bill approved discussing and constructing this increment before generic
+specialization and multi-class interfaces. Introduce tuples and nominal structs,
+including their construction, methods, recursive finite layouts, copying, cleanup,
+and nonescaping contained borrows, together with canonical type interning.
+The accepted language decisions are integrated into Section 4 of the specification.
+The bounded development plan is [Chapter 10 construction notes](notes/ch10-development.md).
+
+Use one semantic owner and a collision-safe canonical type table. Composite keys
+use canonical component identities; nominal keys use declaration identities.
+Type equality then compares canonical identities. This is a foundation for richer
+types, not a measured optimization of today's constant-size flat descriptor.
+A provisional design sketch may help construction, but finalize the chapter's
+source-checked diagrams only after the implementation works.
+
+Enums, tagged unions, general generics, interface specialization, and new object
+relationship machinery are outside this increment. Do not add a second type
+checker or an AST-emission fallback to implement aggregate behavior.
+
+## After composite types — specialization and multi-class interfaces
 
 Start with a method-based example that does not require persistent relationships.
 Nullable references, Result/Status/propagation and generators are prerequisites
 for later relationship features, not for that first multi-class contract.
 Interface conformance requires behavior, not implicit storage injection or runtime
-wrappers. Preserve all participant and endpoint-role mappings in binding and
-specialization identity from the start.
-
-## Proposed future topic — canonical type identities
-
-Bill agreed to introduce the full type hierarchy and type interning together in a
-future chapter, likely alongside specialization; its exact chapter boundary is not
-yet agreed. Use a
-hash table with a complete equality check on collisions to canonicalize immutable
-types, allowing later equality checks to compare canonical object identities.
-Preserve nominal declaration identity; equal spelling is not equal type. Keep
-specialization keys complete, including interface bindings and participant roles.
-
-The current SemanticType is a flat value of scalar kind, array depth and optional
-class identity. Its equality is constant-size, not a recursive hierarchy walk.
-This proposal is not permission to change that representation during diagram work.
+wrappers. Preserve every participant and endpoint-role mapping in binding and
+specialization identity. Type interning does not merge specializations that differ
+in declaration, concrete arguments, selected implementation or participant roles.
 
 ## Relationship prerequisites and the graph
 

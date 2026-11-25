@@ -28,7 +28,7 @@ def field(types, owner, name):
     require(len(matches) == 1, f'Expected one stored field: {owner}.{name}')
     return matches[0]
 
-def validate(root, inventory, plan):
+def validate(root, inventory, plan, *, check_views=True):
     types = {t['id']: t for t in inventory['types'] if not t['isStatic']}
     actual = {p.name for p in (root / 'compiler/Common').glob('*.cs')}
     require(actual == {s['file'] for s in inventory['files']}, 'Stale Common file set')
@@ -57,11 +57,19 @@ def validate(root, inventory, plan):
         require(rel['chapter'] >= max(plan['types'][n]['introduced'] for n in [rel['owner'], rel['child']]),
                 f'Relationship precedes its types: {rel["id"]}')
         edges[rel['id']] = dict(rel, many=f['many'], source=f['source'])
-    # Nominal values carry an indirect dependency. The persistent holders, not
-    # each value copy, register the reverse memberships on the class declaration.
-    for holder, reverse in [('SemanticSymbol', 'TypedSymbols'), ('SemanticFact', 'TypedFacts'), ('IrNode', 'IrTypes')]:
-        require('SemanticType' in field(types, holder, 'Type')['references'], f'Missing type holder: {holder}')
-        require(holder in field(types, 'SemanticSymbol', reverse)['references'], f'Missing nominal reverse: {reverse}')
+    # Both source versions retain explicit model-specific checks. A current
+    # manifest cannot silently pass with the historical value-type policy.
+    policy = plan.get('type_policy', 'historical')
+    require(policy in ('historical', 'canonical'), 'Unknown type relationship policy')
+    if policy == 'historical':
+        for holder, reverse in [('SemanticSymbol', 'TypedSymbols'), ('SemanticFact', 'TypedFacts'), ('IrNode', 'IrTypes')]:
+            require('SemanticType' in field(types, holder, 'Type')['references'], f'Missing type holder: {holder}')
+            require(holder in field(types, 'SemanticSymbol', reverse)['references'], f'Missing nominal reverse: {reverse}')
+    else:
+        require(not plan['types']['SemanticType']['value'], 'Canonical types have identity')
+        for holder, reverse, slot in [('SemanticSymbol', 'Symbols', 'Type'), ('SemanticFact', 'Facts', 'TypeLink'), ('IrNode', 'IrNodes', 'Type')]:
+            require('SemanticType' in field(types, holder, slot)['references'], f'Missing canonical holder: {holder}')
+            require(holder in field(types, 'SemanticType', reverse)['references'], f'Missing canonical reverse: {reverse}')
     used = set()
     covered_fields = set()
     for e in edges.values():
@@ -76,6 +84,8 @@ def validate(root, inventory, plan):
                 if target in types:
                     require((owner, f["name"], target) in covered_fields,
                             f"Unmapped stored relationship: {owner}.{f['name']} -> {target}")
+    if not check_views:
+        return types, edges
     for view in plan['views']:
         require(len(view['nodes']) == len(set(view['nodes'])), 'Duplicate node')
         for name in view['nodes']:

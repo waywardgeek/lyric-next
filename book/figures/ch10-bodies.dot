@@ -1,0 +1,14 @@
+digraph Common {
+label="Chapter 10 — REVISED MODEL"; labelloc=t; fontsize=17;
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"SyntaxNode" [label="SyntaxNode\n(existing)", fillcolor="#ffffff"];
+"IrFunction" [label="IrFunction\n(existing)", fillcolor="#ffffff"];
+"IrProgram" [label="IrProgram\n(existing)", fillcolor="#ffffff"];
+"SemanticSymbol" -> "SyntaxNode" [id="implementation", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="NEW\nseparate\nbody", tooltip="SemanticSymbol.Implementation -> SyntaxNode; reverse SyntaxNode.ImplementedSymbol"];
+"SemanticSymbol" -> "SyntaxNode" [id="declaration", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="CONTEXT\ndeclaration", tooltip="SemanticSymbol.Declaration -> SyntaxNode; reverse SyntaxNode.DeclaredSymbol"];
+"IrFunction" -> "SemanticSymbol" [id="ir-declaration", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="CHANGED\nfunction\nor\nfield", tooltip="IrFunction.Declaration -> SemanticSymbol; reverse SemanticSymbol.IrBody"];
+"IrProgram" -> "IrFunction" [id="functions", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="CONTEXT\nFunctions", tooltip="IrProgram.Functions -> IrFunction; reverse IrFunction.Program"];
+}

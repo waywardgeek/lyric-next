@@ -56,8 +56,9 @@ See [the next-increment roadmap](roadmap.md) for the approved Chapter 8 scope an
 
 - [Chapter 8 — Classes, Lifetimes, and Two Storage Layouts](chapter-08.md): reference implementation and teaching complete through the single code and text reviews and fresh independent reconstruction. Both configurations pass all retained checks, including 154 static class cases and 212 layout executions, plus allocation/ownership checks, PEG143, and the scripted walkthrough. The student received a grader correction and constructor-scope clarification, but no implementation assistance; see the [reconstruction report](notes/ch08-student-report.md). Bill has read and accepted Chapter 8 and reports running `make spin08`.
 
-The agreed next chapters are **Chapter 9: explicit execution and ownership IR**,
-then **Chapter 10: generic specialization and multi-class interfaces**. Chapter 5
+Chapter 9 completes **explicit execution and ownership IR**. The agreed next
+chapter is **Chapter 10: composite types and canonical type identity**.
+Generic specialization and multi-class interfaces follow that foundation. Chapter 5
 stays where it is to provide early executable behavior. See the [design
 record](notes/ir-interface-design.md) for the semantic-resolution/IR/C-emission
 boundary. [Chapter 9 — Make Execution Explicit](chapter-09.md) now has a full
@@ -66,7 +67,12 @@ Debug/Release checks and corrected `make spin09` pass; sanitizer evidence predat
 the review fixes. One code review, one text review, and fresh isolated reconstruction
 are complete. The student passed all retained checks with setup-only assistance,
 not implementation patches; see the [reconstruction record](notes/ch09-reconstruction.md).
-Human acceptance remains pending. Chapter 10 remains planned, not implemented.
+Bill has fully approved Chapters 9 and 10 after running `make spin09` and
+`make spin10`. [Chapter 10 — Composite Types and Canonical Type Identity](chapter-10.md)
+is complete through implementation, source-checked diagrams, the single code and
+text reviews, and assisted independent reconstruction. The student passed every
+applicable retained check in Debug and Release; see its
+[acceptance receipt](notes/ch10-student-acceptance.md).
 
 ## Provisional construction sequence
 

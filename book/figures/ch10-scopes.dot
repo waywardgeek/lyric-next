@@ -1,0 +1,13 @@
+digraph Common {
+label="Chapter 10 — REVISED MODEL"; labelloc=t; fontsize=17;
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SemanticAnalysis" [label="SemanticAnalysis\n(existing)", fillcolor="#ffffff"];
+"SemanticScope" [label="SemanticScope\n(existing)", fillcolor="#ffffff"];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"SemanticAnalysis" -> "SemanticScope" [id="scopes", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="CONTEXT\nScopes", tooltip="SemanticAnalysis.Scopes -> SemanticScope; reverse SemanticScope.Analysis"];
+"SemanticScope" -> "SemanticSymbol" [id="symbols", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="CONTEXT\nSymbols", tooltip="SemanticScope.Symbols -> SemanticSymbol; reverse SemanticSymbol.Scope"];
+"SemanticSymbol" -> "SemanticScope" [id="member-scope", color="#164f86", penwidth=2, style=solid, arrowhead=onormal, label="CHANGED\nmember\nscope", tooltip="SemanticSymbol.MemberScope -> SemanticScope; reverse SemanticScope.MemberOwner"];
+"SemanticSymbol" -> "SemanticScope" [id="initializer-scope", color="#164f86", penwidth=2, style=solid, arrowhead=onormal, label="NEW\ninitializer\nscope", tooltip="SemanticSymbol.InitializerScope -> SemanticScope; reverse SemanticScope.InitializerField"];
+}

@@ -96,8 +96,12 @@ foreach (var group in groups)
         foreach (PropertyDeclarationSyntax property in declaration.Members.OfType<PropertyDeclarationSyntax>())
         {
             // Auto-properties store state; computed accessors are access paths,
-            // not another authoritative copy of the relationship.
-            if (!property.Modifiers.Any(SyntaxKind.StaticKeyword) && property.ExpressionBody is null
+            // not another authoritative copy of the relationship. A bodyless
+            // partial declaration gets its accessor implementation elsewhere;
+            // it is not an auto-property or evidence of additional storage.
+            if (!property.Modifiers.Any(SyntaxKind.StaticKeyword)
+                && !property.Modifiers.Any(SyntaxKind.PartialKeyword)
+                && property.ExpressionBody is null
                 && property.AccessorList is not null
                 && property.AccessorList.Accessors.All(a => a.Body is null && a.ExpressionBody is null))
             {

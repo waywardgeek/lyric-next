@@ -60,10 +60,10 @@ ImportDecl <- "import" Ident ("from" StringLiteral)?
 TypeAlias <- Visibility "type" Ident "=" Type
 GlobalBinding <- Visibility ("let" / "var") Ident (":" Type)? "=" Expr
 StructDecl <- Visibility "struct" Ident (TypeParams)? StructBody
-StructBody <- "{" SepOpt (FieldDecl (MemberSep FieldDecl)* (MemberSep)?)? "}"
+StructBody <- "{" SepOpt (AggregateMember (MemberSep AggregateMember)* (MemberSep)?)? "}"
 ClassDecl <- Visibility ("value")? "class" Ident (TypeParams)? ClassBody
-ClassBody <- "{" SepOpt (ClassMember (MemberSep ClassMember)* (MemberSep)?)? "}"
-ClassMember <- FunctionDecl / FieldDecl
+ClassBody <- "{" SepOpt (AggregateMember (MemberSep AggregateMember)* (MemberSep)?)? "}"
+AggregateMember <- FunctionDecl / FieldDecl
 FieldDecl <- Visibility Ident ":" Type ("=" Expr)?
 EnumDecl <- Visibility "enum" Ident (TypeParams)? EnumBody
 EnumBody <- "{" SepOpt (EnumVariant (MemberSep)?)* "}"
@@ -79,7 +79,7 @@ FunctionDecl <- Visibility ("safe" / "final")? "func" FunctionName (TypeParams)?
 FunctionName <- QualifiedName
 Parameters <- "(" (ParameterList)? ")"
 ParameterList <- Parameter ("," Parameter)* (",")?
-Parameter <- "self" / Ident ":" Type
+Parameter <- "self" (":" Type)? / Ident ":" Type
 TypeParams <- "<" TypeParam ("," TypeParam)* TypeClose
 TypeParam <- Ident (":" QualifiedName)?
 WhereClause <- "where" Requirement ("," Requirement)*
@@ -117,7 +117,7 @@ TypeArgs <- "<" Type ("," Type)* TypeClose
 # >= is never split. The lexer output remains unchanged.
 TypeClose <- ">"
 ArrayType <- "[" Type "]"
-ParenthesizedType <- "(" Type ("," Type ("," Type)* (",")?)? ")"
+ParenthesizedType <- "(" Type ("," (Type ("," Type)* (",")?)?)? ")"
 FunctionType <- "fn" "(" (TypeList)? ")" "->" Type
 TypeList <- Type ("," Type)* (",")?
 Block <- "{" SepOpt (Statement (Sep Statement)* (Sep)?)? "}"
@@ -160,7 +160,7 @@ Primary <- IfExpr / MatchExpr / ClosureExpr / UnitExpr / TupleExpr / Parenthesiz
 Literal <- FString / TripleStringLiteral / StringLiteral / ByteLiteral / SymbolLiteral / FloatLiteral / IntegerLiteral / "true" / "false" / "null"
 UnitExpr <- "(" ")"
 ParenthesizedExpr <- "(" Expr ")"
-TupleExpr <- "(" Expr "," Expr ("," Expr)* (",")? ")"
+TupleExpr <- "(" Expr "," (Expr ("," Expr)* (",")?)? ")"
 ArrayExpr <- "[" (ArgumentList)? "]"
 DictExpr <- "{" SepOpt (DictEntries)? "}"
 DictEntries <- DictEntry (MemberSep DictEntry)* (MemberSep)?
@@ -194,7 +194,7 @@ Pattern <- "_" / PatternLiteral / NamePattern / TuplePattern
 PatternLiteral <- IntegerLiteral / "-" IntegerLiteral / ByteLiteral / StringLiteral / "true" / "false" / "null"
 NamePattern <- QualifiedName ("(" (PatternList)? ")")?
 PatternList <- Pattern ("," Pattern)* (",")?
-TuplePattern <- "(" Pattern "," Pattern ("," Pattern)* (",")? ")"
+TuplePattern <- "(" Pattern "," (Pattern ("," Pattern)* (",")?)? ")"
 
 # External lexical hooks (the lexer contract remains explicit):
 # @XIDStart: one decoded Unicode scalar with XID_Start in the pinned Unicode version

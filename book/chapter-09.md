@@ -20,6 +20,10 @@ The two views separate execution ownership from checked meaning. Nominal type de
 
 <!-- common-diagram:end -->
 
+<!-- canonical-forward-link -->
+**Later revision:** Chapter 10 replaces the flat type descriptor and class-only type-user links with canonical identities, and extends scopes and body identities. [See the explicitly revised model](chapter-10.md). This figure describes the model at this chapter.
+
+
 ## Introduction
 
 I did not build a low-level intermediate representation for Rune. I regretted that decision when I wrote its LLVM IR generator.
@@ -54,7 +58,7 @@ Keep C as our backend. Put a structured intermediate representation between chec
 
 This chapter adds no source-language feature. Start from Chapter 8 and preserve its behavior, diagnostics, unsafe policy, and both object layouts. We are changing where the compiler expresses execution, not what a Lyric program means. There is no optimizer, SSA conversion, general control-flow graph, or generator implementation in this increment. `Yield` means a region result, not suspension.
 
-**Status:** the reference implementation passes the post-code-review cumulative Debug/Release checks and corrected walkthrough. The recorded sanitizer executions precede the review fixes; they were not rerun afterward. One code review and one text review are complete, with their corrections incorporated. A fresh isolated reconstruction passed all current and retained graders, with setup-only assistance and no implementation patches. Human acceptance remains. The detailed public inspection and comparison contract is [the Chapter 9 grader guide](../graders/ch09/README.md).
+**Status:** the reference implementation passes the post-code-review cumulative Debug/Release checks and corrected walkthrough. The recorded sanitizer executions precede the review fixes; they were not rerun afterward. One code review and one text review are complete, with their corrections incorporated. A fresh isolated reconstruction passed all current and retained graders, with setup-only assistance and no implementation patches. Bill has accepted the chapter and reports that `spin09` looks good. The detailed public inspection and comparison contract is [the Chapter 9 grader guide](../graders/ch09/README.md).
 
 ## Why I want this boundary
 

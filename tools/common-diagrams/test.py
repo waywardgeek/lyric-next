@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
@@ -11,9 +12,10 @@ TOOL = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('diagrams', TOOL / 'generate.py')
 g = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(g)
-inventory = json.loads((TOOL / '.build/inventory.json').read_text())
+SOURCE_ROOT = Path(os.environ.get('LYRIC_DIAGRAM_SOURCE', str(ROOT)))
+inventory = json.loads(Path(os.environ.get('LYRIC_DIAGRAM_INVENTORY', str(TOOL / '.build/inventory.json'))).read_text())
 plan = json.loads((TOOL / 'chapters.json').read_text())
-types, edges = g.validate(ROOT, inventory, plan)
+types, edges = g.validate(SOURCE_ROOT, inventory, plan)
 count = 1
 
 def refuses(name, mutate):
@@ -21,7 +23,7 @@ def refuses(name, mutate):
     candidate = copy.deepcopy(plan)
     mutate(candidate)
     try:
-        g.validate(ROOT, inventory, candidate)
+        g.validate(SOURCE_ROOT, inventory, candidate)
     except ValueError:
         print('PASS refusal:', name)
         count += 1

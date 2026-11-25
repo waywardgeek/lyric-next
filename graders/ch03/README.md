@@ -20,6 +20,14 @@ may be overridden. A nonzero build or grader exit stops the command.
 
 See [the complete tree-shape contract](tree-shapes.md) for anchors and child order.
 
+Chapter 10 intentionally extends the earlier grammar to one-element tuple
+expressions, types, and binding patterns. The former single-tuple rejection
+cases now require acceptance; malformed doubled commas remain rejections.
+Grouping stays distinct: `(T)` has null `type-group` text, while `(T,)` has
+comma text. These syntax checks do not establish composite type checking or
+execution support.
+
+
 ## Inspection contract
 
 - `--inspect-syntax FILE` parses a complete source file, returning a `file` root.
@@ -79,3 +87,9 @@ not an independent lexer or semantic checker. The fixtures' authored expectation
 remain the oracle; agreement between two implementations alone is insufficient.
 The implementation resource tests are not language-syntax rejection fixtures and
 are deliberately not sent to Peggy.
+
+Chapter 10 also admits function members in struct bodies: value and explicit
+reference receivers, static functions, visibility, and declarations followed by
+qualified bodies. These retained recognition cases check syntax only, not
+signature matching or method execution. The struct-method tree case requires
+the same function-node shape used in class bodies.

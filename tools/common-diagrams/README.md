@@ -13,7 +13,7 @@ From the repository root, with existing .NET 10, Python 3 and Graphviz:
 
 ```sh
 make diagrams DOTNET=/path/to/dotnet
-python3 tools/common-diagrams/test.py
+python3 tools/common-diagrams/test_revisions.py /path/to/dotnet
 ```
 
 No downloads or runtime execution. The source-only Roslyn extractor is adapted
@@ -47,10 +47,54 @@ roles; they do not merely repeat destination class names. Styling differs by str
 as well as color. Graphviz controls visual layout; relationships remain authoritative
 in the checked map.
 
-These are chapter-era selected views of current declarations, not fabricated
-historical source snapshots. For example, Chapter 4 does not show the structured
-type introduced in Chapter 7, and Chapter 7 does not show Chapter 8's nominal class
-link. Full type hierarchies and interning remain future chapter work.
+The recipe first tests the actual extractor with synthetic declarations: ordinary
+fields and auto-properties are storage; computed properties and bodyless partial
+property declarations are not. This regression does not execute compiler code.
+After building the extractor, it can also be run independently:
+
+```sh
+python3 tools/common-diagrams/test_extractor.py /path/to/dotnet \
+  tools/common-diagrams/.build/artifacts/bin/Extractor/debug/Extractor.dll
+```
+
+## Chapter 10 source-version migration
+
+The historical `chapters.json` remains unchanged. `revisions.py` exports the pinned
+accepted Chapter 9 Git object `6073e136c772019dc8dbe4ca11211340904cbf9e` to a temporary
+directory, extracts its actual declarations, and checks its original coverage and
+lifecycle fingerprints. It independently extracts the working Chapter 10 source
+and validates `chapter10.json`: all stored relationships, canonical holder policy,
+reviewed lifecycle files, and explicit replacements. No archived reconstruction
+is used. The original `test.py` runs against that temporary historical source,
+while inspecting the retained published historical figures and chapter blocks.
+
+Every changed relationship names its predecessor(s) and reason. New and changed
+relationships appear once in the revised views; explicitly marked CONTEXT may
+repeat an unchanged historical relationship. Same-spelling changes count too:
+`IrFunction.Declaration` now supports field initializers as well as source functions.
+Canonical dependencies are not value-like fields or ownership of shared ingredients.
+The independent required lifecycle-file set prevents dropping a stale fingerprint
+from the manifest merely to pass validation. Fingerprints record reviewed model
+code, not blanket proof of compiler algorithms or exception safety.
+
+Four Chapter 10 views have visible NEW/CHANGED/CONTEXT labels and adjacent class
+guides; their companion lists actual fields, backlinks and historical predecessors.
+Earlier chapters link forward outside their unchanged generated blocks. The new
+publisher touches only these revisions and forward notices, never historical figures.
+All source checks, SVG rendering, exact headings, and ten-point-at-five-inch checks
+complete in memory before publication. Ordinary write failure rolls back saved
+bytes; this is not a power-loss-atomic multi-file transaction. Preview is the default:
+
+```sh
+python3 tools/common-diagrams/revisions.py /path/to/dotnet
+# After inspecting .build/revisions previews:
+python3 tools/common-diagrams/revisions.py /path/to/dotnet --publish
+```
+
+`make diagrams` builds/tests the extractor, runs both historical and migration
+checks, then publishes. The regression includes a deliberately oversized final
+figure: its refusal must leave all manuscript inputs unchanged. Visual inspection
+is still required; computed font metrics cannot detect every confusing routing.
 
 No Lyric print/EPUB publishing pipeline is added here. SVGs are vector figures;
 PNG previews support local visual inspection. Final pagination and target-reader

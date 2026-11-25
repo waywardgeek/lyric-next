@@ -24,6 +24,18 @@ internal sealed partial class Compilation
         {
             return loweringFailure;
         }
+        return EmitIrC(output, structureOfArrays);
+    }
+
+    internal partial Diagnostic? EmitIrC(TextWriter output, bool structureOfArrays)
+    {
+        if (Analysis?.Ir is not IrProgram program || Analysis.Destroyed)
+        {
+            throw new InvalidOperationException("Lower before emitting IR C.");
+        }
+        program.ValidateStructure();
+        program.ValidateOperations();
+        program.ValidateExecution();
         using StringWriter code = new(CultureInfo.InvariantCulture);
         bool unsafeMode = Analysis.Unsafe;
         if (unsafeMode)
@@ -33,6 +45,10 @@ internal sealed partial class Compilation
         Dictionary<SemanticSymbol, string> names = new();
         List<SemanticSymbol> functions = new();
         List<SemanticSymbol> classes = new();
+        // Backend names are transient views of canonical identities. Component-first
+        // ordering makes inline tuple fields complete C types before their use.
+        Dictionary<SemanticType, string> aggregateNames = new();
+        List<SemanticType> aggregateTypes = new();
         int temporary = 0;
         int indentation = 0;
         SemanticSymbol? entry = null;
@@ -42,11 +58,14 @@ internal sealed partial class Compilation
             for (int i = 0; i < root.ChildCount(); i += 1)
             {
                 SyntaxNode declaration = root.ChildAt(i);
-                if (declaration.Kind == SyntaxKind.Class)
+                if (declaration.Kind is SyntaxKind.Class or SyntaxKind.Struct)
                 {
-                    SemanticSymbol classSymbol = declaration.DeclaredSymbol!;
-                    classes.Add(classSymbol);
-                    Name(classSymbol);
+                    if (declaration.Kind == SyntaxKind.Class)
+                    {
+                        SemanticSymbol classSymbol = declaration.DeclaredSymbol!;
+                        classes.Add(classSymbol);
+                        Name(classSymbol);
+                    }
                     for (int m = 0; m < declaration.ChildCount(); m += 1)
                     {
                         SyntaxNode member = declaration.ChildAt(m);
@@ -62,7 +81,11 @@ internal sealed partial class Compilation
                     }
                     continue;
                 }
-                SemanticSymbol function = declaration.DeclaredSymbol!;
+                if (declaration.DeclaredSymbol is not SemanticSymbol function
+                    || function.Kind != SymbolKind.Function)
+                {
+                    continue;
+                }
                 functions.Add(function);
                 Name(function);
                 // Entry selection is orchestration, not call resolution. The
@@ -310,12 +333,25 @@ internal sealed partial class Compilation
                     return (ly_unit){0};
                 }
                 """);
+            AggregateLayouts();
+            AggregatePrototypes();
             ArithmeticHelpers();
             // Generated destructors call hooks; declarations precede storage
             // routines, while checked method bodies are emitted below them.
             foreach (SemanticSymbol function in functions)
             {
                 Line(Signature(function) + ";");
+            }
+            // Initializers have real field identities and no source parameters.
+            // Publish all prototypes before any body can invoke another body.
+            for (int i = 0; i < Analysis.Ir!.FunctionCount(); i += 1)
+            {
+                IrFunction initializer = Analysis.Ir.FunctionAt(i);
+                if (initializer.Kind == IrFunctionKind.FieldInitializer)
+                {
+                    SemanticSymbol field = initializer.Declaration!;
+                    Line($"static {CType(field.Type!)} {(field.IsReference ? "*" : "")}{Name(field)}_initialize(void);");
+                }
             }
             foreach (SemanticSymbol classSymbol in classes)
             {
@@ -332,6 +368,7 @@ internal sealed partial class Compilation
                     CountedArrays(classSymbol);
                 }
             }
+            AggregateHelpers();
             foreach (SemanticSymbol classSymbol in classes)
             {
                 Line($"static ly_unit {Name(classSymbol)}_destroy_body(uint64_t index)");
@@ -341,6 +378,16 @@ internal sealed partial class Compilation
             {
                 Line(Signature(function));
                 EmitIr(function.IrBody!);
+            }
+            for (int i = 0; i < Analysis.Ir!.FunctionCount(); i += 1)
+            {
+                IrFunction initializer = Analysis.Ir.FunctionAt(i);
+                if (initializer.Kind == IrFunctionKind.FieldInitializer)
+                {
+                    SemanticSymbol field = initializer.Declaration!;
+                    Line($"static {CType(field.Type!)} {(field.IsReference ? "*" : "")}{Name(field)}_initialize(void)");
+                    EmitIr(initializer);
+                }
             }
             Line("int main(void)");
             Line("{");
@@ -374,10 +421,12 @@ internal sealed partial class Compilation
             {
                 IrNode node = function.NodeAt(i);
                 if (node.Kind is not (IrKind.Region or IrKind.Constant or IrKind.Local
-                    or IrKind.Load or IrKind.Store or IrKind.Call or IrKind.Return
+                    or IrKind.Load or IrKind.Store or IrKind.Call or IrKind.CallInitializer or IrKind.Return
                     or IrKind.Unary or IrKind.Binary or IrKind.Convert
                     or IrKind.If or IrKind.While or IrKind.Yield or IrKind.Break or IrKind.Continue
                     or IrKind.NewArray or IrKind.Copy or IrKind.Move or IrKind.FreeArray
+                    or IrKind.NewTuple or IrKind.SelectTuple or IrKind.DropTuple
+                    or IrKind.NewStruct or IrKind.SelectStruct or IrKind.DropStruct
                     or IrKind.ArrayLength or IrKind.ArrayCapacity
                     or IrKind.Borrow or IrKind.SelectIndex
                     or IrKind.ArrayReserve or IrKind.ArrayResize or IrKind.ArrayTruncate or IrKind.ArrayPush
@@ -412,7 +461,8 @@ internal sealed partial class Compilation
                     continue;
                 }
                 bool parameter = false;
-                SemanticScope? scope = declaration?.FunctionScope;
+                SemanticScope? scope = function.Kind == IrFunctionKind.FieldInitializer
+                    ? declaration!.InitializerScope : declaration?.FunctionScope;
                 if (generated && node.Kind == IrKind.Local && node.Symbol is null)
                 {
                     values.Add(node, "index");
@@ -444,7 +494,7 @@ internal sealed partial class Compilation
                 {
                     // A fixed address stores a pointer; Local instead owns the slot itself.
                     bool pointer = node.Result == IrResult.Address && node.Kind != IrKind.Local;
-                    Line($"{CType(node.Type!.Value)} {(pointer ? "*" : "")}{name};");
+                    Line($"{CType(node.Type!)} {(pointer ? "*" : "")}{name};");
                     values.Add(node, pointer ? $"(*{name})" : name);
                 }
 
@@ -475,11 +525,15 @@ internal sealed partial class Compilation
                 string Operand(int index) => values[node.OperandAt(index).Definition!];
                 if (node.Kind == IrKind.Local)
                 {
-                    if (node.Type!.Value.ArrayDepth > 0 && !parameters.Contains(node))
+                    if (Aggregate(node.Type!) && !parameters.Contains(node))
+                    {
+                        Line($"{values[node]} = {aggregateNames[node.Type!]}_empty();");
+                    }
+                    else if (node.Type!.ArrayDepth > 0 && !parameters.Contains(node))
                     {
                         Line($"{values[node]} = (ly_array){{0}};");
                     }
-                    else if (Counted(node.Type!.Value) && !parameters.Contains(node))
+                    else if (Counted(node.Type!) && !parameters.Contains(node))
                     {
                         Line($"{values[node]} = UINT64_MAX;");
                     }
@@ -513,14 +567,14 @@ internal sealed partial class Compilation
                     IrNode index = node.OperandAt(1).Definition!;
                     if (!unsafeMode)
                     {
-                        string negative = SemanticTypes.IsSigned(index.Type!.Value)
+                        string negative = SemanticTypes.IsSigned(index.Type!)
                             ? $"{Operand(1)} < 0 || " : "";
                         Line($"if ({negative}(uint64_t){Operand(1)} >= {Operand(0)}.length)");
                         Line("{");
                         Line($"    ly_array_failure({Location(node.Origin!)}, \"LYR006: array index out of bounds\");");
                         Line("}");
                     }
-                    Line($"{labels[node]} = &(({CType(node.Type!.Value)} *){Operand(0)}.data)[{Operand(1)}];");
+                    Line($"{labels[node]} = &(({CType(node.Type!)} *){Operand(0)}.data)[{Operand(1)}];");
                     return;
                 }
                 if (node.Kind == IrKind.If)
@@ -569,12 +623,43 @@ internal sealed partial class Compilation
                 if (node.Kind == IrKind.Return)
                 {
                     Line("ly_current_frame = ly_activation.parent;");
-                    Line($"return {Operand(0)};");
+                    bool addressReturn = function.Kind == IrFunctionKind.FieldInitializer
+                        && function.Declaration!.IsReference;
+                    Line($"return {(addressReturn ? "&" : "")}{Operand(0)};");
+                    return;
+                }
+                if (node.Kind is IrKind.NewTuple or IrKind.NewStruct)
+                {
+                    for (int i = 0; i < node.OperandCount(); i += 1)
+                    {
+                        string value = Operand(i);
+                        if (ReferenceComponent(node.Type!, i))
+                        {
+                            value = $"&({value})";
+                        }
+                        Line($"{values[node]}.item{i} = {value};");
+                    }
+                    return;
+                }
+                if (node.Kind == IrKind.SelectStruct)
+                {
+                    List<SemanticSymbol> fields = Fields(node.OperandAt(0).Definition!.Type!.Declaration!);
+                    int index = fields.IndexOf(node.Symbol!);
+                    string field = $"({Operand(0)}).item{index}";
+                    // Reference fields already contain the fixed target address.
+                    string address = node.Symbol!.IsReference ? field : $"&{field}";
+                    Line($"{labels[node]} = {address};");
+                    return;
+                }
+                if (node.Kind == IrKind.SelectTuple)
+                {
+                    string index = node.Literal!.Integer.ToString(CultureInfo.InvariantCulture);
+                    Line($"{labels[node]} = &({Operand(0)}).item{index};");
                     return;
                 }
                 if (node.Kind == IrKind.NewArray)
                 {
-                    SemanticType element = SemanticTypes.ElementOf(node.Type!.Value);
+                    SemanticType element = SemanticTypes.ElementOf(node.Type!);
                     bool bytes = node.Literal?.Kind == IrLiteralKind.Bytes;
                     int count = bytes ? node.Literal!.ByteCount() : node.OperandCount();
                     string array = values[node];
@@ -597,20 +682,20 @@ internal sealed partial class Compilation
                     string pointer = labels[node] + "_array";
                     Line($"ly_array *{pointer} = &{Operand(0)};");
                     string result = EmitArrayMutation(node.Kind, pointer, Operand(1),
-                        node.OperandAt(0).Definition!.Type!.Value, node.Origin!);
+                        node.OperandAt(0).Definition!.Type!, node.Origin!);
                     Line($"{values[node]} = {result};");
                     return;
                 }
                 if (node.Kind == IrKind.Move)
                 {
                     Line($"{values[node]} = {Operand(0)};");
-                    Moved(Operand(0), node.Type!.Value);
+                    Moved(Operand(0), node.Type!);
                     return;
                 }
-                if (node.Kind is IrKind.FreeArray or IrKind.Unref)
+                if (node.Kind is IrKind.FreeArray or IrKind.Unref or IrKind.DropTuple or IrKind.DropStruct)
                 {
                     IrNode holder = node.OperandAt(0).Definition!;
-                    Drop(Operand(0), holder.Type!.Value, Location(node.Origin!));
+                    Drop(Operand(0), holder.Type!, Location(node.Origin!));
                     return;
                 }
                 string expression;
@@ -625,7 +710,11 @@ internal sealed partial class Compilation
                 }
                 else if (node.Kind is IrKind.Copy or IrKind.Ref)
                 {
-                    expression = Copy(Operand(0), node.Type!.Value, node.Origin!);
+                    expression = Copy(Operand(0), node.Type!, node.Origin!);
+                }
+                else if (node.Kind == IrKind.CallInitializer)
+                {
+                    expression = $"{Name(node.Symbol!)}_initialize()";
                 }
                 else if (node.Kind == IrKind.NewObject)
                 {
@@ -668,7 +757,11 @@ internal sealed partial class Compilation
                 }
                 // Each read/call is sequenced in its own C statement. C argument
                 // evaluation order therefore cannot reorder source-language effects.
-                Line($"{values[node]} = {expression};");
+                // Address expressions are normally represented as dereferenced
+                // lvalues. A reference initializer call instead assigns the pointer.
+                string destinationValue = node.Kind == IrKind.CallInitializer
+                    && node.Result == IrResult.Address ? labels[node] : values[node];
+                Line($"{destinationValue} = {expression};");
             }
             Region(function.Body!, null);
             while (work.Count != 0)
@@ -681,8 +774,8 @@ internal sealed partial class Compilation
 
         string IrScalarExpression(IrNode node, string left, string right)
         {
-            SemanticType type = node.Type!.Value;
-            SemanticType leftType = node.OperandAt(0).Definition!.Type!.Value;
+            SemanticType type = node.Type!;
+            SemanticType leftType = node.OperandAt(0).Definition!.Type!;
             string operation = node.Operator!;
             string typeName = SemanticTypes.Name(type);
             string location = Location(node.Origin!);
@@ -719,10 +812,10 @@ internal sealed partial class Compilation
                     _ => throw new InvalidOperationException("Invalid IR unary operation."),
                 };
             }
-            SemanticType rightType = node.OperandAt(1).Definition!.Type!.Value;
+            SemanticType rightType = node.OperandAt(1).Definition!.Type!;
             if (operation is "==" or "!=" or "<" or "<=" or ">" or ">=")
             {
-                if (leftType == SemanticType.Bool)
+                if (leftType == Analysis!.ScalarType(ScalarKind.Bool))
                 {
                     return $"({left} {operation} {right})";
                 }
@@ -802,8 +895,144 @@ internal sealed partial class Compilation
             }
             return name;
         }
+        // These views use canonical identities and actual declaration fields.
+        // They are emission-local traversal data, not a second type registry.
+        bool Aggregate(SemanticType type)
+        {
+            return type.Kind == SemanticTypeKind.Tuple
+                || type.Declaration?.Kind == SymbolKind.Struct;
+        }
+        List<SemanticType> Components(SemanticType type)
+        {
+            List<SemanticType> components = new();
+            if (type.Kind == SemanticTypeKind.Tuple)
+            {
+                for (int i = 0; i < type.ComponentCount(); i += 1)
+                {
+                    components.Add(type.ComponentAt(i));
+                }
+            }
+            else
+            {
+                foreach (SemanticSymbol field in type.Declaration!.MemberScope!.Fields())
+                {
+                    components.Add(field.Type!);
+                }
+            }
+            return components;
+        }
+        bool ReferenceComponent(SemanticType type, int index)
+        {
+            if (type.Kind == SemanticTypeKind.Tuple)
+            {
+                return false;
+            }
+            return Fields(type.Declaration!)[index].IsReference;
+        }
+        void AggregateLayouts()
+        {
+            // Discovery crosses array descriptors; inline layout ordering does
+            // not. Separating them permits A -> [B] with B -> A inline.
+            HashSet<SemanticType> discovered = new();
+            List<SemanticType> records = new();
+            Stack<SemanticType> pending = new();
+            IrProgram program = Analysis.Ir!;
+            for (int f = 0; f < program.FunctionCount(); f += 1)
+            {
+                IrFunction function = program.FunctionAt(f);
+                for (int n = 0; n < function.NodeCount(); n += 1)
+                {
+                    if (function.NodeAt(n).Type is SemanticType type)
+                    {
+                        pending.Push(type);
+                    }
+                }
+            }
+            while (pending.Count > 0)
+            {
+                SemanticType type = pending.Pop();
+                if (!discovered.Add(type))
+                {
+                    continue;
+                }
+                if (type.Kind == SemanticTypeKind.Array)
+                {
+                    pending.Push(type.Element!);
+                }
+                else if (Aggregate(type))
+                {
+                    records.Add(type);
+                    foreach (SemanticType component in Components(type))
+                    {
+                        pending.Push(component);
+                    }
+                }
+            }
+            HashSet<SemanticType> ordered = new();
+            Stack<(SemanticType Type, bool Complete)> work = new();
+            foreach (SemanticType root in records)
+            {
+                work.Push((root, false));
+                while (work.Count > 0)
+                {
+                    (SemanticType type, bool complete) = work.Pop();
+                    if (!complete)
+                    {
+                        if (!ordered.Add(type))
+                        {
+                            continue;
+                        }
+                        work.Push((type, true));
+                        List<SemanticType> components = Components(type);
+                        for (int i = 0; i < components.Count; i += 1)
+                        {
+                            // A pointer needs a declared name, not a complete
+                            // record definition. It cannot form an inline cycle.
+                            if (!ReferenceComponent(type, i) && Aggregate(components[i]))
+                            {
+                                work.Push((components[i], false));
+                            }
+                        }
+                        continue;
+                    }
+                    string prefix = type.Kind == SemanticTypeKind.Tuple ? "ly_tuple" : "ly_struct";
+                    string name = prefix + aggregateTypes.Count.ToString(CultureInfo.InvariantCulture);
+                    aggregateNames.Add(type, name);
+                    aggregateTypes.Add(type);
+                }
+            }
+            // Publish every record name before defining fields. References may
+            // point to an incomplete record; inline fields still require the
+            // dependency order established above.
+            foreach (SemanticType type in aggregateTypes)
+            {
+                string name = aggregateNames[type];
+                Line($"typedef struct {name} {name};");
+            }
+            foreach (SemanticType type in aggregateTypes)
+            {
+                string name = aggregateNames[type];
+                List<SemanticType> components = Components(type);
+                Line($"struct {name} {{");
+                if (components.Count == 0)
+                {
+                    // C11 forbids empty records. This byte is not a Lyric field.
+                    Line("    unsigned char empty_storage;");
+                }
+                for (int i = 0; i < components.Count; i += 1)
+                {
+                    string pointer = ReferenceComponent(type, i) ? " *" : " ";
+                    Line($"    {CType(components[i])}{pointer}item{i};");
+                }
+                Line("};");
+            }
+        }
         string CType(SemanticType type)
         {
+            if (Aggregate(type))
+            {
+                return aggregateNames[type];
+            }
             if (type.ArrayDepth > 0)
             {
                 return "ly_array";
@@ -832,6 +1061,11 @@ internal sealed partial class Compilation
         List<SemanticSymbol> Fields(SemanticSymbol owner)
         {
             List<SemanticSymbol> fields = new();
+            if (owner.Kind == SymbolKind.Struct)
+            {
+                fields.AddRange(owner.MemberScope!.Fields());
+                return fields;
+            }
             SyntaxNode declaration = owner.Declaration!;
             for (int i = 0; i < declaration.ChildCount(); i += 1)
             {
@@ -848,7 +1082,7 @@ internal sealed partial class Compilation
             string owner = Name(field.Scope!.Class!);
             if (structureOfArrays)
             {
-                return $"(({CType(field.Type!.Value)} *){Name(field)}_storage.data)[{index}]";
+                return $"(({CType(field.Type!)} *){Name(field)}_storage.data)[{index}]";
             }
             return $"(({owner}_record **){owner}_chunks.data)[{index} / 64][{index} % 64].{Name(field)}";
         }
@@ -891,7 +1125,7 @@ internal sealed partial class Compilation
                 }
                 foreach (SemanticSymbol field in fields)
                 {
-                    Line($"{CType(field.Type!.Value)} {Name(field)};");
+                    Line($"{CType(field.Type!)} {Name(field)};");
                 }
                 indentation -= 1;
                 Line($"}} {name}_record;");
@@ -921,7 +1155,7 @@ internal sealed partial class Compilation
             {
                 foreach (SemanticSymbol field in fields)
                 {
-                    Line($"ly_class_reserve(&{Name(field)}_storage, index + 1, sizeof({CType(field.Type!.Value)}), file, line, column);");
+                    Line($"ly_class_reserve(&{Name(field)}_storage, index + 1, sizeof({CType(field.Type!)}), file, line, column);");
                 }
             }
             else
@@ -947,7 +1181,7 @@ internal sealed partial class Compilation
             }
             foreach (SemanticSymbol field in fields)
             {
-                Line($"{FieldStorage(field, "index")} = ({CType(field.Type!.Value)}){{0}};");
+                Line($"{FieldStorage(field, "index")} = ({CType(field.Type!)}){{0}};");
             }
             Line("return index;");
             indentation -= 1;
@@ -1073,6 +1307,108 @@ internal sealed partial class Compilation
                 }
                 """);
         }
+        void AggregatePrototypes()
+        {
+            foreach (SemanticType type in aggregateTypes)
+            {
+                string name = aggregateNames[type];
+                Line($"static {name} {name}_empty(void);");
+                Line($"static {name} {name}_copy({name} source, const char *file, int line, int column);");
+                Line($"static void {name}_drop({name} *value, const char *file, int line, int column);");
+                Line($"static ly_array {name}_array_copy(ly_array source, unsigned depth, const char *file, int line, int column);");
+                Line($"static void {name}_array_drop(ly_array *array, unsigned depth, const char *file, int line, int column);");
+            }
+        }
+        void AggregateHelpers()
+        {
+            foreach (SemanticType type in aggregateTypes)
+            {
+                string name = aggregateNames[type];
+                List<SemanticType> components = Components(type);
+                Line($"static {name} {name}_empty(void)");
+                Line("{");
+                Line($"    {name} result = {{0}};");
+                // Zero initializes scalars and array descriptors, but counted
+                // handles need their sentinel, including inside nested tuples.
+                for (int i = 0; i < components.Count; i += 1)
+                {
+                    SemanticType component = components[i];
+                    if (!ReferenceComponent(type, i) && (Counted(component) || Aggregate(component)))
+                    {
+                        Moved($"result.item{i}", component);
+                    }
+                }
+                Line("    return result;");
+                Line("}");
+                Line($"static {name} {name}_copy({name} source, const char *file, int line, int column)");
+                Line("{");
+                Line($"    {name} result = {{0}};");
+                for (int i = 0; i < components.Count; i += 1)
+                {
+                    string source = $"source.item{i}";
+                    string copied = ReferenceComponent(type, i)
+                        ? source
+                        : CopyAt(source, components[i], "file, line, column");
+                    Line($"    result.item{i} = {copied};");
+                }
+                Line("    return result;");
+                Line("}");
+                Line($"static void {name}_drop({name} *value, const char *file, int line, int column)");
+                Line("{");
+                for (int i = 0; i < components.Count; i += 1)
+                {
+                    if (!ReferenceComponent(type, i))
+                    {
+                        Drop($"value->item{i}", components[i], "file, line, column");
+                    }
+                }
+                Line($"    *value = {name}_empty();");
+                Line("}");
+                // Array nesting retains the existing descriptor recursion. Only
+                // the leaf operation differs: each tuple copies/drops its fields.
+                code.WriteLine($$"""
+                    static ly_array {{name}}_array_copy(ly_array source, unsigned depth,
+                        const char *file, int line, int column)
+                    {
+                        size_t stride = depth > 1 ? sizeof(ly_array) : sizeof({{name}});
+                        ly_array result = ly_array_new(source.length, stride, file, line, column);
+                        for (uint64_t i = 0; i < source.length; i += 1)
+                        {
+                            if (depth > 1)
+                            {
+                                ((ly_array *)result.data)[i] = {{name}}_array_copy(
+                                    ((ly_array *)source.data)[i], depth - 1, file, line, column);
+                            }
+                            else
+                            {
+                                (({{name}} *)result.data)[i] = {{name}}_copy(
+                                    (({{name}} *)source.data)[i], file, line, column);
+                            }
+                            result.length += 1;
+                        }
+                        return result;
+                    }
+                    static void {{name}}_array_drop(ly_array *array, unsigned depth,
+                        const char *file, int line, int column)
+                    {
+                        for (uint64_t i = 0; i < array->length; i += 1)
+                        {
+                            if (depth > 1)
+                            {
+                                {{name}}_array_drop(&((ly_array *)array->data)[i],
+                                    depth - 1, file, line, column);
+                            }
+                            else
+                            {
+                                {{name}}_drop(&(({{name}} *)array->data)[i], file, line, column);
+                            }
+                        }
+                        free(array->data);
+                        *array = (ly_array){0};
+                    }
+                    """);
+            }
+        }
         bool Counted(SemanticType type)
         {
             return type.ArrayDepth == 0 && type.Class is SemanticSymbol owner
@@ -1080,20 +1416,45 @@ internal sealed partial class Compilation
         }
         string Copy(string value, SemanticType type, SyntaxNode node)
         {
+            return CopyAt(value, type, Location(node));
+        }
+        string CopyAt(string value, SemanticType type, string location)
+        {
+            if (Aggregate(type))
+            {
+                return $"{aggregateNames[type]}_copy({value}, {location})";
+            }
+            if (!SemanticTypes.HasOwnedContents(type))
+            {
+                return value;
+            }
             if (Counted(type))
             {
-                return $"{Name(type.Class!)}_retain({value}, {Location(node)})";
+                return $"{Name(type.Class!)}_retain({value}, {location})";
             }
             if (type.Class is SemanticSymbol owner && owner.IsCountedClass())
             {
-                return $"{Name(owner)}_array_copy({value}, {type.ArrayDepth}, {Location(node)})";
+                return $"{Name(owner)}_array_copy({value}, {type.ArrayDepth}, {location})";
             }
-            string scalar = CType(new SemanticType(type.Scalar, 0, type.Class));
-            return $"ly_array_copy({value}, {type.ArrayDepth}, sizeof({scalar}), {Location(node)})";
+            SemanticType baseType = type;
+            while (baseType.ArrayDepth > 0)
+            {
+                baseType = SemanticTypes.ElementOf(baseType);
+            }
+            if (Aggregate(baseType))
+            {
+                return $"{aggregateNames[baseType]}_array_copy({value}, {type.ArrayDepth}, {location})";
+            }
+            string scalar = CType(baseType);
+            return $"ly_array_copy({value}, {type.ArrayDepth}, sizeof({scalar}), {location})";
         }
         void Moved(string name, SemanticType type)
         {
-            if (Counted(type))
+            if (Aggregate(type))
+            {
+                Line($"{name} = {aggregateNames[type]}_empty();");
+            }
+            else if (Counted(type))
             {
                 Line($"{name} = UINT64_MAX;");
             }
@@ -1104,7 +1465,11 @@ internal sealed partial class Compilation
         }
         void Drop(string name, SemanticType type, string location)
         {
-            if (Counted(type))
+            if (Aggregate(type))
+            {
+                Line($"{aggregateNames[type]}_drop(&{name}, {location});");
+            }
+            else if (Counted(type))
             {
                 Line($"{Name(type.Class!)}_release(&{name}, {location});");
             }
@@ -1116,7 +1481,19 @@ internal sealed partial class Compilation
                 }
                 else
                 {
-                    Line($"ly_array_drop(&{name}, {type.ArrayDepth});");
+                    SemanticType leaf = type;
+                    while (leaf.Kind == SemanticTypeKind.Array)
+                    {
+                        leaf = leaf.Element!;
+                    }
+                    if (Aggregate(leaf))
+                    {
+                        Line($"{aggregateNames[leaf]}_array_drop(&{name}, {type.ArrayDepth}, {location});");
+                    }
+                    else
+                    {
+                        Line($"ly_array_drop(&{name}, {type.ArrayDepth});");
+                    }
                 }
             }
         }
@@ -1128,10 +1505,10 @@ internal sealed partial class Compilation
             {
                 SemanticSymbol parameter = scope.ParameterAt(i);
                 string pointer = parameter.IsReference ? " *" : " ";
-                parameters.Add(CType(parameter.Type!.Value) + pointer + Name(parameter));
+                parameters.Add(CType(parameter.Type!) + pointer + Name(parameter));
             }
             string arguments = parameters.Count == 0 ? "void" : string.Join(", ", parameters);
-            return $"static {CType(function.Type!.Value)} {Name(function)}({arguments})";
+            return $"static {CType(function.Type!)} {Name(function)}({arguments})";
         }
         string Integer(BigInteger value)
         {
@@ -1222,7 +1599,7 @@ internal sealed partial class Compilation
         }
         void ArithmeticHelpers()
         {
-            foreach (SemanticType type in SemanticTypes.Predefined())
+            foreach (SemanticType type in Analysis!.PredefinedTypes())
             {
                 if (!SemanticTypes.IsInteger(type))
                 {
@@ -1379,11 +1756,11 @@ internal sealed partial class Compilation
             }
             else
             {
-                if (operation == IrKind.ArrayResize && elementType.ArrayDepth == 0
-                    && elementType.Class is not null)
+                bool hasDefault = SemanticTypes.HasDefaultValue(elementType);
+                if (operation == IrKind.ArrayResize && !hasDefault)
                 {
-                    // Non-nullable handles have no default. Unsafe mode does not
-                    // waive initialized-storage or ownership requirements.
+                    // Handles and structs (including those inside tuples) cannot grow
+                    // observable elements. Unsafe mode does not waive initialization.
                     Line($"if ({argument} > {pointer}->length)");
                     Line("{");
                     indentation += 1;
@@ -1408,12 +1785,16 @@ internal sealed partial class Compilation
                     Drop($"(*{pointer})", arrayType, Location(node));
                     indentation -= 1;
                     Line("}");
-                    if (elementType.ArrayDepth > 0 || elementType.Class is null)
+                    if (hasDefault)
                     {
                         Line($"ly_array_reserve({pointer}, {argument}, sizeof({element}), {Location(node)});");
                         Line($"while ({pointer}->length < {argument})");
                         Line("{");
                         indentation += 1;
+                        // The eligibility query excludes handles and structs. For
+                        // supported scalar/array/tuple defaults, C's typed initializer
+                        // recursively produces zero values and empty descriptors.
+                        // Write every newly live element, including dirty reused slots.
                         Line($"(({element} *){pointer}->data)[{pointer}->length] = ({element}){{0}};");
                         Line($"{pointer}->length += 1;");
                         indentation -= 1;

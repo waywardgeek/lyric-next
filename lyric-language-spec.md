@@ -89,7 +89,7 @@ application/main.ly
 
 These directories may belong to one logical package. Common owns the shared declarations; functional files supply bodies for those declarations using ordinary qualified names, such as `func Node.parse(...)`. The body and declaration identify one callable on one type, not an extension object, duplicate storage, or forwarding wrapper. Package-private declarations are accessible across the package's files regardless of their directories.
 
-Implementation matching uses the resolved package, declaring type/interface where applicable, callable name, and generic parameter/signature contract. Parameter and return types, reference modes, generic arity and constraints, instance/static status, and the safe-generator modifier must agree after resolving names and corresponding type parameters. A differently spelled but equivalent alias does not create a different type. Signature mismatch is a diagnostic, not a new overload silently invented to satisfy the declaration. Every required callable has exactly one body or explicitly declared external implementation; missing and duplicate implementations are errors. A body included directly with its declaration counts as that implementation. Interface abstract requirements and defaults follow their own satisfaction rules, rather than requiring a body for an abstract slot in the declaring package.
+Implementation matching uses the resolved package, declaring type/interface where applicable, callable name, and generic parameter/signature contract. Parameter and return types, reference modes, generic arity and constraints, instance/static status, and the safe-generator modifier must agree after resolving names and corresponding type parameters. Ordinary parameter names are local bindings rather than signature identity: a separate body may rename them, while preserving parameter order and obeying the same duplicate-name and no-shadowing rules. The `self` receiver role must remain explicit and agree. A differently spelled but equivalent alias does not create a different type. Signature mismatch is a diagnostic, not a new overload silently invented to satisfy the declaration. Every required callable has exactly one body or explicitly declared external implementation; missing and duplicate implementations are errors. A body included directly with its declaration counts as that implementation. Interface abstract requirements and defaults follow their own satisfaction rules, rather than requiring a body for an abstract slot in the declaring package.
 
 The architectural requirement remains that Common supplies shared vocabulary, state, relationships, and callable declarations; functional units consume those declarations rather than each other's implementation internals; application code composes the program. Package privacy alone does not enforce this internal dependency discipline. Any compiler/tooling check of Common-versus-functional-unit dependencies needs its own explicit contract; directory organization is not evidence that such a check exists.
 
@@ -321,6 +321,21 @@ gen T            generator result
 ref T            borrow of existing T storage that must remain stable and valid
 ```
 
+A single-element tuple is supported: its type is `(T,)` and its expression is `(value,)`. The trailing comma distinguishes a tuple from grouping: `(value)` is the grouped value, not a one-element tuple, and `(T)` does not introduce a tuple type. Empty parentheses `()` remain the unit value described above. This distinction is syntactic and must not depend on expected types or name resolution.
+
+```lyric
+let item: (i32,) = (42,)
+let first = item.0       // i32
+let grouped = (42)       // i32, not a tuple
+let nothing = ()         // unit
+// item.1                // rejected: a one-element tuple has only field .0
+// grouped.0             // rejected: grouping did not create a tuple
+```
+
+The comma keeps grouping unambiguous while allowing tuple-based generic code to represent one component without excluding that arity.
+
+Tuple type identity is structural: two tuple types are identical exactly when they have the same arity and the same ordered component types. Component types retain their own identity rules; two distinct nominal struct types do not become interchangeable merely because they occupy corresponding tuple positions.
+
 Tuple fields use `.0`, `.1`, and so on, with zero-based positions. The selector is a nonnegative ASCII decimal digit sequence, not an expression; no sign, underscore, suffix, or numeric base prefix is accepted. Leading zeros do not change its decimal value. The tuple's statically known arity determines whether the position exists; an out-of-range selector is a compile-time error, not a runtime bounds check. The result has the selected component's type. There is no legacy underscore-prefixed tuple selector.
 
 ```lyric
@@ -337,6 +352,24 @@ Tuple field selection has ordinary member/postfix precedence and evaluates its r
 
 A tuple field selector is not array indexing: `tuple[index]`, including a literal index, is not an alternate tuple-access form. Runtime-indexed heterogeneous tuples are not introduced. Tuple destructuring remains available.
 
+Tuple destructuring in a `let` or `var` declaration introduces new bindings; it does not assign to existing variables. `let` introduces immutable bindings and `var` introduces mutable bindings. Every name must satisfy the ordinary no-shadowing rule, and repeated binding names within the same pattern are rejected. `_` discards a component without introducing a name.
+
+Evaluate the initializer exactly once. Check the tuple pattern against its statically known component shape: each tuple pattern must have the corresponding arity, and nested tuple patterns require tuple components of matching shape. Bindings follow their component types' ordinary copy, ownership, borrow, and cleanup rules; destructuring does not grant permission for a contained borrow to escape. Ignoring a component does not suppress required cleanup.
+
+```lyric
+let (x, y) = (1, 2)                  // new immutable bindings
+var (a, b) = (3, 4)                  // new mutable bindings
+let (_, second) = (5, 6)             // only second is bound
+let ((u, v), label) = ((7, 8), "p")  // nested pattern
+let (only,) = (9,)                   // one-element tuple pattern
+// let (left, right) = (1,)          // rejected: arity mismatch
+// let (same, same) = (1, 2)         // rejected: duplicate binding
+// let (x, fresh) = (3, 4)           // rejected: x is already visible
+```
+
+Names in tuple binding patterns are new bindings, not lookups of existing variables or constants. This decision does not settle name resolution in enum/variant match patterns. Destructuring assignment to existing variables is not part of the Chapter 10 increment; do not infer it from binding syntax.
+
+
 After a member-access dot, digits form one integer field selector and do not consume a following dot into a floating-point token. Consequently `nested.0.1` means `(nested.0).1`, whereas a numeric literal in expression position such as `1.25` remains a float. This lexical/syntactic boundary is independent of name resolution and whitespace; parsing must not depend on discovering that the receiver happens to be a tuple. Non-tuple receivers with numeric field selectors are rejected by type checking.
 
 Transparent aliases use `type Name = Type`. An alias does not create a second nominal type.
@@ -345,7 +378,52 @@ Null is accepted only in nullable positions. Optional wrapping is implicit; unwr
 
 ### Structs
 
-Structs are values without identity:
+Struct instances are values without object identity. Struct types are nominal: each distinct struct declaration introduces a distinct type, even when another declaration has identical field names, field types, and layout. A transparent type alias preserves the original type identity. Structural interface satisfaction does not merge nominal struct identities.
+
+For example, separately declared `Position { x: i32, y: i32 }` and `Velocity { x: i32, y: i32 }` structs are different types; a Position value cannot be assigned to a Velocity binding merely because their fields match. Explicit construction can express an intentional conversion.
+
+```lyric
+struct Position { x: i32, y: i32 }
+struct Velocity { x: i32, y: i32 }
+
+// In a function body:
+let position = Position { x: 1, y: 2 }
+// let velocity: Velocity = position  // rejected: distinct nominal types
+let velocity = Velocity { x: position.x, y: position.y }
+```
+
+Struct fields may contain ordinary values, owned arrays, class handles, and borrowed `ref T` values. A class handle is not a borrowed storage alias and remains subject to its ordinary class lifetime policy and validity rules. A struct containing a borrow, directly or through nested value components, is a **nonescaping borrow-containing value**.
+
+Borrow-containing structs may be constructed as local values, copied locally, and passed to synchronous functions. They must not be returned or stored in globals, object fields, or arrays. These are conservative initial language restrictions even when a particular target might live longer. Wrapping a borrow-containing struct in another struct, tuple, optional, or other value aggregate preserves the restriction; a wrapper cannot hide an escape. Ordinary structs without contained borrows are not subject to this additional restriction.
+
+Copying such a struct copies its contained aliases, not their referents, and does not retain an owner or extend a target's lifetime. The checker must track contained borrows through local copies, nested aggregates, and synchronous calls. Every target must remain allocated, stable, and valid through the last possible use of any contained alias. Calls, array growth, object destruction, and other invalidating operations cannot be followed by a possible use of an invalid contained borrow. Being local is not by itself proof of safety; an unknown reference argument remains potentially stack-backed rather than acquiring an invented owning lifetime.
+
+```lyric
+struct BorrowedInt {
+    target: ref i32
+}
+
+func read(holder: BorrowedInt) -> i32 {
+    return holder.target           // copies the referred-to integer, not the borrow
+}
+
+func example() -> i32 {
+    var number: i32 = 7
+    let holder = BorrowedInt { target: ref number }
+    let copy = holder              // local alias copy; number is still the target
+    return read(copy)              // synchronous use; returns an ordinary integer
+}
+
+// Rejected: a borrow-containing struct cannot be returned.
+// func escape() -> BorrowedInt {
+//     var number: i32 = 7
+//     return BorrowedInt { target: ref number }
+// }
+```
+
+Passing a struct by `ref`, using a reference receiver, and borrowing a field also remain subject to the ordinary stable-storage rules. Supporting borrow-containing structs requires aggregate-aware escape and invalidation analysis; scalar-reference support alone does not establish this behavior.
+
+A simple struct declaration is:
 
 ```lyric
 struct Point {
@@ -363,7 +441,84 @@ func translate(point: ref Point, dx: f64) {
 translate(ref p, 3.0)
 ```
 
+Structs may have methods without acquiring object identity, class allocation, or an object lifetime. A by-value receiver follows ordinary struct-copy rules; a writable reference receiver follows ordinary explicit borrowing and stable-storage rules. A method mutates the caller's struct only through such a writable reference, not by silently treating every struct receiver as an object handle. A struct instance method declares its first parameter as `self` for a by-value receiver, or `self: ref StructName` for a writable reference receiver. The implicit type of unannotated `self` is the enclosing struct. The receiver passing mode is part of the signature and must match in a separately supplied body.
+
+Struct methods follow Section 2's separate declaration/body model. Declare the callable with the struct in Common; a functional source file in another directory of the same explicitly configured package may supply its body using the qualified name `Point.method`. This is one callable on the original type, with exactly one matching body, not a wrapper or a duplicate type. Directory boundaries do not create package boundaries or extra access rights.
+
+Value-receiver calls use ordinary member syntax, such as `point.sum()`. A writable reference-receiver call requires an explicit reference receiver, such as `(ref point).translate(3, 4)`. Calling `point.translate(3, 4)` does not implicitly borrow the value and is rejected when `translate` requires a reference receiver. The reference expression must select writable, initialized storage and remains subject to the ordinary stable-storage and last-use rules. Parentheses make the receiver boundary explicit rather than introducing a second method-specific borrowing operator.
+
+```lyric
+// Common/Point.ly
+struct Point {
+    x: i32
+    y: i32
+
+    func sum(self) -> i32;
+    func translate(self: ref Point, dx: i32, dy: i32);
+}
+
+// Geometry/Point.ly — same explicitly configured package
+func Point.sum(self) -> i32 {
+    return self.x + self.y
+}
+
+func Point.translate(self: ref Point, dx: i32, dy: i32) {
+    self.x = self.x + dx
+    self.y = self.y + dy
+}
+
+// In a function body:
+var point = Point { x: 1, y: 2 }
+let total = point.sum()             // value copy; total is 3
+(ref point).translate(3, 4)         // modifies point to x=4, y=6
+// point.translate(3, 4)            // rejected: no implicit receiver borrow
+```
+
+A struct may also declare static methods: ordinary functions associated with its type namespace, declared without a `self` parameter and called as `Point.origin()`. No `static` keyword is required. A separate body uses the same qualified name and signature-matching rules as an instance method. Static methods have no receiver and gain no special allocation, initialization, ownership, or access privileges beyond ordinary package rules. A factory must construct its result under the same named-field and required-field rules as any other code.
+
+```lyric
+// Common/Point.ly
+struct Point {
+    x: i32
+    y: i32
+    func origin() -> Point;
+}
+
+// Geometry/Point.ly — same package
+func Point.origin() -> Point {
+    return Point { x: 0, y: 0 }
+}
+
+// In a function body:
+let point = Point.origin()
+```
+
 Copying a struct does not exempt object references stored inside it from lifetime checking.
+
+### Recursive composite types and finite layout
+
+Recursive types are permitted, but every value must have a finite storage layout. Reject a direct or indirect containment cycle consisting entirely of inline value components. Struct fields and tuple components contribute inline containment edges; nesting one inside the other does not break a cycle. Transparent aliases do not introduce indirection or make an otherwise infinite layout finite.
+
+An array descriptor or class handle has a finite-sized representation independent of the size of its referred-to contents. Such a boundary breaks inline containment, so recursive types through arrays or class handles are allowed. This is a layout rule, not permission to bypass initialization, value-copy, borrowing, ownership, or destruction requirements.
+
+```lyric
+struct Impossible {
+    next: Impossible       // rejected: infinite inline containment
+}
+
+struct A {
+    b: B
+}
+struct B {
+    a: A                   // rejected: mutually recursive inline containment
+}
+
+struct Tree {
+    children: [Tree]       // allowed: recursion crosses an array descriptor
+}
+```
+
+A `Tree` still requires its `children` field at construction unless the field declares a default. Its array contents retain ordinary independent-value semantics. Allowing this recursive type neither makes copies share mutable backing storage nor introduces a cycle collector.
 
 ### Enums
 
@@ -426,9 +581,60 @@ Methods may be declared in a class and defined separately using qualified names.
 
 ### Construction expressions
 
-Named-field struct construction uses `Point { x: 1.0, y: 2.0 }`. Field names must match exactly, fields cannot be specified twice, and omitted fields require a defined default or explicit initialization rule. Field defaults belong to the declaration.
+Named-field struct construction uses `Point { x: 1.0, y: 2.0 }`. Field names must match exactly, and fields cannot be specified twice. Every field must be supplied unless its declaration explicitly provides a default initializer. A supplied value overrides that field's declaration default. Omitting a field without a declaration default is a compile-time error: the compiler must not invent zero, an empty array, or null merely because the field was omitted.
 
-The original permits positional struct construction in expression contexts where braces are unambiguous. Retaining that second form is a compatibility choice, not necessary for KISS. Until that choice is made, examples in this specification use named fields only.
+```lyric
+struct Point {
+    x: i32
+    y: i32 = 0
+}
+
+// In a function body:
+let first = Point { x: 5 }          // accepted: y defaults to 0
+let second = Point { x: 5, y: 8 }   // accepted: explicit y overrides the default
+// let missing = Point { y: 8 }    // rejected: x has no declaration default
+```
+
+This rule makes required inputs visible and prevents a forgotten field from silently becoming a plausible but unintended value. It does not change the separate contracts for array-growth defaults or internal cleanup-safe initialization. A declaration default may be an expression, including a function call. For each construction that omits the field, evaluate its default exactly once for that construction. If the field is supplied explicitly, do not evaluate its default. Defaults are not evaluated once at declaration time and cached across instances; their results follow the ordinary value-copy and reference-ownership rules.
+
+```lyric
+struct Record {
+    id: u64 = next_id()
+}
+
+// In a function body; next_id() is a declared function returning u64:
+let generated = Record {}          // evaluates next_id() once
+let supplied = Record { id: 42 }   // does not evaluate next_id()
+```
+
+Struct construction evaluates explicitly supplied field expressions left to right in their written order, preserving each resulting value before evaluating the next expression. It then evaluates defaults for omitted fields in field declaration order. Defaults for supplied fields are skipped. Field declaration order must not reorder explicitly supplied expressions.
+
+```lyric
+struct Sample {
+    a: i32 = default_a()
+    b: i32 = default_b()
+    c: i32
+}
+
+// Calls supplied_c(), supplied_b(), then default_a(), in that order.
+// default_b() is not called.
+let sample = Sample { c: supplied_c(), b: supplied_b() }
+```
+
+This preserves visible left-to-right evaluation at the construction site while giving omitted defaults a deterministic order. Default initializers cannot access `self` or read sibling fields of the instance being constructed, whether those fields were supplied explicitly or have earlier defaults. They resolve otherwise available names in their declaration scope, not the caller's local scope, and may call functions under the ordinary rules. Declaration order determines evaluation order; it does not expose a partially initialized instance.
+
+```lyric
+struct Rectangle {
+    width: i32
+    // height: i32 = self.width   // rejected: defaults cannot access self
+    // height: i32 = width        // rejected: no sibling-field lookup in defaults
+    height: i32
+}
+```
+
+When fields depend on one another, use an ordinary factory function to calculate their values and construct the struct with explicit named fields. Keeping defaults independent avoids field-dependency graphs, forward-reference rules, and escape of partially initialized `self`.
+
+Struct construction uses named fields only. Positional struct construction is not supported: `Point { 1.0, 2.0 }` is rejected, and `Point(1.0, 2.0)` is not an alternative struct-construction form. Explicit field names make the meaning visible and independent of field declaration order. Use a tuple when an unnamed positional aggregate is intended.
 
 A class with an explicit constructor uses `ClassName(arguments)`. Generic construction uses `ClassName<T>(arguments)`. Field-literal class construction is allowed only when it cannot bypass a required constructor, parent attachment, or initialization invariant. The exact eligibility check must be specified rather than treating all class literals as harmless records.
 
@@ -528,7 +734,7 @@ An ordinary dynamic array distinguishes its size (also called length) from its c
 
 Appending a supplied value increases size by one and initializes that element with the supplied value under ordinary value semantics. It uses spare capacity when available; otherwise the backing allocation grows. Capacity growth alone does not change size or create live elements. Implementations should grow capacity geometrically rather than reallocate for every appended element. The initial backend uses approximately 50% growth, with a minimum increment of one and enough capacity for the requested size. The exact growth factor is an implementation choice, not an observable element-value guarantee. Capacity arithmetic and allocation-byte calculations must be checked for overflow before allocation or access.
 
-Increasing size without supplied element values requires a valid default value for the element type. Core defaults are integer zero, positive floating-point zero, boolean false, and empty arrays (including strings and nested-array elements). Nullable object-reference elements default to null; no object is constructed. These are typed values, not a universal requirement that every representation can be initialized by clearing bytes.
+Increasing size without supplied element values requires a valid default value for the element type. Core defaults are integer zero, positive floating-point zero, boolean false, and empty arrays (including strings and nested-array elements). Nullable object-reference elements default to null; no object is constructed. These are typed values, not a universal requirement that every representation can be initialized by clearing bytes. A tuple has a default value exactly when every component has a default value; its default consists of those component defaults in order. Structs have no implicit array-growth default, even when every field declares a default initializer. Field defaults belong to named struct construction, not to array resizing.
 
 Default initialization specifies observable values, not mandatory stores across reserved capacity. Reserving capacity must not eagerly initialize or touch every spare element. When the target representation makes an element’s default all-zero bytes, the backend may use zeroed allocation or demand-zero storage instead of explicit per-element stores. Large `calloc` allocations may be backed by lazy demand-zero mappings, depending on allocator and operating system; physical commitment, mapping thresholds, and shared-zero-page details are not language guarantees. Do not defeat this benefit with a redundant full-capacity zeroing loop. Freshly exposed live elements must still have their required defaults: reused holes or previously written storage cannot be assumed zero, and shrink/regrowth must not expose stale values. Nonzero defaults or representations not guaranteed to be all-bits-zero need suitable typed initialization.
 
@@ -1348,7 +1554,7 @@ Section 5's stable-storage requirement applies to every storage borrow, not just
 
 ### Track every held reference
 
-Invalidation covers parameters, receivers, optionals, temporary expressions, references nested in local structs/tuples/enums, and captured borrows. Copying an invalid reference is not a way to restore it.
+Invalidation covers parameters, receivers, optionals, temporary expressions, references nested in permitted nonescaping local structs/tuples/enums, and captured borrows. Copying an invalid reference is not a way to restore it.
 
 At a control-flow join, a reference is valid only if valid on all incoming paths. Reference validity must hold on every reachable loop iteration and recursive call, including effects carried across loop back edges and recursive calls. A returned reference must still be valid at the return point.
 
@@ -2342,8 +2548,8 @@ Open decisions are grouped here so a settled semantic rule is not reopened merel
 
 ### Decision register
 
-- **Syntax.** D1–D5 recommendations are adopted. The initial Unicode data version is 16.0.0; LF and CRLF are accepted and lone CR is rejected. Name shadowing is prohibited under Section 5. D6 prefix ref and pattern-name resolution remain proposed. Generic-first PEG priority, header-brace boundaries, cast boundaries, separators and block-value rules are settled.
-- **Additional syntax coverage.** Explicit enum/union payload borrowing; generic external-method parameter scope; defaults/variadics; read-only-borrow type/argument/binding spelling. Dictionary literals and expected-type enum constructor resolution are retained; delimiter rules follow adopted D3/D5. Decide whether to retain positional record construction, pipe closures, optional lyric wrappers, bare import paths, `implements`, and bare destructor shorthand. Generic aliases, single-element tuples, type-level null alternatives, multiple interface inheritance, and chained-comparison meaning must not be inferred from nearby features. The draft grammar folds ordinary comparisons left; Python-style chaining is not established. The original behaviorless-struct baseline remains in the grammar; struct and primitive extension/static methods need a deliberate decision.
+- **Syntax.** D1–D5 recommendations are adopted. The initial Unicode data version is 16.0.0; LF and CRLF are accepted and lone CR is rejected. Name shadowing is prohibited under Section 5. D6 general prefix-ref syntax and enum/variant pattern-name resolution remain proposed. Tuple binding patterns introduce new names under the ordinary no-shadowing rule; they do not resolve names as existing variables or constants. Generic-first PEG priority, header-brace boundaries, cast boundaries, separators and block-value rules are settled.
+- **Additional syntax coverage.** Explicit enum/union payload borrowing; generic external-method parameter scope; defaults/variadics; read-only-borrow type/argument/binding spelling. Dictionary literals and expected-type enum constructor resolution are retained; delimiter rules follow adopted D3/D5. Decide whether to retain pipe closures, optional lyric wrappers, bare import paths, `implements`, and bare destructor shorthand. Generic aliases, type-level null alternatives, multiple interface inheritance, and chained-comparison meaning must not be inferred from nearby features. The draft grammar folds ordinary comparisons left; Python-style chaining is not established. Struct methods and separately supplied bodies are adopted; the grammar must be brought into agreement with that contract. Struct instance receivers use `self` by value or `self: ref StructName`, with explicit `(ref value).method(...)` calls for writable reference receivers. Struct static methods are declared without `self` and called through the type name, without a `static` keyword. Primitive extension/static methods still need a deliberate decision.
 - **Package/toolchain contracts.** Manifest grammar, package membership/dependency configuration, mutable-global initialization order and visibility, additional entry signatures and runtime linking details, and any check of Common-versus-functional-unit dependency discipline. Package privacy and exact declaration/body matching are settled.
 - **Construction and relations.** Eligibility of field-literal class construction without bypassing required constructors; nondefaultable field initialization and explicit bulk array-initializer APIs (default growth, capacity, and supplied-value append are settled in Section 5); the exact custom-hint/key-stability checking contract and additional traversal mutations beyond current-child removal. Standard many-child insertion/removal, representation ordering, Single set/remove, and the visible Collection iter/count/parent contract are specified in Section 9.
 - **Reference safety contracts.** Complete the accepted/rejected cases and owner-provenance/effects requirements across overlapping arguments, calls, callbacks, recursive groups, and specialized bodies; the analysis algorithm is separate implementation work. Fixed aliases, value parameters, array value independence, stable-storage borrows through last possible use, fixed windows, inferred resize permissions, and overlap-safe assignment are settled. References do not reconstruct a location or revive after invalidating replacement. Ordinary array iteration under resize/reorder still needs its own contract.

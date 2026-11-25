@@ -1,0 +1,14 @@
+digraph Common {
+label="Chapter 10 — REVISED MODEL"; labelloc=t; fontsize=17;
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SemanticType" [label="SemanticType\n(existing)", fillcolor="#ffffff"];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"SemanticFact" [label="SemanticFact\n(existing)", fillcolor="#ffffff"];
+"IrNode" [label="IrNode\n(existing)", fillcolor="#ffffff"];
+"SemanticType" -> "SemanticSymbol" [id="canonical-symbols", color="#704090", penwidth=1.2, style=dashed, arrowhead=normal, label="CHANGED\ntyped\nsymbols", tooltip="SemanticType.Symbols -> SemanticSymbol; reverse SemanticSymbol.Type"];
+"SemanticType" -> "SemanticFact" [id="canonical-facts", color="#704090", penwidth=1.2, style=dashed, arrowhead=normal, label="CHANGED\ntyped\nfacts", tooltip="SemanticType.Facts -> SemanticFact; reverse SemanticFact.TypeLink"];
+"SemanticType" -> "IrNode" [id="canonical-ir", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=normal, label="CHANGED\ntyped\nIR\nnodes", tooltip="SemanticType.IrNodes -> IrNode; reverse IrNode.Type"];
+"SemanticType" -> "SemanticSymbol" [id="nominal", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=onormal, label="CHANGED\nnominal\ndeclaration", tooltip="SemanticType.Declaration -> SemanticSymbol; reverse SemanticSymbol.NominalType"];
+}

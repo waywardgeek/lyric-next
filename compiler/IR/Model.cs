@@ -197,27 +197,9 @@ internal sealed partial class IrNode
         {
             throw new InvalidOperationException("Destroyed IR node.");
         }
-        SemanticSymbol? nominal = type?.Class;
-        if (nominal is not null)
-        {
-            if (nominal.Destroyed || nominal.Kind != SymbolKind.Class
-                || Function?.Program?.Analysis is null
-                || nominal.Scope?.Analysis != Function.Program.Analysis)
-            {
-                throw new InvalidOperationException("Invalid IR nominal type.");
-            }
-            // Reserve BEFORE removing old membership, including self replacement.
-            nominal.ReserveIrType();
-        }
-        Type?.Class?.RemoveIrType(this);
-        if (nominal is null)
-        {
-            Type = type;
-        }
-        else
-        {
-            nominal.AddIrType(this, type!.Value);
-        }
+        type?.ReserveIrNode(this);
+        Type?.RemoveIrNode(this);
+        type?.AddIrNode(this);
     }
 }
 internal sealed partial class IrOperand
@@ -460,8 +442,13 @@ internal sealed partial class SemanticSymbol
     }
     internal partial void AddIrFunction(IrFunction function)
     {
-        if (Destroyed || Kind != SymbolKind.Function || IrBody is not null
-            || function.Kind != IrFunctionKind.Source || function.DestructionClass is not null
+        bool source = Kind == SymbolKind.Function && function.Kind == IrFunctionKind.Source;
+        bool initializer = Kind == SymbolKind.Field && function.Kind == IrFunctionKind.FieldInitializer
+            && Scope?.MemberOwner?.Kind == SymbolKind.Struct
+            && InitializerScope is not null && !InitializerScope.Destroyed
+            && InitializerScope.InitializerField == this;
+        if (Destroyed || (!source && !initializer) || IrBody is not null
+            || function.DestructionClass is not null
             || Scope?.Analysis is null || Scope.Analysis.Destroyed || function.Destroyed
             || function.Declaration is not null || function.Program?.Analysis != Scope.Analysis)
         {
@@ -524,34 +511,5 @@ internal sealed partial class SyntaxNode
         }
         IrOrigins.RemoveAt(index);
         node.Origin = null;
-    }
-}
-
-internal sealed partial class SemanticSymbol
-{
-    internal partial void ReserveIrType()
-    {
-        IrTypes.EnsureCapacity(IrTypes.Count + 1);
-    }
-    internal partial void AddIrType(IrNode node, SemanticType type)
-    {
-        if (Destroyed || Kind != SymbolKind.Class || type.Class != this
-            || Scope?.Analysis is null || Scope.Analysis.Destroyed || node.Destroyed
-            || node.Type?.Class is not null || node.Function?.Program?.Analysis != Scope.Analysis)
-        {
-            throw new InvalidOperationException("Invalid nominal IR dependency.");
-        }
-        IrTypes.Add(node);
-        node.Type = type;
-    }
-    internal partial void RemoveIrType(IrNode node)
-    {
-        int index = IrTypes.IndexOf(node);
-        if (index < 0 || node.Type?.Class != this)
-        {
-            throw new InvalidOperationException("Different nominal IR dependency.");
-        }
-        IrTypes.RemoveAt(index);
-        node.Type = null;
     }
 }

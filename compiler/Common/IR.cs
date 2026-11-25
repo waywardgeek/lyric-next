@@ -8,10 +8,12 @@ namespace Lyric;
 internal enum IrKind
 {
     Region, If, While, For, Break, Continue, Return, Yield,
-    Constant, Local, Borrow, SelectField, AddressOf, SelectIndex, Load, Store, Call,
+    Constant, Local, Borrow, SelectField, AddressOf, SelectIndex, Load, Store, Call, CallInitializer,
     Unary, Binary, Convert, Copy, Move, Clear,
     Ref, Unref, NewArray, FreeArray, NewObject, DestroyObject, ReclaimObject,
     ArrayLength, ArrayCapacity, ArrayReserve, ArrayResize, ArrayTruncate, ArrayPush,
+    NewTuple, SelectTuple, DropTuple,
+    NewStruct, SelectStruct, DropStruct,
 }
 
 // Value-like tags. A condition region executes on EVERY test; a for-step region
@@ -22,8 +24,8 @@ internal enum IrRole { None, Body, Initializer, Condition, Then, Else, Step }
 // fixed storage selected at a particular execution point. Neither is an owner.
 internal enum IrResult { None, Value, Place, Address }
 
-// Generated destruction is an execution body, not a fabricated source function.
-internal enum IrFunctionKind { Source, Destruction }
+// Generated bodies retain their real class or field owner, never a fabricated function.
+internal enum IrFunctionKind { Source, Destruction, FieldInitializer }
 
 // Explicitly VALUE-LIKE immutable literal. No source or symbol relationships.
 // Bytes are defensively copied and exposed one byte at a time, never as a mutable
@@ -144,6 +146,10 @@ internal sealed partial class IrFunction
 // values and uses typed defaults, with the existing allocation/failure contract.
 // ArrayCapacity observes the original selected descriptor (or an owned computed
 // temporary), never a copied reservation. Mutation results are unit values.
+// CallInitializer invokes the actual field's zero-argument initializer body.
+// An ordinary field returns a value with fresh ownership, as for a source call.
+// A reference field returns an exact Address: neither the call nor its Return
+// transfers ownership of the referent. Ordinary source returns remain values.
 // NewObject allocates a class handle; lowering emits the actual constructor Call
 // separately, after evaluating explicit arguments and before exposing the result.
 // DestroyObject invokes Symbol.IrDestruction with the saved receiver handle.
@@ -151,6 +157,19 @@ internal sealed partial class IrFunction
 // destruction invocation. The generated body calls the hook, releases owned
 // array fields in declaration order, then reclaims. Last counted release uses
 // the same generated body.
+// NewTuple consumes one value per ordered component; owned components arrive as
+// Move transfers. SelectTuple uses its integer Literal as a compile-time component
+// index and returns a fixed address into a tuple value holder or selected Address.
+// Resolve a Place with AddressOf first: selection never restores invalid borrows.
+// Copy duplicates tuple contents recursively; Move empties ownership-bearing
+// contents, and DropTuple releases and empties those contents without freeing the
+// inline record itself. Plain scalar tuples require neither Move nor DropTuple.
+// NewStruct consumes values in field declaration order after lowering has evaluated
+// source initializers in written order. Its type is the actual nominal struct.
+// SelectStruct carries the actual field Symbol and selects a fixed address from
+// an evaluated struct holder/address. It never searches a field by spelling.
+// DropStruct releases owned fields without freeing the inline record. Copy and
+// Move have the same recursive ownership contracts as their tuple counterparts.
 // These contracts do not make array handles scalar immutable snapshots.
 // Deleting a definition detaches its uses rather
 // than deleting consumers. Such a draft must not be emitted without validation.
@@ -214,8 +233,8 @@ internal sealed partial class IrOperand
     internal partial void Destroy();
 }
 
-// Weak reverse dependencies. Nominal types are NOT plain scalar values: every
-// persistent IR holder registers with the actual class. Semantic edits retire
+// Weak declaration dependencies. Canonical types separately track all typed IR
+// holders, including scalar and array types. Semantic edits retire
 // the analysis-owned IR before changing declarations or source structure.
 internal sealed partial class SemanticSymbol
 {
@@ -227,14 +246,10 @@ internal sealed partial class SemanticSymbol
     internal partial void AddIrDestruction(IrFunction function);
     internal partial void RemoveIrDestruction(IrFunction function);
     private readonly List<IrNode> IrSymbols = new();
-    private readonly List<IrNode> IrTypes = new();
     internal partial void AddIrFunction(IrFunction function);
     internal partial void RemoveIrFunction(IrFunction function);
     internal partial void AddIrSymbol(IrNode node);
     internal partial void RemoveIrSymbol(IrNode node);
-    internal partial void ReserveIrType();
-    internal partial void AddIrType(IrNode node, SemanticType type);
-    internal partial void RemoveIrType(IrNode node);
 }
 internal sealed partial class SyntaxNode
 {

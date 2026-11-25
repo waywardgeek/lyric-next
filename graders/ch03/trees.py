@@ -21,6 +21,12 @@ def cases():
     binary = lambda op, a, b: n('binary', op, a, b)
     call = lambda f, *args: n('call', None, f, *args)
     expression = lambda tree: n('expression', None, tree)
+    # Chapter 10 admits one-element tuples without changing grouping.
+    yield ('single-tuple', True, '(1,)', expression(n('tuple', None, integer('1'))))
+    yield ('single-tuple-type', True, 'x as (i32,)',
+        expression(n('cast', 'as', name('x'), n('type-group', ',', n('type-name', 'i32')))))
+    yield ('grouped-type', True, 'x as (i32)',
+        expression(n('cast', 'as', name('x'), n('type-group', None, n('type-name', 'i32')))))
     # Optional type suffixes must restore input when the whole suffix fails.
     yield ('cast-before-comparison', True, 'x as T < y',
         expression(binary('<',
@@ -521,6 +527,13 @@ def cases():
                         'pub')),
                 n('visibility',
                     'pub'))))
+    # Struct members use the same function shape as class members.
+    yield('struct-method-tree',
+        False,
+        'struct S { func f(self) }',
+        file(n('struct', 'S',
+            n('function', None, name('f'),
+                n('parameters', None, n('parameter', 'self'))))))
     yield('class-tree',
         False,
         'value class C { func f(self) }',

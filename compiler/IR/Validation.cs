@@ -15,6 +15,17 @@ internal sealed partial class IrProgram
         {
             IrFunction function = FunctionAt(f);
             Require(!function.Destroyed && function.Program == this, "function membership");
+            if (function.Kind == IrFunctionKind.FieldInitializer)
+            {
+                SemanticSymbol? field = function.Declaration;
+                Require(field is not null && !field.Destroyed && field.Kind == SymbolKind.Field
+                    && field.IrBody == function && field.Scope is not null
+                    && field.Scope.Analysis == Analysis
+                    && field.Scope.MemberOwner?.Kind == SymbolKind.Struct
+                    && field.InitializerScope is not null && !field.InitializerScope.Destroyed
+                    && field.InitializerScope.InitializerField == field
+                    && function.DestructionClass is null, "field initializer owner");
+            }
             IrNode? body = function.Body;
             Require(body is not null && body.BodyOwner == function
                 && body.Parent is null && body.Kind == IrKind.Region
@@ -116,16 +127,19 @@ internal sealed partial class IrProgram
                 int required = node.Kind switch
                 {
                     IrKind.Region or IrKind.While or IrKind.Break or IrKind.Continue
-                        or IrKind.Constant or IrKind.Local or IrKind.NewObject => 0,
+                        or IrKind.Constant or IrKind.Local or IrKind.NewObject
+                        or IrKind.CallInitializer => 0,
                     IrKind.If or IrKind.Return or IrKind.Yield or IrKind.SelectField
                         or IrKind.AddressOf or IrKind.Load or IrKind.Unary or IrKind.Convert
                         or IrKind.Copy or IrKind.Move or IrKind.Ref or IrKind.Unref
                         or IrKind.FreeArray or IrKind.DestroyObject or IrKind.ReclaimObject
-                        or IrKind.ArrayLength or IrKind.ArrayCapacity => 1,
+                        or IrKind.ArrayLength or IrKind.ArrayCapacity
+                        or IrKind.SelectTuple or IrKind.DropTuple
+                        or IrKind.SelectStruct or IrKind.DropStruct => 1,
                     IrKind.SelectIndex or IrKind.Store or IrKind.Binary or IrKind.ArrayReserve
                         or IrKind.ArrayResize or IrKind.ArrayTruncate or IrKind.ArrayPush => 2,
                     // These have explicit variable-arity contracts below.
-                    IrKind.Borrow or IrKind.Call or IrKind.NewArray => -1,
+                    IrKind.Borrow or IrKind.Call or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct => -1,
                     _ => throw Invalid(node, "operation has no implemented contract"),
                 };
                 Require(required < 0 || count == required, "operand count");
@@ -138,6 +152,20 @@ internal sealed partial class IrProgram
                 {
                     Require(node.Literal.Kind == IrLiteralKind.Bytes && count == 0,
                         "byte array payload cannot also have element operands");
+                }
+                if (node.Kind == IrKind.CallInitializer)
+                {
+                    SemanticSymbol? field = node.Symbol;
+                    Require(field is not null && field.Kind == SymbolKind.Field
+                        && field.Scope?.MemberOwner?.Kind == SymbolKind.Struct
+                        && field.InitializerScope is not null
+                        && field.InitializerScope.InitializerField == field,
+                        "initializer call has no selected field scope");
+                    Require(field!.IrBody is IrFunction initializer
+                        && initializer.Kind == IrFunctionKind.FieldInitializer
+                        && initializer.Program == this && initializer.Declaration == field
+                        && !initializer.Destroyed, "initializer call has no live body");
+                    Require(node.Type == field.Type, "initializer call result type mismatch");
                 }
                 if (node.Kind == IrKind.Call)
                 {
@@ -160,10 +188,12 @@ internal sealed partial class IrProgram
                 {
                     IrKind.Region or IrKind.While or IrKind.Break or IrKind.Continue
                         or IrKind.Return or IrKind.Yield or IrKind.Store or IrKind.Unref
-                        or IrKind.FreeArray or IrKind.ReclaimObject => IrResult.None,
-                    IrKind.Local or IrKind.Borrow or IrKind.AddressOf or IrKind.SelectIndex
+                        or IrKind.FreeArray or IrKind.DropTuple or IrKind.DropStruct
+                        or IrKind.ReclaimObject => IrResult.None,
+                    IrKind.Local or IrKind.Borrow or IrKind.AddressOf or IrKind.SelectIndex or IrKind.SelectTuple or IrKind.SelectStruct
                         => IrResult.Address,
                     IrKind.SelectField => IrResult.Place,
+                    IrKind.CallInitializer when node.Symbol!.IsReference => IrResult.Address,
                     _ => IrResult.Value,
                 };
                 Require(node.Result == expected, "result category");
@@ -189,12 +219,12 @@ internal sealed partial class IrProgram
 
                 if (node.Kind == IrKind.Constant)
                 {
-                    SemanticType type = node.Type!.Value;
-                    if (type == SemanticType.Unit)
+                    SemanticType type = node.Type!;
+                    if (type == Analysis!.ScalarType(ScalarKind.Unit))
                     {
                         Require(node.Literal is null, "unit constant has a payload");
                     }
-                    else if (type == SemanticType.Bool)
+                    else if (type == Analysis!.ScalarType(ScalarKind.Bool))
                     {
                         Require(node.Literal?.Kind == IrLiteralKind.Boolean,
                             "boolean constant requires a boolean payload");
@@ -220,12 +250,12 @@ internal sealed partial class IrProgram
                     SemanticType? destination = null;
                     if (node.Kind == IrKind.If)
                     {
-                        destination = SemanticType.Bool;
+                        destination = Analysis!.ScalarType(ScalarKind.Bool);
                     }
                     else if (node.Kind == IrKind.Return)
                     {
                         destination = function.Kind == IrFunctionKind.Destruction
-                            ? SemanticType.Unit : function.Declaration?.Type;
+                            ? Analysis!.ScalarType(ScalarKind.Unit) : function.Declaration?.Type;
                     }
                     else
                     {
@@ -240,12 +270,16 @@ internal sealed partial class IrProgram
                         else if (control?.Kind == IrKind.While
                             && region!.Role == IrRole.Condition)
                         {
-                            destination = SemanticType.Bool;
+                            destination = Analysis!.ScalarType(ScalarKind.Bool);
                         }
                     }
                     Require(destination is not null, "missing control result destination");
-                    Require(value.Result == IrResult.Value && value.Type == destination,
-                        "control operand must be a value of the destination type");
+                    bool addressReturn = node.Kind == IrKind.Return
+                        && function.Kind == IrFunctionKind.FieldInitializer
+                        && function.Declaration!.IsReference;
+                    IrResult category = addressReturn ? IrResult.Address : IrResult.Value;
+                    Require(value.Result == category && value.Type == destination,
+                        "control operand must match the destination type and category");
                 }
 
                 // Operator tags preserve semantics: a wrapping conversion is not
@@ -255,14 +289,14 @@ internal sealed partial class IrProgram
                     IrNode input = node.OperandAt(0).Definition!;
                     Require(input.Result == IrResult.Value && input.Type is not null,
                         "operator requires typed value");
-                    SemanticType source = input.Type!.Value;
-                    SemanticType result = node.Type!.Value;
+                    SemanticType source = input.Type!;
+                    SemanticType result = node.Type!;
                     if (node.Kind == IrKind.Unary)
                     {
                         Require(node.Operator is "!" or "-" or "!-", "unknown unary operator");
                         if (node.Operator == "!")
                         {
-                            Require(source == SemanticType.Bool && result == SemanticType.Bool,
+                            Require(source == Analysis!.ScalarType(ScalarKind.Bool) && result == Analysis!.ScalarType(ScalarKind.Bool),
                                 "logical negation requires bool");
                         }
                         else
@@ -290,8 +324,8 @@ internal sealed partial class IrProgram
                     Require(left.Result == IrResult.Value && right.Result == IrResult.Value
                         && left.Type is not null && right.Type is not null,
                         "binary operator requires typed values");
-                    SemanticType leftType = left.Type!.Value;
-                    SemanticType rightType = right.Type!.Value;
+                    SemanticType leftType = left.Type!;
+                    SemanticType rightType = right.Type!;
                     bool integers = SemanticTypes.IsInteger(leftType)
                         && SemanticTypes.IsInteger(rightType);
                     switch (node.Operator)
@@ -311,8 +345,8 @@ internal sealed partial class IrProgram
                             // Integer comparisons need no common arithmetic type:
                             // even i64 and u64 can be compared without narrowing.
                             bool booleanEquality = node.Operator is "==" or "!="
-                                && leftType == SemanticType.Bool && rightType == SemanticType.Bool;
-                            Require((integers || booleanEquality) && node.Type == SemanticType.Bool,
+                                && leftType == Analysis!.ScalarType(ScalarKind.Bool) && rightType == Analysis!.ScalarType(ScalarKind.Bool);
+                            Require((integers || booleanEquality) && node.Type == Analysis!.ScalarType(ScalarKind.Bool),
                                 "comparison operand or result type mismatch");
                             break;
                         default:
@@ -335,15 +369,33 @@ internal sealed partial class IrProgram
                 // provenance. A reference may legitimately release the old value
                 // during replacement; lifetime/transfer validation is separate.
                 if (node.Kind is IrKind.Copy or IrKind.FreeArray or IrKind.Ref
-                    or IrKind.Unref or IrKind.Move)
+                    or IrKind.Unref or IrKind.Move or IrKind.DropTuple or IrKind.DropStruct)
                 {
                     SemanticType? held = node.OperandAt(0).Definition!.Type;
                     bool array = held?.ArrayDepth > 0;
                     bool counted = held is SemanticType value && value.ArrayDepth == 0
                         && value.Class?.IsCountedClass() == true;
-                    if (node.Kind is IrKind.Copy or IrKind.FreeArray)
+                    if (node.Kind == IrKind.Copy)
+                    {
+                        Require(array || held?.Kind == SemanticTypeKind.Tuple
+                            || held?.Declaration?.Kind == SymbolKind.Struct,
+                            "copy requires array, tuple, or struct");
+                    }
+                    else if (node.Kind == IrKind.FreeArray)
                     {
                         Require(array, "array ownership operation requires array");
+                    }
+                    else if (node.Kind == IrKind.DropTuple)
+                    {
+                        Require(held?.Kind == SemanticTypeKind.Tuple
+                            && SemanticTypes.HasOwnedContents(held),
+                            "tuple cleanup requires ownership-bearing tuple");
+                    }
+                    else if (node.Kind == IrKind.DropStruct)
+                    {
+                        Require(held?.Declaration?.Kind == SymbolKind.Struct
+                            && SemanticTypes.HasOwnedContents(held),
+                            "struct cleanup requires ownership-bearing struct");
                     }
                     else if (node.Kind is IrKind.Ref or IrKind.Unref)
                     {
@@ -351,7 +403,8 @@ internal sealed partial class IrProgram
                     }
                     else
                     {
-                        Require(array || counted, "move requires ownership-bearing type");
+                        Require(held is not null && SemanticTypes.HasOwnedContents(held),
+                            "move requires ownership-bearing type");
                     }
                 }
                 if (node.Kind == IrKind.Move)
@@ -360,7 +413,7 @@ internal sealed partial class IrProgram
                     // must install ownership, not observe or release the transfer.
                     IrNode source = node.OperandAt(0).Definition!;
                     bool holder = source.Kind is IrKind.Local or IrKind.Copy or IrKind.Ref
-                        or IrKind.NewArray or IrKind.NewObject or IrKind.Call or IrKind.If;
+                        or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct or IrKind.NewObject or IrKind.Call or IrKind.CallInitializer or IrKind.If;
                     if (source.Kind == IrKind.Local)
                     {
                         SemanticSymbol? declaration = function.Declaration;
@@ -375,7 +428,7 @@ internal sealed partial class IrProgram
                     Require(node.UseCount() == 1, "transfer must have exactly one consumer");
                     IrOperand use = node.UseAt(0);
                     IrNode consumer = use.Consumer!;
-                    bool consumes = consumer.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray;
+                    bool consumes = consumer.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct;
                     if (consumer.Kind is IrKind.Store or IrKind.ArrayPush)
                     {
                         consumes = consumer.OperandCount() == 2 && consumer.OperandAt(1) == use;
@@ -407,17 +460,37 @@ internal sealed partial class IrProgram
                 {
                     IrNode value = node.OperandAt(argument).Definition!;
                     SemanticType? type = value.Type;
-                    bool owned = type?.ArrayDepth > 0
-                        || (type is SemanticType scalar && scalar.ArrayDepth == 0
-                            && scalar.Class?.IsCountedClass() == true);
+                    bool owned = type is not null && SemanticTypes.HasOwnedContents(type);
                     if (!owned)
                     {
                         continue;
                     }
-                    bool consumes = node.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray;
+                    bool consumes = node.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct;
+                    // Returning a borrowed address never consumes its referent,
+                    // even when that referent contains owned arrays or handles.
+                    if (node.Kind == IrKind.Return && function.Kind == IrFunctionKind.FieldInitializer
+                        && function.Declaration!.IsReference)
+                    {
+                        consumes = false;
+                    }
                     if (node.Kind is IrKind.Store or IrKind.ArrayPush)
                     {
                         consumes = argument == 1;
+                    }
+                    if (node.Kind == IrKind.NewStruct)
+                    {
+                        // A borrowed field stores an address, not ownership of
+                        // the referent, even when that referent is an array.
+                        int fieldIndex = 0;
+                        foreach (SemanticSymbol field in node.Type!.Declaration!.MemberScope!.Fields())
+                        {
+                            if (fieldIndex == argument)
+                            {
+                                consumes = !field.IsReference;
+                                break;
+                            }
+                            fieldIndex += 1;
+                        }
                     }
                     if (node.Kind == IrKind.Call)
                     {
@@ -440,13 +513,73 @@ internal sealed partial class IrProgram
                     Require(node.OperandAt(1).Definition!.Result == IrResult.Value,
                         "store requires a value");
                 }
+                if (node.Kind == IrKind.NewStruct)
+                {
+                    SemanticType structure = node.Type!;
+                    SemanticScope? fields = structure.Declaration?.MemberScope;
+                    Require(structure.Declaration?.Kind == SymbolKind.Struct
+                        && fields is not null && node.Literal is null,
+                        "struct construction requires resolved nominal struct");
+                    Require(SemanticTypes.HasFiniteLayout(structure), "infinite struct layout");
+                    int fieldIndex = 0;
+                    foreach (SemanticSymbol field in fields!.Fields())
+                    {
+                        Require(fieldIndex < count, "missing struct field operand");
+                        IrNode value = node.OperandAt(fieldIndex).Definition!;
+                        IrResult category = field.IsReference ? IrResult.Address : IrResult.Value;
+                        Require(value.Type == field.Type && value.Result == category,
+                            "struct field type or category mismatch");
+                        fieldIndex += 1;
+                    }
+                    Require(fieldIndex == count, "extra struct field operand");
+                }
+                if (node.Kind == IrKind.SelectStruct)
+                {
+                    IrNode holder = node.OperandAt(0).Definition!;
+                    SemanticSymbol? field = node.Symbol;
+                    Require(holder.Type?.Declaration?.Kind == SymbolKind.Struct
+                        && holder.Result is IrResult.Value or IrResult.Address,
+                        "struct selection requires evaluated holder or fixed address");
+                    Require(field?.Kind == SymbolKind.Field
+                        && field.Scope?.MemberOwner == holder.Type!.Declaration
+                        && node.Type == field.Type && node.Literal is null,
+                        "struct selection requires matching nominal field identity");
+                }
+                if (node.Kind == IrKind.NewTuple)
+                {
+                    SemanticType tuple = node.Type!;
+                    Require(tuple.Kind == SemanticTypeKind.Tuple && node.Literal is null,
+                        "tuple construction requires tuple type and component operands");
+                    Require(count == tuple.ComponentCount(), "tuple component count");
+                    for (int component = 0; component < count; component += 1)
+                    {
+                        IrNode value = node.OperandAt(component).Definition!;
+                        Require(value.Type == tuple.ComponentAt(component)
+                            && value.Result == IrResult.Value,
+                            "tuple component type or category mismatch");
+                    }
+                }
+                if (node.Kind == IrKind.SelectTuple)
+                {
+                    IrNode holder = node.OperandAt(0).Definition!;
+                    Require(holder.Type?.Kind == SemanticTypeKind.Tuple
+                        && holder.Result is IrResult.Value or IrResult.Address,
+                        "tuple selection requires evaluated holder or fixed address");
+                    IrLiteral? selector = node.Literal;
+                    Require(selector?.Kind == IrLiteralKind.Integer
+                        && selector.Integer >= 0
+                        && selector.Integer < holder.Type!.ComponentCount(),
+                        "tuple selector outside component range");
+                    Require(node.Type == holder.Type!.ComponentAt((int)selector!.Integer),
+                        "tuple selection component type mismatch");
+                }
                 if (node.Kind == IrKind.NewArray)
                 {
-                    SemanticType array = node.Type!.Value;
+                    SemanticType array = node.Type!;
                     Require(array.ArrayDepth > 0, "array construction requires array type");
                     if (node.Literal is not null)
                     {
-                        Require(array == SemanticType.ByteArray, "byte payload requires byte array");
+                        Require(array == SemanticTypes.ArrayOf(Analysis!.ScalarType(ScalarKind.U8)), "byte payload requires byte array");
                     }
                     else
                     {
@@ -463,11 +596,11 @@ internal sealed partial class IrProgram
                 {
                     SemanticType? array = node.OperandAt(0).Definition!.Type;
                     SemanticType? index = node.OperandAt(1).Definition!.Type;
-                    Require(array is not null && array.Value.ArrayDepth > 0,
+                    Require(array is not null && array!.ArrayDepth > 0,
                         "index selection requires array");
-                    Require(node.Type == SemanticTypes.ElementOf(array!.Value),
+                    Require(node.Type == SemanticTypes.ElementOf(array!),
                         "selected element type mismatch");
-                    Require(index is not null && SemanticTypes.IsInteger(index.Value)
+                    Require(index is not null && SemanticTypes.IsInteger(index!)
                         && node.OperandAt(1).Definition!.Result == IrResult.Value,
                         "index requires integer value");
                 }
@@ -478,12 +611,12 @@ internal sealed partial class IrProgram
                 {
                     IrNode arrayOperand = node.OperandAt(0).Definition!;
                     SemanticType? arrayType = arrayOperand.Type;
-                    Require(arrayType is not null && arrayType.Value.ArrayDepth > 0,
+                    Require(arrayType is not null && arrayType!.ArrayDepth > 0,
                         "array operation requires array operand");
                     bool metadata = node.Kind is IrKind.ArrayLength or IrKind.ArrayCapacity;
                     if (metadata)
                     {
-                        Require(node.Type == new SemanticType(ScalarKind.U64, 0),
+                        Require(node.Type == Analysis!.ScalarType(ScalarKind.U64),
                             "array metadata result must be u64");
                         // Length follows ordinary value evaluation. Capacity may
                         // observe storage directly so copying cannot lose reservation.
@@ -493,7 +626,7 @@ internal sealed partial class IrProgram
                     }
                     else
                     {
-                        Require(node.Type == SemanticType.Unit,
+                        Require(node.Type == Analysis!.ScalarType(ScalarKind.Unit),
                             "array mutation result must be unit");
                         Require(arrayOperand.Result is IrResult.Place or IrResult.Address,
                             "array mutation requires selected storage");
@@ -502,13 +635,13 @@ internal sealed partial class IrProgram
                             "array mutation argument must be value");
                         if (node.Kind == IrKind.ArrayPush)
                         {
-                            Require(argument.Type == SemanticTypes.ElementOf(arrayType!.Value),
+                            Require(argument.Type == SemanticTypes.ElementOf(arrayType!),
                                 "array push element type mismatch");
                         }
                         else
                         {
                             Require(argument.Type is not null
-                                && SemanticTypes.IsInteger(argument.Type.Value),
+                                && SemanticTypes.IsInteger(argument.Type!),
                                 "array mutation count must be integer");
                         }
                     }
@@ -524,7 +657,7 @@ internal sealed partial class IrProgram
                     Require(field?.Kind == SymbolKind.Field && owner is not null,
                         "field selection has no owning class");
                     Require(receiver.Result == IrResult.Value
-                        && receiver.Type == new SemanticType(ScalarKind.Unit, 0, owner!),
+                        && receiver.Type == Analysis!.ClassType(owner!),
                         "field receiver class mismatch");
                     Require(node.Type == field!.Type, "selected field type mismatch");
                 }
@@ -533,7 +666,7 @@ internal sealed partial class IrProgram
                     SemanticSymbol? nominal = node.Symbol;
                     Require(nominal?.Kind == SymbolKind.Class,
                         "object operation has no selected class");
-                    SemanticType instance = new(ScalarKind.Unit, 0, nominal!);
+                    SemanticType instance = Analysis!.ClassType(nominal!);
                     if (node.Kind == IrKind.NewObject)
                     {
                         Require(node.Type == instance, "allocated object class mismatch");
@@ -545,7 +678,7 @@ internal sealed partial class IrProgram
                         if (node.Kind == IrKind.DestroyObject)
                         {
                             Require(receiver.Result == IrResult.Value
-                                && node.Type == SemanticType.Unit,
+                                && node.Type == Analysis!.ScalarType(ScalarKind.Unit),
                                 "destruction requires value handle and unit result");
                         }
                         else

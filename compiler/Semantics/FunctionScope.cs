@@ -6,19 +6,29 @@ internal sealed partial class SemanticScope
 {
     internal partial SemanticScope(SemanticSymbol function)
     {
-        SemanticScope? parent = function.Scope;
+        bool initializer = function.Kind == SymbolKind.Field;
+        SemanticScope? parent = initializer
+            ? function.Scope?.MemberOwner?.Scope
+            : function.Scope;
         SemanticAnalysis? analysis = parent?.Analysis;
-        if (function.Destroyed || function.Kind is not (SymbolKind.Function or SymbolKind.Class)
-            || function.FunctionScope is not null || function.MemberScope is not null || parent is null || parent.Destroyed
-            || analysis is null || analysis.Destroyed)
+        if (function.Destroyed || function.Kind is not (SymbolKind.Function or SymbolKind.Class or SymbolKind.Struct or SymbolKind.Field)
+            || function.FunctionScope is not null || function.MemberScope is not null
+            || function.InitializerScope is not null || parent is null || parent.Destroyed
+            || analysis is null || analysis.Destroyed
+            || (initializer && (function.Scope?.MemberOwner?.Kind != SymbolKind.Struct
+                || function.Scope.Analysis != analysis)))
         {
-            throw new InvalidOperationException("Cannot construct scope for an invalid function or class.");
+            throw new InvalidOperationException("Cannot construct scope for an invalid function or nominal declaration.");
         }
         analysis.AddScope(this);
         try
         {
             parent.AddChild(this);
-            if (function.Kind == SymbolKind.Class)
+            if (initializer)
+            {
+                function.AddInitializerScope(this);
+            }
+            else if (function.Kind is SymbolKind.Class or SymbolKind.Struct)
             {
                 function.AddMemberScope(this);
             }
@@ -66,6 +76,35 @@ internal sealed partial class SemanticScope
 
 internal sealed partial class SemanticSymbol
 {
+    internal partial void AddInitializerScope(SemanticScope scope)
+    {
+        SemanticSymbol? owner = Scope?.MemberOwner;
+        if (Destroyed || Kind != SymbolKind.Field || owner?.Kind != SymbolKind.Struct
+            || owner.Destroyed || Scope is null || Scope.Destroyed
+            || InitializerScope is not null || scope.Destroyed
+            || scope.InitializerField is not null || scope.Function is not null
+            || scope.MemberOwner is not null || scope.Analysis is null
+            || scope.Analysis != Scope.Analysis || scope.Parent != owner.Scope)
+        {
+            throw new InvalidOperationException("Cannot attach field initializer scope.");
+        }
+        InitializerScope = scope;
+        scope.InitializerField = this;
+    }
+
+    internal partial void RemoveInitializerScope(SemanticScope scope)
+    {
+        if (InitializerScope != scope || scope.InitializerField != this)
+        {
+            throw new InvalidOperationException("Initializer scope has a different field owner.");
+        }
+        // The generated body depends on this execution scope. Retire it before
+        // removing the semantic relationship, including direct scope destruction.
+        Scope?.Analysis?.ClearIr();
+        InitializerScope = null;
+        scope.InitializerField = null;
+    }
+
     internal partial void AddFunctionScope(SemanticScope scope)
     {
         if (Destroyed || Kind != SymbolKind.Function || Scope is null

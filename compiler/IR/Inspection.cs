@@ -33,6 +33,20 @@ internal sealed partial class Compilation
                 }
                 return id;
             }
+            // These IDs describe existing canonical objects. Never intern by
+            // display name here: inspection must expose, not repair, identity.
+            Dictionary<SemanticType, int> typeIds = new();
+            List<SemanticType> types = new();
+            int TypeId(SemanticType type)
+            {
+                if (!typeIds.TryGetValue(type, out int id))
+                {
+                    id = types.Count;
+                    typeIds.Add(type, id);
+                    types.Add(type);
+                }
+                return id;
+            }
             void WriteSymbol(string property, SemanticSymbol? symbol)
             {
                 if (symbol is null)
@@ -73,6 +87,14 @@ internal sealed partial class Compilation
                     writer.WriteString("role", node.Role.ToString());
                     writer.WriteString("result", node.Result.ToString());
                     writer.WriteString("type", node.Type is SemanticType type ? SemanticTypes.Name(type) : null);
+                    if (node.Type is null)
+                    {
+                        writer.WriteNull("typeId");
+                    }
+                    else
+                    {
+                        writer.WriteNumber("typeId", TypeId(node.Type));
+                    }
                     writer.WriteString("symbol", node.Symbol?.Name);
                     WriteSymbol("symbolId", node.Symbol);
                     WriteSymbol("ownerClass", node.Symbol?.Scope?.Class);
@@ -119,6 +141,36 @@ internal sealed partial class Compilation
                     }
                     writer.WriteEndArray();
                     writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteStartArray("types");
+            // Discover components iteratively while writing. Appended elements
+            // are visited too, without recursion or a second persistent table.
+            for (int t = 0; t < types.Count; t += 1)
+            {
+                SemanticType type = types[t];
+                writer.WriteStartObject();
+                writer.WriteNumber("id", t);
+                writer.WriteString("kind", type.Kind.ToString());
+                writer.WriteString("name", SemanticTypes.Name(type));
+                writer.WriteString("scalar", type.Kind == SemanticTypeKind.Scalar
+                    ? type.ScalarTag.ToString() : null);
+                if (type.Element is null)
+                {
+                    writer.WriteNull("elementTypeId");
+                }
+                else
+                {
+                    writer.WriteNumber("elementTypeId", TypeId(type.Element));
+                }
+                WriteSymbol("classId", type.Declaration);
+                writer.WriteStartArray("componentTypeIds");
+                for (int c = 0; c < type.ComponentCount(); c += 1)
+                {
+                    writer.WriteNumberValue(TypeId(type.ComponentAt(c)));
                 }
                 writer.WriteEndArray();
                 writer.WriteEndObject();

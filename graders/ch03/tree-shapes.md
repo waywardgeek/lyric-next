@@ -34,7 +34,7 @@ not additional grammar syntax. Optional wrappers are omitted, not null children.
 ## Expressions
 
 - `group`: one parenthesized expression. Preserve grouping explicitly.
-- `tuple`: two or more expressions; `array`: zero or more expressions.
+- `tuple`: one or more expressions; `array`: zero or more expressions.
 - `unary`: operator anchor and operand child.
 - `binary`: operator anchor, left operand, right operand.
 - `postfix`: `!` or `?` anchor and operand child.
@@ -65,7 +65,7 @@ not additional grammar syntax. Optional wrappers are omitted, not null children.
   the role name and contains its type. Roles are allowed only in binding contexts.
 - `type-prefix`: `ref` or `gen` anchor, underlying type.
 - `optional-type`, `array-type`: one underlying type.
-- `type-group`: one grouped type, or two or more tuple element types.
+- `type-group`: one grouped type, or tuple element types. A one-element tuple has comma text; grouping and multi-element tuples retain null text.
 - `union-type`: two or more types, in source order.
 - `function-type`: argument types*, followed by one `result-type` wrapper.
 - `result-type`, `annotation`: one type child.
@@ -81,7 +81,7 @@ not additional grammar syntax. Optional wrappers are omitted, not null children.
 - `wildcard`: `_` anchor; no children.
 - `pattern-literal`: literal anchor; no children.
 - `pattern-negative`: `-` anchor, integer literal child.
-- `pattern-tuple`: two or more pattern children.
+- `pattern-tuple`: one or more pattern children.
 - `pattern-name`: qualified name, optional `pattern-arguments`; an explicitly empty
   constructor pattern retains an empty arguments wrapper.
 - `pattern-arguments`: pattern children*.

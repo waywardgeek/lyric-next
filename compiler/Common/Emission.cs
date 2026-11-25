@@ -9,6 +9,10 @@ internal sealed partial class Compilation
     // complete translation unit before publishing any output. Backend limitations
     // return a located diagnostic and leave output empty.
     internal partial Diagnostic? EmitC(TextWriter output, bool structureOfArrays = false);
+    // Emit the current structured IR after all three validation passes. Does not
+    // lower or repair the graph; diagnostic tools and future transformations use
+    // the same backend as EmitC. No output is published before successful emission.
+    internal partial Diagnostic? EmitIrC(TextWriter output, bool structureOfArrays = false);
 }
 
 internal sealed partial class SourceFile

@@ -14,6 +14,10 @@
 
 <!-- common-diagram:end -->
 
+<!-- canonical-forward-link -->
+**Later revision:** Chapter 10 replaces the flat type descriptor and class-only type-user links with canonical identities, and extends scopes and body identities. [See the explicitly revised model](chapter-10.md). This figure describes the model at this chapter.
+
+
 ## TL;DR
 
 Extend your Chapter 6 compiler with dynamic arrays of integers, booleans, and nested arrays. Treat `string` as `[u8]`, not as a separate immutable runtime object. Array assignment, ordinary arguments, and value returns preserve recursively independent values. Add checked indexing, `len` returning `u64`, and writable `push`, `reserve`, `resize`, and `truncate` methods.

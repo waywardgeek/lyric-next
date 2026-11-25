@@ -90,6 +90,7 @@ internal enum SymbolKind
     Local,
     Type,
     Class,
+    Struct,
     Field,
 }
 
@@ -97,11 +98,14 @@ internal sealed partial class SemanticScope
 {
     private readonly List<SemanticSymbol> Symbols = new();
 
-    // Lexical lookup skips qualified class members; siblings are never searched.
+    // Lexical lookup skips qualified nominal members; siblings are never searched.
     internal partial SemanticSymbol? Lookup(string name);
     // Searches only this scope, for explicitly qualified member selection.
     internal partial SemanticSymbol? LookupMember(string name);
-    // Strong membership. Class members share a qualified namespace; other
+    // Existing field symbols in declaration order; callers must not mutate the
+    // scope during enumeration. No copied field inventory or method entries.
+    internal partial System.Collections.Generic.IEnumerable<SemanticSymbol> Fields();
+    // Strong membership. Nominal members share a qualified namespace; other
     // declarations refuse an already-visible lexical name before mutation.
     internal partial void AddSymbol(SemanticSymbol symbol);
     internal partial void RemoveSymbol(SemanticSymbol symbol);
@@ -113,6 +117,10 @@ internal sealed partial class SemanticSymbol
 {
     internal SemanticScope? Scope;
     internal SyntaxNode? Declaration;
+    // Optional out-of-line body syntax; the original declaration remains the
+    // callable contract. Both syntax relationships are weak and reciprocal.
+    internal SyntaxNode? Implementation;
+    internal partial SyntaxNode? BodySyntax();
     internal readonly string Name;
     internal readonly SymbolKind Kind;
     internal readonly BuiltinKind Builtin;
@@ -143,6 +151,11 @@ internal sealed partial class SemanticSymbol
 internal sealed partial class SyntaxNode
 {
     internal SemanticSymbol? DeclaredSymbol;
+    internal SemanticSymbol? ImplementedSymbol;
+    // Attaches a distinct function body in this analysis; refusal changes neither
+    // endpoint. Successful attachment/detachment retires existing executable IR.
+    internal partial void AddImplementedSymbol(SemanticSymbol symbol);
+    internal partial void RemoveImplementedSymbol(SemanticSymbol symbol);
 
     // Weak semantic relationship; its analysis must belong to this compilation.
     // Unlike syntax mutation, adding semantic information does not invalidate it.
@@ -158,14 +171,15 @@ internal sealed partial class SemanticAnalysis
 }
 
 // Identity-bearing checked expression, strongly owned by its analysis. Node and
-// Symbol are weak relationships, both maintained with reverse links. Scalar types
-// are values; nominal types also register a reverse dependency on their class.
+// Symbol and canonical Type are weak relationships with reverse memberships.
 internal sealed partial class SemanticFact
 {
     internal SemanticAnalysis? Analysis;
     internal SyntaxNode? Node;
     internal SemanticSymbol? Symbol;
-    internal SemanticType Type;
+    internal SemanticType? TypeLink;
+    // Live facts always have a type; partial construction/destruction may not.
+    internal partial SemanticType Type { get; }
     // Value-like exact integer result, when known from a literal expression.
     // Null means unknown, not zero. It has no model lifetime or backlinks.
     internal readonly BigInteger? IntegerConstant;
@@ -212,6 +226,22 @@ internal sealed partial class SourceFile
 
 internal sealed partial class SemanticSymbol
 {
+    // A struct field's default is an execution body, not a source function.
+    // The field and analysis strongly own its scope; lexical lookup starts in
+    // the struct's enclosing scope, so neither self nor siblings are visible.
+    internal SemanticScope? InitializerScope;
+    internal partial void AddInitializerScope(SemanticScope scope);
+    internal partial void RemoveInitializerScope(SemanticScope scope);
+}
+
+internal sealed partial class SemanticScope
+{
+    // Reverse strong-owner relationship, distinct from Function and MemberOwner.
+    internal SemanticSymbol? InitializerField;
+}
+
+internal sealed partial class SemanticSymbol
+{
     internal SemanticScope? FunctionScope;
     // Strong function/scope membership, with complete reverse registration.
     internal partial void AddFunctionScope(SemanticScope scope);
@@ -235,26 +265,23 @@ internal sealed partial class SemanticFailure : System.Exception
     internal partial SemanticFailure(Diagnostic diagnostic);
 }
 
-// A class declaration is a nominal identity, not a numeric scalar code. Its
+// A class or struct declaration owns a qualified member namespace. Its
 // member scope is strongly owned here and by the analysis; each has a backlink.
 internal sealed partial class SemanticSymbol
 {
     internal SemanticScope? MemberScope;
-    private readonly List<SemanticSymbol> TypedSymbols = new();
-    private readonly List<SemanticFact> TypedFacts = new();
 
     internal partial void AddMemberScope(SemanticScope scope);
     internal partial void RemoveMemberScope(SemanticScope scope);
-    // Sets a binding/result type and maintains any nominal-class dependency.
+    // Sets a binding/result type and maintains its canonical-type dependency.
     // Refusal leaves the old type and both reverse lists unchanged.
     internal partial void SetType(SemanticType? type);
-    internal partial void AddTypedSymbol(SemanticSymbol symbol, SemanticType type);
-    internal partial void RemoveTypedSymbol(SemanticSymbol symbol);
-    internal partial void AddTypedFact(SemanticFact fact, SemanticType type);
-    internal partial void RemoveTypedFact(SemanticFact fact);
 }
 
 internal sealed partial class SemanticScope
 {
-    internal SemanticSymbol? Class;
+    // Strong nominal owner; the analysis also owns this scope.
+    internal SemanticSymbol? MemberOwner;
+    // Class-only navigation for constructor/finalizer rules, never a second link.
+    internal partial SemanticSymbol? Class { get; }
 }
