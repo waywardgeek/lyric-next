@@ -52,6 +52,10 @@ internal sealed partial class SemanticAnalysis
         {
             Specializations[Specializations.Count - 1].Destroy();
         }
+        while (MultiClassInstantiations.Count != 0)
+        {
+            MultiClassInstantiations[MultiClassInstantiations.Count - 1].Destroy();
+        }
         // Facts borrow syntax and symbols. Retire those dependencies before
         // destroying the scopes that own their declarations.
         while (Facts.Count != 0)
@@ -103,6 +107,7 @@ internal sealed partial class SemanticScope
         {
             parent?.AddChild(this);
             parent?.Specialization?.AddScope(this);
+            parent?.MultiClass?.AddScope(this);
         }
         catch
         {
@@ -153,6 +158,11 @@ internal sealed partial class SemanticScope
             owner.Destroy();
             return;
         }
+        if (MultiClass is MultiClassInstantiation multiOwner && !multiOwner.Destroyed)
+        {
+            multiOwner.Destroy();
+            return;
+        }
         MemberOwner?.RemoveMemberScope(this);
         Function?.RemoveFunctionScope(this);
         InitializerField?.RemoveInitializerScope(this);
@@ -168,5 +178,6 @@ internal sealed partial class SemanticScope
         Destroyed = true;
         Analysis?.RemoveScope(this);
         Specialization?.RemoveScope(this);
+        MultiClass?.RemoveScope(this);
     }
 }

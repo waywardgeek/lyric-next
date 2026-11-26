@@ -18,11 +18,17 @@ def valid_tree(node):
 
 def main():
     command = sys.argv[1:]
+    fixtures = Path(__file__).with_name('cases.json')
+    if command[:1] == ['--fixtures']:
+        if len(command) < 3:
+            raise SystemExit('usage: recognition.py [--fixtures PATH] -- COMMAND ...')
+        fixtures = Path(command[1])
+        command = command[2:]
     if command[:1] == ['--']:
         command.pop(0)
     if not command:
         raise SystemExit('usage: recognition.py -- COMMAND ...')
-    cases = json.loads(Path(__file__).with_name('cases.json').read_text())
+    cases = json.loads(fixtures.read_text())
     failures = 0
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / 'case.ly'

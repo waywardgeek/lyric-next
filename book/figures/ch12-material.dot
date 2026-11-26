@@ -1,0 +1,12 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"MultiClassInstantiation" [label="MultiClassInstantiation", fillcolor="#edf4fb"];
+"SyntaxNode" [label="SyntaxNode\n(existing)", fillcolor="#ffffff"];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"SemanticScope" [label="SemanticScope\n(existing)", fillcolor="#ffffff"];
+"MultiClassInstantiation" -> "SyntaxNode" [id="multiclass-syntax", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="copied\nsyntax", tooltip="MultiClassInstantiation.Nodes -> SyntaxNode; reverse SyntaxNode.MultiClass"];
+"MultiClassInstantiation" -> "SemanticSymbol" [id="multiclass-contributions", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="contributed\nmembers", tooltip="MultiClassInstantiation.Contributions -> SemanticSymbol; reverse SemanticSymbol.MultiClass"];
+"MultiClassInstantiation" -> "SemanticScope" [id="multiclass-scopes", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="private\nscopes", tooltip="MultiClassInstantiation.Scopes -> SemanticScope; reverse SemanticScope.MultiClass"];
+}

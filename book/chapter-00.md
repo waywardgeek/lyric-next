@@ -18,6 +18,44 @@ For each proposed language feature, ask: **Does it improve reliable LLM developm
 
 Block comments illustrate this choice. Lyric keeps line comments and omits block comments. An LLM can use either form, but block comments chiefly add authoring convenience, such as wrapping a region of existing text. Line comments already support both brief explanations and readable paragraphs. A second form adds delimiter, nesting, and unterminated-comment rules without adding explanatory power we need. We therefore omit it—not because comments are unimportant, but because one form serves both LLM authorship and human reading. This is a design judgment, not a measured claim about model accuracy.
 
+### Designed for memory safety
+
+**Lyric is designed to be memory-safe without a tracing garbage collector.** Its design combines explicit object lifetimes, counted value-class holders, checked storage borrows, maintained relationships, and compiler-generated cleanup. The intended benefit is direct control over representation and lifetime without leaving ordinary application code to balance reference counts or discover dangling accesses at runtime.
+
+The safety claim has an explicit boundary: **safe Lyric programs should not access invalid memory, assuming a correct compiler and runtime, correct trusted relationship implementations, and no violations introduced through unsafe or foreign code.** This is the completed language's design goal. Individual construction chapters establish their supported subsets; the relationship machinery described below is planned, not an already verified capability of the Chapter 11 compiler.
+
+#### Ownership accounting is not list correctness
+
+An intrusive doubly linked list makes the distinction concrete. A parent holds first/last links; each child holds parent/previous/next links. For a counted child in an owning relation, the accounting invariant is:
+
+> Each attached owning membership contributes exactly one owning reference to the child.
+
+The parent backlink does not retain the parent. Previous and next links do not retain neighboring children. A non-owning (`refs`) membership contributes no owning count. Counting every field assignment would give the representation an ownership meaning it does not have and manufacture cycles merely by maintaining links.
+
+The compiler therefore controls ownership at declared attachment and removal boundaries, rather than exposing source-level count-manipulation operations. Attachment checks that the child is detached, establishes the membership's owning reference before publishing the child, and completes the link updates. Removal checks membership, reconnects neighbors and parent endpoints, clears the child's membership links, and only then releases the membership's owning reference. That release can immediately finalize the child; subsequent access requires another independently valid holder. Invariant violations panic before mutation rather than leave half a relationship.
+
+These boundaries give the compiler concrete control-flow obligations: a successful attachment contributes one owner, a successful removal releases it, refusal changes neither links nor counts, and no path releases the same contribution twice. Internal retain/release operations remain explicit in IR. Suppression of ordinary per-assignment counting applies only to declared structural links, not to every operation in a generated method: locals, returned values, and unrelated counted fields still need ordinary ownership behavior.
+
+But those checks do **not** prove an arbitrary list implementation correct. Suppose removal forgets to clear the child's parent link. The compiler might generate exactly one release for that call, yet a second removal could pass a stale parent-membership check and release again. Or append could set the child's parent without connecting it into the parent's list: the count increases, but parent teardown cannot find the child. Balanced generated instructions are not proof of correct membership.
+
+For the initial relationship design, the implementation is therefore trusted to maintain reciprocal links, unique membership within each binding, and traversal correctness. Ordinary code cannot rewrite relationship-managed links; it uses the declared operations. Proving arbitrary implementations would require stronger machinery, such as a restricted implementation language, verified built-in representations, or verification of reachability and membership contracts. We do not claim that ordinary type checking supplies that proof.
+
+Tests must attack these invariants: repeated removal, wrong-parent removal, empty and singleton lists, first/middle/last removal, multiple memberships, and destruction during iteration. Runtime assertions help diagnose defects, but checking only that a child names the expected parent does not prove the entire structure correct. Compiler-controlled counting removes a dangerous source of mistakes; **correct trusted relation code remains part of the safety assumption**.
+
+#### Destruction and iteration remain checked
+
+Generated destruction follows the language's ordering: run the completed object's finalizer, detach it from all parent relationships, then detach non-owning children and destroy owned children, before releasing remaining fields and reclaiming storage. An owned child begins its own destruction before its membership is detached, so its finalizer runs first. Multiple owning relationships must not cause duplicate destruction.
+
+The compiler must see an explicitly safe iterator when generated teardown iterates while destroying children. An ordinary iterator does not gain deletion permission because its current implementation appears tolerant. A safe iterator must preserve continuation and cleanup under permitted current-item destruction; effects that can destroy peers, including transitive cascades, are not permitted by that contract. Saving a next pointer is a technique, not a universal proof. Generated code receives no exemption from lifetime checking.
+
+#### What the guarantee depends on
+
+The checker must account for every invalidating effect: explicit destruction, counted releases, finalizers, relationship cascades, array relocation, and class-storage movement. Effects must propagate through calls, recursion, and generated methods. Reentrant destruction needs an enforced rule; ordering alone does not prevent double destruction. Nonnullable storage may start internally at zero for cleanup, but reading it before assignment of a nonnull value remains an error, and assigning null is forbidden.
+
+The initial execution boundary is single-threaded. A later concurrency guarantee must protect lifetime as well as payload access: a borrow cannot simply survive an unlock because it was valid before the unlock. Foreign code must honor its contracts, and C lowering must avoid undefined behavior, including invalid pointer arithmetic, misalignment, out-of-bounds accesses, and overflow in allocation sizes. A safe source program is not protection against a miscompiling backend.
+
+Memory safety does not mean leak freedom. Counted cycles or deliberately unreclaimed ordinary objects can retain memory without permitting invalid access. It also does not mean that a program cannot panic: safe rejection of an invariant violation or allocation failure is compatible with memory safety. Passing tests, independent reconstruction, and self-compilation provide valuable evidence, but none alone proves the all-program guarantee.
+
 ### When the human is no longer the necessary expert
 
 Human participation is essential to our present collaboration, but we do not assume it must remain essential forever. Bill brings expertise earned through a lifetime of building systems: judgment about what matters, which approaches will fail, and when a plausible solution misses the real problem. An LLM's breadth of knowledge does not yet replace that contribution. We are not at the point where this project can dispense with it.
@@ -168,6 +206,7 @@ For each statement, identify what would establish it and what would not:
 - “This source is valid Lyric.”
 - “This invalid source is rejected before executable output.”
 - “This generated program obeys its lifetime rules.”
+- “The compiler generates balanced membership counts, so this custom linked-list implementation must be correct.”
 - “This compiler respects the Common/functional-module architecture.”
 - “The Lyric compiler can compile itself.”
 

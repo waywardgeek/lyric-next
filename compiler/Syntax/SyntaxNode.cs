@@ -9,11 +9,15 @@ namespace Lyric;
 internal sealed partial class SyntaxNode
 {
     internal partial SyntaxNode(SourceFile source, SyntaxKind kind, int textOffset, int textLength,
-        GenericSpecialization? specialization)
+        GenericSpecialization? specialization, MultiClassInstantiation? multiClass)
     {
         Kind = kind;
         TextOffset = textOffset;
         TextLength = textLength;
+        if (specialization is not null && multiClass is not null)
+        {
+            throw new InvalidOperationException("Derived syntax has exactly one specialization owner.");
+        }
         if (specialization is not null
             && (source.Destroyed || specialization.Destroyed || specialization.Analysis is null
                 || specialization.Analysis.Destroyed || specialization.Analysis.Compilation != source.Parent))
@@ -21,6 +25,7 @@ internal sealed partial class SyntaxNode
             throw new InvalidOperationException("Derived syntax requires its original compilation.");
         }
         specialization?.AddSyntaxNode(this, source);
+        multiClass?.AddSyntaxNode(this, source);
         try
         {
             source.AddSyntaxNode(this);
@@ -37,6 +42,7 @@ internal sealed partial class SyntaxNode
         if (Destroyed || child.Destroyed || Source is null || Source.Destroyed
             || child.Source != Source || child.Parent is not null
             || child.Specialization != Specialization
+            || child.MultiClass != MultiClass || MultiClass?.SyntaxSealed == true
             || Specialization?.Function is not null)
         {
             throw new InvalidOperationException("Cannot attach syntax child.");
@@ -51,7 +57,7 @@ internal sealed partial class SyntaxNode
             }
         }
 
-        if (Specialization is null)
+        if (Specialization is null && MultiClass is null)
         {
             Source.Parent?.ClearAnalysis();
         }
@@ -67,11 +73,12 @@ internal sealed partial class SyntaxNode
             throw new InvalidOperationException("Syntax child has different parent.");
         }
 
-        if (Specialization is null)
+        if (Specialization is null && MultiClass is null)
         {
             Source?.Parent?.ClearAnalysis();
         }
-        else if (!Specialization.Destroyed && Specialization.Function is not null)
+        else if ((Specialization is { Destroyed: false, Function: not null })
+            || (MultiClass is { Destroyed: false, SyntaxSealed: true }))
         {
             throw new InvalidOperationException("Published derived syntax is structurally fixed.");
         }
@@ -101,9 +108,14 @@ internal sealed partial class SyntaxNode
             owner.Destroy();
             return;
         }
-        if (Specialization is null)
+        if (Specialization is null && MultiClass is null)
         {
             Source?.Parent?.ClearAnalysis();
+        }
+        if (MultiClass is MultiClassInstantiation multiOwner && !multiOwner.Destroyed)
+        {
+            multiOwner.Destroy();
+            return;
         }
         // Original syntax retires facts through ClearAnalysis above. Derived
         // syntax has a narrower owner, so retire its own semantic links here.
@@ -120,6 +132,7 @@ internal sealed partial class SyntaxNode
         Destroyed = true;
         Source?.RemoveSyntaxNode(this);
         Specialization?.RemoveSyntaxNode(this);
+        MultiClass?.RemoveSyntaxNode(this);
     }
 
     internal partial void Write(Utf8JsonWriter writer)
@@ -187,11 +200,12 @@ internal sealed partial class SourceFile
             throw new InvalidOperationException("Cannot attach syntax node.");
         }
 
-        if (node.Specialization is null)
+        if (node.Specialization is null && node.MultiClass is null)
         {
             Parent?.ClearAnalysis();
         }
-        else if (node.Specialization.Analysis?.Compilation != Parent)
+        else if ((node.Specialization is not null && node.Specialization.Analysis?.Compilation != Parent)
+            || (node.MultiClass is not null && node.MultiClass.Analysis?.Compilation != Parent))
         {
             throw new InvalidOperationException("Derived syntax belongs to another compilation.");
         }

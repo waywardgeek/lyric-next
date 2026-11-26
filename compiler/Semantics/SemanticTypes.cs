@@ -5,6 +5,19 @@ namespace Lyric;
 
 internal static partial class SemanticTypes
 {
+    internal static partial bool CanCompareHandleIdentity(SemanticType left, SemanticType right)
+    {
+        if (left.Destroyed || right.Destroyed)
+        {
+            return false;
+        }
+        SemanticType leftClass = left.Kind == SemanticTypeKind.Nullable ? left.Element! : left;
+        SemanticType rightClass = right.Kind == SemanticTypeKind.Nullable ? right.Element! : right;
+        return leftClass == rightClass
+            && leftClass.Kind == SemanticTypeKind.Nominal
+            && leftClass.Declaration?.Kind == SymbolKind.Class;
+    }
+
     internal static partial SemanticType ArrayOf(SemanticType element)
     {
         SemanticAnalysis analysis = element.Analysis
@@ -32,6 +45,12 @@ internal static partial class SemanticTypes
             if (current is null)
             {
                 name.Append(text);
+                continue;
+            }
+            if (current.Kind == SemanticTypeKind.Nullable)
+            {
+                pending.Push((null, "?"));
+                pending.Push((current.Element!, null));
                 continue;
             }
             if (current.Kind == SemanticTypeKind.Array)
@@ -106,6 +125,7 @@ internal static partial class SemanticTypes
                     pending.Push(current.ComponentAt(index));
                 }
             }
+            // Nullable class handles default to null, not a constructed object.
             // Scalars have typed zero/unit defaults. Arrays stop here: their
             // empty default constructs no elements, even if those cannot default.
         }
@@ -134,8 +154,8 @@ internal static partial class SemanticTypes
             {
                 return true;
             }
-            if (current.Kind == SemanticTypeKind.Nominal
-                && current.Declaration!.IsCountedClass())
+            if (current.Kind is SemanticTypeKind.Nominal or SemanticTypeKind.Nullable
+                && current.Class?.IsCountedClass() == true)
             {
                 return true;
             }
@@ -329,6 +349,10 @@ internal static partial class SemanticTypes
     internal static partial bool CanWiden(SemanticType from, SemanticType to)
     {
         if (from == to)
+        {
+            return true;
+        }
+        if (to.Kind == SemanticTypeKind.Nullable && to.Element == from)
         {
             return true;
         }

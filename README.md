@@ -59,9 +59,9 @@ selects class layout independently. These options precede the filename.
 
 ## Start here
 
-- [Construction codebook](book/README.md): Preface, Chapter 0 working draft, and a provisional construction sequence.
+- [Construction codebook](book/README.md): Preface, construction chapters, verification records, and the provisional next increments.
 - [Language specification](lyric-language-spec.md): the authoritative current design, including approved rules and explicitly unresolved decisions in Section 19.
-- [PEG grammar](lyric-grammar.peg): the current syntax grammar in a review dialect, not generator-ready input.
+- [PEG grammar](lyric-grammar.peg): the authoritative syntax grammar, executed through the [Peggy token adapter](tools/peg/README.md).
 - [Grammar review](grammar-review.md): adopted D1–D5 decisions, remaining questions, and 60 authored example expectations.
 - [Review index](reviews/README.md): source comparisons, standard-library decisions, and their historical limits.
 
@@ -71,7 +71,14 @@ selects class layout independently. These options precede the filename.
 
 We are writing an agentic codebook: a reproducible development-driven specification teaching exactly how to build the compiler. We are not building the language first and documenting it afterward. Chapters will establish the architecture, ownership, algorithms, construction steps, verification, and reasons needed for an agent or human to reproduce the system. Bounded implementation experiments will validate and refine that teaching as the book develops.
 
-The language specification defines what Lyric means. The codebook will define how to construct its compiler; implementation algorithms belong there rather than being prescribed by the language specification. The bootstrap uses C# 14/.NET 10, with Common vocabulary and hub-and-spoke implementations in one assembly, targeting C. The [Preface](book/preface.md) presents Bill's edition plan and the possibility of connecting codebook-driven improvement with LLM training. Chapters 1–6 now have working compiler increments, public graders, construction teaching, and completed independent student reconstructions. The current compiler checks and emits C for the documented subset, including integer expressions and control flow; this is not yet the full language or a self-hosted compiler. See the [book index](book/README.md) for exact verification and human-acceptance status.
+The language specification defines what Lyric means. The codebook will define how to construct its compiler; implementation algorithms belong there rather than being prescribed by the language specification. The bootstrap uses C# 14/.NET 10, with Common vocabulary and hub-and-spoke implementations in one assembly, targeting C. The [Preface](book/preface.md) presents Bill's edition plan and the possibility of connecting codebook-driven improvement with LLM training. Chapters 1–11 now have working compiler increments, public graders, construction teaching, and completed independent student reconstructions. The current compiler checks and emits C for the documented subset, including classes, composite types, generic functions, and compile-time type selection; this is not yet the full language or a self-hosted compiler. See the [book index](book/README.md) for exact verification and human-acceptance status.
+
+Chapter 12 now implements [multi-class generics](book/chapter-12.md): reusable
+fields and methods spanning cooperating domain classes, with independent labeled
+memberships. Its code and text reviews are incorporated. The isolated student
+passed cumulative Debug/Release checks and the walkthrough; PEG checks remain
+blocked by runtime setup, and human acceptance is pending. See the
+[current verification status](book/notes/ch12-student-status.md).
 
 ## Design in brief
 
@@ -93,6 +100,10 @@ Concurrency contracts are incomplete. The current design separates class lifetim
 
 The new Lyric design combines Bill Cox's extensive experience in languages, code generation, memory layout, and software architecture with Cadence's preferences and deep insights as an AI engineering collaborator. The aim is a language that is clear for humans and effective for LLMs to write, understand, and improve.
 
+**Lyric is designed to be memory-safe without a tracing garbage collector.** Checked borrows, explicit lifetimes, counted value-class holders, and compiler-generated cleanup aim to prevent invalid memory access while retaining control over layout and destruction. The completed design assumes a correct compiler/runtime and trusted relationship implementations, with unsafe and foreign code as explicit boundaries.
+
+For relations, the compiler will account for logical owning memberships rather than count every list-link assignment. One owning parent membership retains a counted child once; backlinks and neighboring links do not create additional owners. Removal must finish unlinking before releasing that owner. This removes manual reference-count balancing, but it does not prove a custom list algorithm correct: a stale parent link can permit a second removal even when each call contains exactly one generated release. Safe destruction also requires the declared safe iterator and complete lifetime-effect checking. These relationship mechanisms are planned, not a claim of current implementation or a formal safety proof. [Chapter 0 explains the design argument and its trust boundary](book/chapter-00.md#designed-for-memory-safety).
+
 The original Lyric already supplied concrete results:
 
 - **A smaller self-hosting compiler:** at its first bootstrap fixed point, the Lyric implementation used **26,813 source lines versus the Go version's 33,739**—**20.5% fewer lines**. It also used **837,914 source bytes versus 929,693**, a **9.9% reduction**.
@@ -102,7 +113,7 @@ These are the original project's first-iteration size comparison and self-compil
 
 ## Evidence and history
 
-The specification and grammar are not a working compiler or a memory-safety proof. Document checks have covered links, references, structure, and preservation. No Lyric parser or PEG engine has executed the grammar examples. A separate earlier C division/remainder probe supplied bounded lowering evidence; its limits are stated in the specification.
+The repository contains a working C# bootstrap compiler and an executable PEG checker. Through Chapter 11, the reference and independent student implementations passed the applicable retained checks in Debug and Release, and Bill accepted the walkthroughs. The [book index](book/README.md) links the scoped evidence. These results establish tested behavior, not full-language implementation or an all-program memory-safety proof. Newer grammar-only work is identified separately from executable compiler support.
 
 The [background documents](background/) preserve the original reference, full specification, and interface redesign unchanged. Verify their checksums with:
 
@@ -117,7 +128,7 @@ git show d2cf0c0:drafts/16-before-source-based-stdlib-choices.md
 git show d2cf0c0:stdlib-adoption-check.json
 ```
 
-Historical receipts describe their recorded bytes and checks, not current conformance. A reproducible validation suite belongs in the forthcoming codebook work; the old receipts are not a substitute for one.
+Historical receipts describe their recorded bytes and checks, not current conformance. The public graders and chapter commands supply the current reproducible validation suite; old receipts are not a substitute for running the applicable checks.
 
 ## Repository transition
 

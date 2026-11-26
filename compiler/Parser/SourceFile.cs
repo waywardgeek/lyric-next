@@ -1199,7 +1199,7 @@ internal sealed partial class SourceFile
             return relation;
         }
 
-        SyntaxNode Aggregate(bool isClass)
+        SyntaxNode Aggregate(bool isClass, bool participant = false)
         {
             int value = At("value") ? Take() : -1;
             Expect(isClass ? "class" : "struct");
@@ -1208,7 +1208,9 @@ internal sealed partial class SourceFile
             {
                 aggregate.AddChild(Node(SyntaxKind.Modifier, value));
             }
-            if (At("<"))
+            // A participant names an existing interface parameter. It does not
+            // introduce a second generic class declaration inside that contract.
+            if (!participant && At("<"))
             {
                 aggregate.AddChild(TypeParameters());
             }
@@ -1309,7 +1311,11 @@ internal sealed partial class SourceFile
                 });
                 if (member is null)
                 {
-                    if (At("field"))
+                    if (At("class"))
+                    {
+                        member = Aggregate(true, participant: true);
+                    }
+                    else if (At("field"))
                     {
                         Take();
                         int owner = Name();

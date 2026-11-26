@@ -1,0 +1,82 @@
+[
+  {
+    "id": "participant-list-declaration",
+    "source": "interface DoublyLinkedList<P, C> {\n    class P {\n        first: C?\n        last: C?\n        pub func append(self, child: C) { self.last = child; child.parent = self }\n        pub func remove(self, child: C) {}\n    }\n    class C {\n        parent: P?\n        previous: C?\n        next: C?\n    }\n}\nclass Graph {}\nclass Node {}\nimpl DoublyLinkedList<Graph:nodes, Node:graph> {}",
+    "accept": true
+  },
+  {
+    "id": "impl-both-labels",
+    "source": "impl DoublyLinkedList<Graph:nodes, Node:graph> {}",
+    "accept": true
+  },
+  {
+    "id": "impl-parent-label",
+    "source": "impl DoublyLinkedList<Graph:nodes, Node> {}",
+    "accept": true
+  },
+  {
+    "id": "impl-child-label",
+    "source": "impl DoublyLinkedList<Graph, Node:graph> {}",
+    "accept": true
+  },
+  {
+    "id": "impl-no-labels",
+    "source": "impl DoublyLinkedList<Graph, Node> {}",
+    "accept": true
+  },
+  {
+    "id": "independent-bindings",
+    "source": "impl DoublyLinkedList<Graph:nodes, Node:graph> {}\nimpl DoublyLinkedList<Graph:selected, Node:selection> {}",
+    "accept": true
+  },
+  {
+    "id": "participant-empty-blocks",
+    "source": "interface Pair<P,C> { class P {}; class C {} }",
+    "accept": true
+  },
+  {
+    "id": "participant-ordinary-member-syntax",
+    "source": "interface Pair<P,C> { class P { count:i32=0; pub func count_value(self)->i32 { return self.count } }; class C { parent:P? } }",
+    "accept": true
+  },
+  {
+    "id": "missing-participant-name",
+    "source": "interface Pair<P,C> { class { first:C? } }",
+    "accept": false
+  },
+  {
+    "id": "missing-participant-brace",
+    "source": "interface Pair<P,C> { class P { first:C? }",
+    "accept": false
+  },
+  {
+    "id": "missing-field-colon",
+    "source": "interface Pair<P,C> { class P { first C? } }",
+    "accept": false
+  },
+  {
+    "id": "missing-label-name",
+    "source": "impl DoublyLinkedList<Graph:, Node> {}",
+    "accept": false
+  },
+  {
+    "id": "missing-binding-comma",
+    "source": "impl DoublyLinkedList<Graph:nodes Node:graph> {}",
+    "accept": false
+  },
+  {
+    "id": "missing-impl-body",
+    "source": "impl DoublyLinkedList<Graph:nodes, Node>",
+    "accept": false
+  },
+  {
+    "id": "missing-binding-close",
+    "source": "impl DoublyLinkedList<Graph:nodes, Node {}",
+    "accept": false
+  },
+  {
+    "id": "participant-no-nested-type-parameters",
+    "source": "interface Pair<P,C> { class P<T> {} }",
+    "accept": false
+  }
+]

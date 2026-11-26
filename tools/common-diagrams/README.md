@@ -124,3 +124,28 @@ prose outside the Chapter 11 model markers, and rolls back on ordinary publicati
 failure. The seven mutation controls test migration refusal; they do not replace
 source review or rendered-image inspection. Publication writes only Chapter 11
 outputs and does not certify a physical printout.
+
+## Chapter 12 additions
+
+`chapter12.py` pins the accepted Chapter 11 source and manifest at
+`5947bed06e8327b0e3c0c079c14508847be0f84f`. It validates that historical source
+separately from the fresh current inventory. `chapter12.json` preserves every
+historical relationship entry and introduces eleven relationships in six views.
+The lifecycle review additionally covers multi-class instances, participant views,
+and nullable dependencies. Do not refresh a fingerprint without reviewing the
+changed lifecycle operations.
+
+From the repository root, with the existing extractor built as described above:
+
+```sh
+python3 tools/common-diagrams/chapter12.py "$DOTNET"
+python3 tools/common-diagrams/chapter12.py "$DOTNET" --publish
+```
+
+The first command writes previews under `.build/chapter12`; inspect rendered
+figures before publication. The second prepares every output before writing,
+checks readbacks, and rolls back publication on failure. It replaces only the
+Chapter 12 marked model block and its six DOT/SVG pairs and relationship guide.
+It does not regenerate historical figures. Each preview must also pass the
+minimum ten-point text size at five-inch width; that check does not replace
+visual inspection or physical print acceptance.

@@ -138,7 +138,7 @@ internal sealed partial class SyntaxNode
 
     // Initializes state and registers both ends of source ownership.
     internal partial SyntaxNode(SourceFile source, SyntaxKind kind, int textOffset, int textLength,
-        GenericSpecialization? specialization = null);
+        GenericSpecialization? specialization = null, MultiClassInstantiation? multiClass = null);
     // Adds an ordered tree edge and its backlink. Refusal changes neither end.
     internal partial void AddChild(SyntaxNode child);
     internal partial void RemoveChild(SyntaxNode child);

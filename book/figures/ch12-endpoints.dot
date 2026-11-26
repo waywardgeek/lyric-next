@@ -1,0 +1,10 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"MultiClassInstantiation" [label="MultiClassInstantiation", fillcolor="#edf4fb"];
+"ParticipantBinding" [label="ParticipantBinding", fillcolor="#edf4fb"];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"MultiClassInstantiation" -> "ParticipantBinding" [id="multiclass-participants", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="ordered\nparticipants", tooltip="MultiClassInstantiation.Participants -> ParticipantBinding; reverse ParticipantBinding.Instantiation"];
+"SemanticSymbol" -> "ParticipantBinding" [id="participant-classes", color="#704090", penwidth=1.2, style=dashed, arrowhead=normal, label="endpoint\ndependents", tooltip="SemanticSymbol.ParticipantBindings -> ParticipantBinding; reverse ParticipantBinding.ConcreteClass"];
+}

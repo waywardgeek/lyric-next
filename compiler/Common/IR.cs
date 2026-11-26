@@ -10,6 +10,7 @@ internal enum IrKind
     Region, If, While, For, Break, Continue, Return, Yield,
     Constant, Local, Borrow, SelectField, AddressOf, SelectIndex, Load, Store, Call, CallInitializer,
     Unary, Binary, Convert, Copy, Move, Clear,
+    NullHandle, WrapNullable, UnwrapNullable,
     Ref, Unref, NewArray, FreeArray, NewObject, DestroyObject, ReclaimObject,
     ArrayLength, ArrayCapacity, ArrayReserve, ArrayResize, ArrayTruncate, ArrayPush,
     NewTuple, SelectTuple, DropTuple,
@@ -109,6 +110,13 @@ internal sealed partial class IrFunction
 // zero executes the class's generated destruction body. Move transfers a holder
 // without changing the count. Constructor/final self slots are borrowed handles,
 // not owning Local slots; field receiver snapshots likewise do not retain.
+//
+// NullHandle creates the empty value of a nullable class type. WrapNullable and
+// UnwrapNullable preserve the handle and its class identity; unwrap checks for
+// null before returning a nonnullable value. For counted classes their inputs
+// are Move transfers and their results are new cleanup holders. Neither operation
+// increments the count. NullHandle is an empty cleanup holder for a counted type.
+// These are not numeric conversions and never manufacture a live object.
 //
 // Identity-bearing typed execution node, NEVER a value-like class. Region nodes
 // hold ordered operations; control nodes hold role-labelled regions. Local nodes

@@ -127,10 +127,11 @@ internal sealed partial class IrProgram
                 int required = node.Kind switch
                 {
                     IrKind.Region or IrKind.While or IrKind.Break or IrKind.Continue
-                        or IrKind.Constant or IrKind.Local or IrKind.NewObject
+                        or IrKind.Constant or IrKind.NullHandle or IrKind.Local or IrKind.NewObject
                         or IrKind.CallInitializer => 0,
                     IrKind.If or IrKind.Return or IrKind.Yield or IrKind.SelectField
                         or IrKind.AddressOf or IrKind.Load or IrKind.Unary or IrKind.Convert
+                        or IrKind.WrapNullable or IrKind.UnwrapNullable
                         or IrKind.Copy or IrKind.Move or IrKind.Ref or IrKind.Unref
                         or IrKind.FreeArray or IrKind.DestroyObject or IrKind.ReclaimObject
                         or IrKind.ArrayLength or IrKind.ArrayCapacity
@@ -242,6 +243,25 @@ internal sealed partial class IrProgram
                     }
                 }
 
+                if (node.Kind == IrKind.NullHandle)
+                {
+                    Require(node.Type!.Kind == SemanticTypeKind.Nullable
+                        && node.Literal is null, "null requires a nullable class type and no payload");
+                }
+                if (node.Kind is IrKind.WrapNullable or IrKind.UnwrapNullable)
+                {
+                    IrNode input = node.OperandAt(0).Definition!;
+                    Require(input.Result == IrResult.Value && input.Type is not null,
+                        "nullable conversion requires a typed value");
+                    SemanticType nullable = node.Kind == IrKind.WrapNullable
+                        ? node.Type! : input.Type!;
+                    SemanticType payload = node.Kind == IrKind.WrapNullable
+                        ? input.Type! : node.Type!;
+                    Require(nullable.Kind == SemanticTypeKind.Nullable
+                        && nullable.Element == payload,
+                        "nullable conversion must preserve the exact payload type");
+                }
+
                 // Region results and function returns have different destinations.
                 // This checks their local value contract, not path termination.
                 if (node.Kind is IrKind.If or IrKind.Return or IrKind.Yield)
@@ -346,7 +366,9 @@ internal sealed partial class IrProgram
                             // even i64 and u64 can be compared without narrowing.
                             bool booleanEquality = node.Operator is "==" or "!="
                                 && leftType == Analysis!.ScalarType(ScalarKind.Bool) && rightType == Analysis!.ScalarType(ScalarKind.Bool);
-                            Require((integers || booleanEquality) && node.Type == Analysis!.ScalarType(ScalarKind.Bool),
+                            bool handleEquality = node.Operator is "==" or "!="
+                                && SemanticTypes.CanCompareHandleIdentity(leftType, rightType);
+                            Require((integers || booleanEquality || handleEquality) && node.Type == Analysis!.ScalarType(ScalarKind.Bool),
                                 "comparison operand or result type mismatch");
                             break;
                         default:
@@ -413,7 +435,8 @@ internal sealed partial class IrProgram
                     // must install ownership, not observe or release the transfer.
                     IrNode source = node.OperandAt(0).Definition!;
                     bool holder = source.Kind is IrKind.Local or IrKind.Copy or IrKind.Ref
-                        or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct or IrKind.NewObject or IrKind.Call or IrKind.CallInitializer or IrKind.If;
+                        or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct or IrKind.NewObject or IrKind.Call or IrKind.CallInitializer or IrKind.If
+                        or IrKind.NullHandle or IrKind.WrapNullable or IrKind.UnwrapNullable;
                     if (source.Kind == IrKind.Local)
                     {
                         SemanticSymbol? declaration = function.Declaration;
@@ -428,7 +451,8 @@ internal sealed partial class IrProgram
                     Require(node.UseCount() == 1, "transfer must have exactly one consumer");
                     IrOperand use = node.UseAt(0);
                     IrNode consumer = use.Consumer!;
-                    bool consumes = consumer.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct;
+                    bool consumes = consumer.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct
+                        or IrKind.WrapNullable or IrKind.UnwrapNullable;
                     if (consumer.Kind is IrKind.Store or IrKind.ArrayPush)
                     {
                         consumes = consumer.OperandCount() == 2 && consumer.OperandAt(1) == use;
@@ -465,7 +489,8 @@ internal sealed partial class IrProgram
                     {
                         continue;
                     }
-                    bool consumes = node.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct;
+                    bool consumes = node.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct
+                        or IrKind.WrapNullable or IrKind.UnwrapNullable;
                     // Returning a borrowed address never consumes its referent,
                     // even when that referent contains owned arrays or handles.
                     if (node.Kind == IrKind.Return && function.Kind == IrFunctionKind.FieldInitializer

@@ -11,7 +11,7 @@ internal sealed partial class SemanticScope
             ? function.Scope?.MemberOwner?.Scope
             : function.Scope;
         SemanticAnalysis? analysis = parent?.Analysis;
-        if (function.Destroyed || function.Kind is not (SymbolKind.Function or SymbolKind.Class or SymbolKind.Struct or SymbolKind.Field)
+        if (function.Destroyed || function.Kind is not (SymbolKind.Function or SymbolKind.Class or SymbolKind.Struct or SymbolKind.MemberNamespace or SymbolKind.Field)
             || function.FunctionScope is not null || function.MemberScope is not null
             || function.InitializerScope is not null || parent is null || parent.Destroyed
             || analysis is null || analysis.Destroyed
@@ -25,11 +25,12 @@ internal sealed partial class SemanticScope
         {
             parent.AddChild(this);
             function.Specialization?.AddScope(this);
+            function.MultiClass?.AddScope(this);
             if (initializer)
             {
                 function.AddInitializerScope(this);
             }
-            else if (function.Kind is SymbolKind.Class or SymbolKind.Struct)
+            else if (function.Kind is SymbolKind.Class or SymbolKind.Struct or SymbolKind.MemberNamespace)
             {
                 function.AddMemberScope(this);
             }

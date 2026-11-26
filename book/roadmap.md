@@ -1,6 +1,6 @@
 # Agreed next construction increments
 
-This is the dependency spine agreed with Bill, not a fixed table of contents or authorization to skip verification. Chapters 8 through 10 are complete through reviews, independent reconstruction, and Bill’s acceptance of their walkthroughs. Composite types and canonical type identity now form Chapter 10; specialization and multi-class interfaces follow that foundation. Later relationship chapter boundaries remain provisional.
+This is the dependency spine agreed with Bill, not a fixed table of contents or authorization to skip verification. Chapters 8 through 11 are complete through reviews, independent reconstruction, and Bill’s acceptance of their walkthroughs. Chapter 10 supplies composite types and canonical identity; Chapter 11 supplies generic functions, typeof, and matchtype. Chapter 12 implements explicit multi-class generic instantiation; its reviews are incorporated and independent reconstruction has passed cumulative checks, with PEG verification blocked by student runtime setup. Later relationship chapter boundaries remain provisional.
 
 ## Chapter 8 — Standalone classes and lifetime policies
 
@@ -43,9 +43,16 @@ checker or an AST-emission fallback to implement aggregate behavior.
 
 ## After composite types — specialization and multi-class interfaces
 
-Start with a method-based example that does not require persistent relationships.
-Nullable references, Result/Status/propagation and generators are prerequisites
-for later relationship features, not for that first multi-class contract.
+[Chapter 12](chapter-12.md) implements multi-class generics with participant
+class blocks and explicit, optionally labeled empty impls. The demonstrated
+DoublyLinkedList contributes fields and methods to Graph and Node, including
+independent labeled memberships. Nullable handles, initialization, and counted
+field ownership are implemented. Callers explicitly detach before destroying
+ordinary endpoints; this intermediate chapter is not fully ordinary-link safe.
+Relation statements, managed owns/refs policy, and relationship-aware teardown
+remain later work. Generated membership is not already an owning relationship.
+See the [development record](notes/ch12-development.md) and
+[current reconstruction status](notes/ch12-student-status.md).
 Interface conformance requires behavior, not implicit storage injection or runtime
 wrappers. Preserve every participant and endpoint-role mapping in binding and
 specialization identity. Type interning does not merge specializations that differ

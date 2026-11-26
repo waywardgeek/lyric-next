@@ -171,9 +171,12 @@ def main(cases=CASES, overflows=OVERFLOWS, rejections=REJECTIONS, runtime_failur
                             + ':1:15: runtime error LYR002: output failure\n'
                             + '  in "main"\n').encode()
                     if failure is not None and len(failure) == 3:
-                        column, diagnostic, trace = failure
+                        location, diagnostic, trace = failure
+                        # Existing one-line fixtures supply a column; multiline
+                        # clients supply the exact (line, column) source location.
+                        line, column = location if isinstance(location, tuple) else (1, location)
                         expected_status = 1
-                        expected_error = (json.dumps(str(path)) + f':1:{column}: runtime error {diagnostic}\n'
+                        expected_error = (json.dumps(str(path)) + f':{line}:{column}: runtime error {diagnostic}\n'
                             + ''.join('  in ' + json.dumps(name) + '\n' for name in trace)).encode()
                     elif failure is not None:
                         kind, operation = failure

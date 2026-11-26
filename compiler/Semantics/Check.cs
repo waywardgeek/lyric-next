@@ -80,6 +80,8 @@ internal sealed partial class Compilation
         List<SemanticSymbol> classes = new();
         List<SemanticSymbol> structs = new();
         List<SyntaxNode> implementations = new();
+        List<SemanticSymbol> multiClassTemplates = new();
+        List<SyntaxNode> multiClassImplementations = new();
         // Temporary context for constructor initialization, never model ownership.
         SemanticSymbol? checkingFunction = null;
         // A type query checks operations but never reads runtime storage.
@@ -124,8 +126,10 @@ internal sealed partial class Compilation
             if (parameter.ChildCount() == 0 && Text(parameter) == "self"
                 && position == 0 && function.Scope!.MemberOwner is SemanticSymbol owner)
             {
-                SemanticType type = owner.Kind == SymbolKind.Struct
-                    ? analysis.StructType(owner) : analysis.ClassType(owner);
+                SemanticSymbol receiver = owner.Kind == SymbolKind.MemberNamespace
+                    ? function.Scope.Class! : owner;
+                SemanticType type = receiver.Kind == SymbolKind.Struct
+                    ? analysis.StructType(receiver) : analysis.ClassType(receiver);
                 return (type, false);
             }
             if (parameter.ChildCount() != 1)
@@ -135,8 +139,30 @@ internal sealed partial class Compilation
             SyntaxNode syntax = parameter.ChildAt(0);
             bool reference = syntax.Kind == SyntaxKind.TypePrefix && Text(syntax) == "ref";
             SemanticType resolved = ReadType(reference ? syntax.ChildAt(0) : syntax,
-                function.Specialization is null ? function.Scope! : function.FunctionScope!, true);
+                function.Specialization is null && function.MultiClass is null
+                    ? function.Scope! : function.FunctionScope!, true);
             return (resolved, reference);
+        }
+        // A lookup view is orthogonal to canonical compatibility. Explicit type
+        // syntax selects the view; it cannot make an incompatible value legal.
+        ParticipantBinding? TypeView(SyntaxNode node, SemanticScope scope)
+        {
+            while (node.Kind == SyntaxKind.OptionalType
+                || (node.Kind == SyntaxKind.TypePrefix && Text(node) == "ref")
+                || (node.Kind == SyntaxKind.TypeGroup && node.ChildCount() == 1
+                    && (node.TextOffset < 0 || Text(node) != ",")))
+            {
+                node = node.ChildAt(0);
+            }
+            if (node.Kind == SyntaxKind.TypeName)
+            {
+                return scope.Lookup(Text(node))?.ParticipantView;
+            }
+            if (node.Kind == SyntaxKind.TypeOf)
+            {
+                return node.ChildAt(0).Fact?.ParticipantView;
+            }
+            return null;
         }
         void CheckSignature(SemanticSymbol function)
         {
@@ -218,13 +244,18 @@ internal sealed partial class Compilation
                                 isReference: signature.Reference);
                         }
                         RefuseDuplicate(scope, parameter, name);
-                        _ = new SemanticSymbol(scope, parameter, name, SymbolKind.Parameter,
+                        SemanticSymbol parameterSymbol = new(scope, parameter, name, SymbolKind.Parameter,
                             signature.Type, signature.Reference, isReference: signature.Reference);
+                        ParticipantBinding? parameterView = parameter.ChildCount() == 0
+                            ? function.ContributingParticipant
+                            : TypeView(parameter.ChildAt(0), scope);
+                        parameterView?.AddViewSymbol(parameterSymbol);
                     }
                 }
                 else if (child.Kind == SyntaxKind.ResultType)
                 {
                     function.SetType(ReadType(child.ChildAt(0), declarationScope, true));
+                    TypeView(child.ChildAt(0), declarationScope)?.AddViewSymbol(function);
                 }
                 else if (child.Kind == SyntaxKind.Modifier && Text(child) == "final"
                     && function.Scope!.Class is not null)
@@ -272,6 +303,20 @@ internal sealed partial class Compilation
                 for (int i = 0; i < root.ChildCount(); i += 1)
                 {
                     SyntaxNode declaration = root.ChildAt(i);
+                    if (declaration.Kind == SyntaxKind.Interface)
+                    {
+                        string interfaceName = Text(declaration);
+                        RefuseDuplicate(global, declaration, interfaceName);
+                        SemanticSymbol template = new(global, declaration, interfaceName,
+                            SymbolKind.Interface, null, false);
+                        multiClassTemplates.Add(template);
+                        continue;
+                    }
+                    if (declaration.Kind == SyntaxKind.Impl)
+                    {
+                        multiClassImplementations.Add(declaration);
+                        continue;
+                    }
                     if (declaration.Kind == SyntaxKind.Struct)
                     {
                         string structName = Text(declaration);
@@ -307,6 +352,12 @@ internal sealed partial class Compilation
                     SemanticSymbol function = new(global, declaration, name, SymbolKind.Function, analysis.ScalarType(ScalarKind.Unit), false);
                     functions.Add(function);
                 }
+            }
+            // Declaration validity is independent of whether a template is used.
+            // Bodies remain unchecked until their participant types are bound.
+            foreach (SemanticSymbol template in multiClassTemplates)
+            {
+                ValidateMultiClassTemplate(template);
             }
             // Resolve all struct fields before inspecting inline layout. A forward
             // nominal identity is complete as a key, but not yet as a layout.
@@ -388,7 +439,13 @@ internal sealed partial class Compilation
                         string fieldName = Text(member);
                         RefuseDuplicate(members, member, fieldName);
                         SemanticType fieldType = ReadType(member.ChildAt(0), members);
-                        if (fieldType.Class is not null || fieldType == analysis.ScalarType(ScalarKind.Unit))
+                        // Chapter 12 admits scalar object links for explicitly managed
+                        // relationships. Regular links are nonowning; automatic detach
+                        // and controlled link mutation arrive with relation statements.
+                        // This intermediate chapter does not promise complete safety
+                        // for arbitrary regular-object field writes and destruction.
+                        if ((fieldType.Class is not null && fieldType.ArrayDepth > 0)
+                            || fieldType == analysis.ScalarType(ScalarKind.Unit))
                         {
                             Unsupported(member);
                         }
@@ -408,6 +465,12 @@ internal sealed partial class Compilation
                         SymbolKind.Function, analysis.ScalarType(ScalarKind.Unit), false);
                     functions.Add(method);
                 }
+            }
+            // Bindings are admitted after ordinary members, so contributions
+            // cannot silently replace an existing field, method, or namespace.
+            foreach (SyntaxNode implementation in multiClassImplementations)
+            {
+                BindMultiClass(implementation);
             }
             // Resolve bodies only after all member declarations exist. They do not
             // introduce symbols or overloads, regardless of their source order.
@@ -1092,24 +1155,52 @@ internal sealed partial class Compilation
                 }
                 void ApplyClassEffect(SemanticSymbol owner)
                 {
-                    summaryChanged |= classEffects[function].Add(owner);
-                    ApplyMutation((owner, classDestruction, -1));
-                    SemanticSymbol? finalHook = owner.FinalHook();
-                    if (finalHook is not null)
+                    // Ordinary field ownership can cascade into counted children.
+                    // This is a conservative effect closure, not a traversal of
+                    // runtime objects: cycles in the class graph terminate here.
+                    Stack<SemanticSymbol> pending = new();
+                    HashSet<SemanticSymbol> visited = new();
+                    pending.Push(owner);
+                    while (pending.Count != 0)
                     {
-                        foreach (var effect in effects[finalHook])
+                        SemanticSymbol current = pending.Pop();
+                        if (!visited.Add(current))
                         {
-                            if (effect.Depth == classGrowth || effect.Root.Kind == SymbolKind.Field)
+                            continue;
+                        }
+                        summaryChanged |= classEffects[function].Add(current);
+                        ApplyMutation((current, classDestruction, -1));
+                        SemanticSymbol? finalHook = current.FinalHook();
+                        if (finalHook is not null)
+                        {
+                            foreach (var effect in effects[finalHook])
                             {
-                                ApplyMutation(effect);
+                                if (effect.Depth == classGrowth || effect.Root.Kind == SymbolKind.Field)
+                                {
+                                    ApplyMutation(effect);
+                                }
+                            }
+                            foreach (SemanticSymbol affected in classEffects[finalHook])
+                            {
+                                pending.Push(affected);
                             }
                         }
-                    }
-                    for (int i = 0; i < objectClasses.Count; i += 1)
-                    {
-                        if (objectClasses[i] == owner && !owner.IsCountedClass())
+                        foreach (SemanticSymbol field in current.MemberScope!.Fields())
                         {
-                            objectState.Add(i);
+                            foreach (SemanticSymbol contained in ContainedClasses(field.Type!))
+                            {
+                                if (contained.IsCountedClass())
+                                {
+                                    pending.Push(contained);
+                                }
+                            }
+                        }
+                        for (int i = 0; i < objectClasses.Count; i += 1)
+                        {
+                            if (objectClasses[i] == current && !current.IsCountedClass())
+                            {
+                                objectState.Add(i);
+                            }
                         }
                     }
                 }
@@ -2359,7 +2450,8 @@ internal sealed partial class Compilation
             }
             void RegisterComputedReceiver(SyntaxNode receiver)
             {
-                while (receiver.Kind == SyntaxKind.Group)
+                while (receiver.Kind == SyntaxKind.Group
+                    || receiver.Fact?.Symbol?.Kind == SymbolKind.MemberNamespace)
                 {
                     receiver = receiver.ChildAt(0);
                 }
@@ -2407,6 +2499,18 @@ internal sealed partial class Compilation
                         {
                             aggregateTemporaries[node] = RegisterHolder(node, selection.Type, true);
                         }
+                        return;
+                    }
+                    if (node.Fact?.Symbol?.Kind == SymbolKind.MemberNamespace)
+                    {
+                        // Labels preserve the receiver's saved identity and lifetime;
+                        // they neither acquire a second owner nor revive a stale handle.
+                        SyntaxNode receiver = node.ChildAt(0);
+                        work.Push(() =>
+                        {
+                            objectValues[node] = objectValues[receiver];
+                        });
+                        work.Push(() => Visit(receiver));
                         return;
                     }
                     // Completion runs after children. Each saved class-valued
@@ -3761,6 +3865,263 @@ internal sealed partial class Compilation
         {
             Fail(node, "LYC306", $"Unsupported semantic construct: {node.Kind}.");
         }
+        void BindMultiClass(SyntaxNode implementation)
+        {
+            // Empty, explicitly bound impls are the current language boundary.
+            // Adapter bodies and ownership policies must not be silently ignored.
+            if (implementation.ChildCount() != 2
+                || implementation.ChildAt(0).Kind != SyntaxKind.Name
+                || implementation.ChildAt(1).Kind != SyntaxKind.TypeArguments)
+            {
+                Unsupported(implementation);
+            }
+            SyntaxNode name = implementation.ChildAt(0);
+            SemanticSymbol? template = global.Lookup(Text(name));
+            if (template?.Kind != SymbolKind.Interface)
+            {
+                Fail(name, "LYC301", $"Unknown multi-class interface '{Text(name)}'.");
+            }
+            SyntaxNode arguments = implementation.ChildAt(1);
+            if (arguments.ChildCount() != template!.ParticipantArity())
+            {
+                Fail(arguments, "LYC303", "Participant argument count does not match the interface.");
+            }
+            List<SemanticSymbol> endpoints = new();
+            List<string?> labels = new();
+            for (int index = 0; index < arguments.ChildCount(); index += 1)
+            {
+                SyntaxNode argument = arguments.ChildAt(index);
+                string? label = null;
+                SyntaxNode typeSyntax = argument;
+                if (argument.Kind == SyntaxKind.RoleBinding)
+                {
+                    label = Text(argument);
+                    typeSyntax = argument.ChildAt(0);
+                }
+                SemanticType type = ReadType(typeSyntax, global);
+                // Class navigation follows nullable wrappers. Participant admission
+                // instead requires the concrete nominal identity itself.
+                if (type.Kind != SemanticTypeKind.Nominal || type.Class is null)
+                {
+                    Fail(typeSyntax, "LYC304", "A participant requires a concrete class.");
+                }
+                endpoints.Add(type.Class!);
+                labels.Add(label);
+            }
+            if (analysis.FindMultiClassInstantiation(template, endpoints, labels) is not null)
+            {
+                Fail(implementation, "LYC302", "Duplicate multi-class instantiation.");
+            }
+            SyntaxNode original = template.Declaration!;
+            SyntaxNode parameters = original.ChildAt(0);
+            // Temporary admission inventory. All prospective names are checked
+            // before constructing an owner, namespace, or contributed symbol.
+            Dictionary<SemanticSymbol, HashSet<string>> reserved = new();
+            for (int index = 0; index < endpoints.Count; index += 1)
+            {
+                SemanticSymbol endpoint = endpoints[index];
+                if (!reserved.TryGetValue(endpoint, out HashSet<string>? names))
+                {
+                    names = new();
+                    reserved.Add(endpoint, names);
+                }
+                string? label = labels[index];
+                if (label is not null
+                    && (!names.Add(label) || endpoint.MemberScope!.LookupMember(label) is not null
+                        || endpoint.FindParticipantLabel(label) is not null))
+                {
+                    Fail(arguments.ChildAt(index), "LYC302", $"Member scope '{label}' already exists.");
+                }
+                for (int blockIndex = 0; blockIndex < original.ChildCount(); blockIndex += 1)
+                {
+                    SyntaxNode block = original.ChildAt(blockIndex);
+                    if (block.Kind != SyntaxKind.Class || Text(block) != Text(parameters.ChildAt(index)))
+                    {
+                        continue;
+                    }
+                    for (int memberIndex = 0; memberIndex < block.ChildCount(); memberIndex += 1)
+                    {
+                        SyntaxNode member = block.ChildAt(memberIndex);
+                        if (member.Kind is not (SyntaxKind.Function or SyntaxKind.Field))
+                        {
+                            Unsupported(member);
+                        }
+                        SyntaxNode memberName = member.Kind == SyntaxKind.Field
+                            ? member : member.ChildAt(0);
+                        string text = Text(memberName);
+                        if (label is null
+                            && (!names.Add(text) || endpoint.MemberScope!.LookupMember(text) is not null))
+                        {
+                            Fail(memberName, "LYC302", $"Contributed member '{text}' already exists.");
+                        }
+                    }
+                }
+            }
+            MultiClassInstantiation instance = new(template, endpoints, labels);
+            try
+            {
+                // Field annotations share the template's private role environment,
+                // not a concrete class's public member namespace. Its scope and
+                // aliases retire with this instantiation, including on failure.
+                SemanticScope annotations = new(instance);
+                for (int role = 0; role < endpoints.Count; role += 1)
+                {
+                    SemanticSymbol binding = new(annotations, null, Text(parameters.ChildAt(role)),
+                        SymbolKind.Type, analysis.ClassType(endpoints[role]), false);
+                    instance.ParticipantAt(role).AddViewSymbol(binding);
+                }
+                SyntaxNode root = new(original.Source!, original.Kind,
+                    original.TextOffset, original.TextLength, multiClass: instance);
+                Stack<(SyntaxNode Original, SyntaxNode Copy, int Next)> pending = new();
+                pending.Push((original, root, 0));
+                while (pending.Count != 0)
+                {
+                    var frame = pending.Pop();
+                    if (frame.Next == frame.Original.ChildCount())
+                    {
+                        continue;
+                    }
+                    pending.Push((frame.Original, frame.Copy, frame.Next + 1));
+                    SyntaxNode source = frame.Original.ChildAt(frame.Next);
+                    SyntaxNode copy = new(source.Source!, source.Kind,
+                        source.TextOffset, source.TextLength, multiClass: instance);
+                    frame.Copy.AddChild(copy);
+                    pending.Push((source, copy, 0));
+                }
+                for (int index = 0; index < endpoints.Count; index += 1)
+                {
+                    SemanticScope placement = endpoints[index].MemberScope!;
+                    if (labels[index] is string label)
+                    {
+                        SemanticSymbol memberNamespace = new(placement, null, label,
+                            SymbolKind.MemberNamespace, null, false, multiClass: instance);
+                        placement = new SemanticScope(memberNamespace);
+                    }
+                    for (int blockIndex = 0; blockIndex < root.ChildCount(); blockIndex += 1)
+                    {
+                        SyntaxNode block = root.ChildAt(blockIndex);
+                        if (block.Kind != SyntaxKind.Class || Text(block) != Text(parameters.ChildAt(index)))
+                        {
+                            continue;
+                        }
+                        for (int memberIndex = 0; memberIndex < block.ChildCount(); memberIndex += 1)
+                        {
+                            SyntaxNode member = block.ChildAt(memberIndex);
+                            if (member.Kind == SyntaxKind.Field)
+                            {
+                                // Match ordinary scalar-handle field admission.
+                                // Explicit relationship removal remains the caller's
+                                // responsibility until relation teardown is implemented.
+                                if (member.ChildCount() != 1)
+                                {
+                                    Unsupported(member);
+                                }
+                                SemanticType fieldType = ReadType(member.ChildAt(0), annotations);
+                                if ((fieldType.Class is not null && fieldType.ArrayDepth > 0)
+                                    || fieldType == analysis.ScalarType(ScalarKind.Unit))
+                                {
+                                    Unsupported(member);
+                                }
+                                SemanticSymbol field = new(placement, member, Text(member),
+                                    SymbolKind.Field, fieldType, true, multiClass: instance);
+                                instance.ParticipantAt(index).AddMember(field);
+                                TypeView(member.ChildAt(0), annotations)?.AddViewSymbol(field);
+                                continue;
+                            }
+                            SemanticSymbol method = new(placement, member, Text(member.ChildAt(0)),
+                                SymbolKind.Function, analysis.ScalarType(ScalarKind.Unit), false,
+                                multiClass: instance);
+                            instance.ParticipantAt(index).AddMember(method);
+                            SemanticScope scope = new(method);
+                            for (int role = 0; role < endpoints.Count; role += 1)
+                            {
+                                SemanticSymbol binding = new(scope, null, Text(parameters.ChildAt(role)),
+                                    SymbolKind.Type, analysis.ClassType(endpoints[role]), false);
+                                instance.ParticipantAt(role).AddViewSymbol(binding);
+                            }
+                            functions.Add(method);
+                        }
+                    }
+                }
+                instance.SealSyntax();
+            }
+            catch
+            {
+                // No partially published contributions survive a failed build.
+                instance.Destroy();
+                throw;
+            }
+        }
+        void ValidateMultiClassTemplate(SemanticSymbol template)
+        {
+            SyntaxNode declaration = template.Declaration!;
+            Dictionary<string, HashSet<string>> participants = new();
+            for (int index = 0; index < declaration.ChildCount(); index += 1)
+            {
+                SyntaxNode child = declaration.ChildAt(index);
+                if (child.Kind != SyntaxKind.TypeParameters)
+                {
+                    continue;
+                }
+                for (int position = 0; position < child.ChildCount(); position += 1)
+                {
+                    SyntaxNode parameter = child.ChildAt(position);
+                    if (parameter.ChildCount() != 0)
+                    {
+                        Unsupported(parameter);
+                    }
+                    string name = Text(parameter);
+                    if (participants.ContainsKey(name) || global.Lookup(name) is not null)
+                    {
+                        Fail(parameter, "LYC302", "Duplicate or shadowing participant name.");
+                    }
+                    participants.Add(name, new HashSet<string>());
+                }
+            }
+            if (participants.Count == 0)
+            {
+                Unsupported(declaration);
+            }
+            for (int index = 0; index < declaration.ChildCount(); index += 1)
+            {
+                SyntaxNode participant = declaration.ChildAt(index);
+                if (participant.Kind is SyntaxKind.TypeParameters or SyntaxKind.Visibility)
+                {
+                    continue;
+                }
+                if (participant.Kind != SyntaxKind.Class)
+                {
+                    Unsupported(participant);
+                }
+                string name = Text(participant);
+                if (!participants.TryGetValue(name, out HashSet<string>? members))
+                {
+                    Fail(participant, "LYC301", $"Unknown interface participant '{name}'.");
+                }
+                for (int memberIndex = 0; memberIndex < participant.ChildCount(); memberIndex += 1)
+                {
+                    SyntaxNode member = participant.ChildAt(memberIndex);
+                    SyntaxNode nameNode = member;
+                    if (member.Kind == SyntaxKind.Function)
+                    {
+                        nameNode = member.ChildAt(0);
+                        if (nameNode.Kind != SyntaxKind.Name)
+                        {
+                            Unsupported(nameNode);
+                        }
+                    }
+                    else if (member.Kind != SyntaxKind.Field)
+                    {
+                        Unsupported(member);
+                    }
+                    string memberName = Text(nameNode);
+                    if (!members!.Add(memberName))
+                    {
+                        Fail(nameNode, "LYC302", $"Duplicate contributed member '{memberName}'.");
+                    }
+                }
+            }
+        }
         void RefuseDuplicate(SemanticScope scope, SyntaxNode node, string name)
         {
             SemanticSymbol? existing = scope.MemberOwner is null
@@ -3905,12 +4266,16 @@ internal sealed partial class Compilation
             RefuseDuplicate(scope, nameNode, name);
             int next = 1;
             SemanticType? declaredType = null;
+            ParticipantBinding? declaredView = null;
+            bool hasAnnotation = false;
             bool referenceAnnotation = false;
             if (next < node.ChildCount() && node.ChildAt(next).Kind == SyntaxKind.Annotation)
             {
                 SyntaxNode annotation = node.ChildAt(next).ChildAt(0);
                 referenceAnnotation = annotation.Kind == SyntaxKind.TypePrefix && Text(annotation) == "ref";
                 declaredType = ReadType(referenceAnnotation ? annotation.ChildAt(0) : annotation, scope, true);
+                declaredView = TypeView(annotation, scope);
+                hasAnnotation = true;
                 next += 1;
             }
             SyntaxNode? initializer = next < node.ChildCount() ? node.ChildAt(next) : null;
@@ -3948,6 +4313,8 @@ internal sealed partial class Compilation
             }
             SemanticSymbol symbol = new(scope, node, name, SymbolKind.Local,
                 declaredType!, isReference || Text(node) == "var", isReference: isReference);
+            ParticipantBinding? localView = hasAnnotation ? declaredView : initializer?.Fact?.ParticipantView;
+            localView?.AddViewSymbol(symbol);
             if (initializer is not null)
             {
                 MarkAssigned(symbol);
@@ -3971,34 +4338,101 @@ internal sealed partial class Compilation
             {
                 return;
             }
-            SyntaxNode declaration = checkingFunction!.Scope!.Class!.Declaration!;
-            for (int i = 0; i < declaration.ChildCount(); i += 1)
+            foreach (SemanticSymbol field in checkingFunction!.Scope!.Class!.MemberScope!.Fields())
             {
-                SemanticSymbol? field = declaration.ChildAt(i).DeclaredSymbol;
-                if (field?.Kind == SymbolKind.Field && !definitelyAssigned.Contains(field))
+                if (!definitelyAssigned.Contains(field))
                 {
                     Fail(location, "LYC328", $"Field '{field.Name}' is not definitely initialized.");
                 }
             }
         }
+        // Only grouping and namespace selection may expose partial self for a
+        // direct field access. Validate the whole path before attaching facts;
+        // calls and ordinary field reads must use normal initialization checks.
+        SemanticSymbol? ConstructorReceiver(SyntaxNode node, SemanticScope scope, bool attach)
+        {
+            if (!IsConstructor())
+            {
+                return null;
+            }
+            List<SyntaxNode> path = new();
+            SyntaxNode root = node;
+            while (root.Kind is SyntaxKind.Group or SyntaxKind.Member)
+            {
+                path.Add(root);
+                root = root.ChildAt(0);
+            }
+            SemanticSymbol? self = root.Kind == SyntaxKind.Name ? scope.Lookup(Text(root)) : null;
+            if (!IsConstructingSelf(self))
+            {
+                return null;
+            }
+            SemanticScope placement = self!.Type!.Class!.MemberScope!;
+            List<SemanticSymbol> symbols = new();
+            SemanticSymbol selected = self;
+            for (int index = path.Count - 1; index >= 0; index -= 1)
+            {
+                SyntaxNode part = path[index];
+                if (part.Kind == SyntaxKind.Member)
+                {
+                    SemanticSymbol? label = placement.LookupMember(Text(part));
+                    if (label?.Kind != SymbolKind.MemberNamespace)
+                    {
+                        return null;
+                    }
+                    selected = label;
+                    placement = label.MemberScope!;
+                }
+                symbols.Add(selected);
+            }
+            if (attach)
+            {
+                _ = new SemanticFact(analysis, root, self.Type!, self);
+                for (int index = path.Count - 1; index >= 0; index -= 1)
+                {
+                    _ = new SemanticFact(analysis, path[index], self.Type!, symbols[path.Count - 1 - index]);
+                }
+            }
+            return self;
+        }
         SemanticSymbol CheckField(SyntaxNode node, SemanticScope scope, bool read)
         {
             SyntaxNode receiver = node.ChildAt(0);
             SemanticType receiverType;
-            SemanticSymbol? receiverSymbol = receiver.Kind == SyntaxKind.Name
-                ? scope.Lookup(Text(receiver)) : null;
-            if (IsConstructingSelf(receiverSymbol))
+            SemanticSymbol? receiverSymbol = ConstructorReceiver(receiver, scope, attach: true);
+            if (receiverSymbol is not null)
             {
                 // Selecting a field does not expose the unfinished whole object.
-                receiverType = receiverSymbol!.Type!;
-                _ = new SemanticFact(analysis, receiver, receiverType, receiverSymbol);
+                receiverType = receiverSymbol.Type!;
             }
             else
             {
                 receiverType = CheckExpression(receiver, scope);
             }
+            if (receiverType.Kind == SemanticTypeKind.Nullable)
+            {
+                Fail(receiver, "LYC304", "Nullable field access requires checked unwrap.");
+            }
+            SemanticScope? selectedScope = receiver.Fact?.Symbol?.Kind == SymbolKind.MemberNamespace
+                ? receiver.Fact.Symbol.MemberScope : null;
             SemanticSymbol? field = receiverType.ArrayDepth == 0
-                ? receiverType.Declaration?.MemberScope?.LookupMember(Text(node)) : null;
+                ? selectedScope is not null ? selectedScope.LookupMember(Text(node))
+                    : receiver.Fact?.ParticipantView?.FindMember(Text(node))
+                        ?? receiverType.Declaration?.MemberScope?.LookupMember(Text(node))
+                : null;
+            if (read && field?.Kind == SymbolKind.MemberNamespace)
+            {
+                // Direct field selection constructs its namespace facts through
+                // ConstructorReceiver. A standalone namespace still exposes the
+                // whole handle and cannot bypass partial-self restrictions.
+                if (receiverSymbol is not null)
+                {
+                    RequireInitializedReceiver(node);
+                }
+                // A placement label selects members, not a new runtime object.
+                _ = new SemanticFact(analysis, node, receiverType, field);
+                return field;
+            }
             if (field?.Kind != SymbolKind.Field)
             {
                 Fail(node, "LYC329", $"No field '{Text(node)}' exists on {SemanticTypes.Name(receiverType)}.");
@@ -4007,7 +4441,8 @@ internal sealed partial class Compilation
             {
                 Fail(node, "LYC328", $"Field '{field!.Name}' is not definitely initialized.");
             }
-            _ = new SemanticFact(analysis, node, field!.Type!, field);
+            SemanticFact fieldFact = new(analysis, node, field!.Type!, field);
+            field.ParticipantView?.AddViewFact(fieldFact);
             return field;
         }
         SemanticSymbol WritableRoot(SyntaxNode node, SemanticScope scope)
@@ -4071,7 +4506,7 @@ internal sealed partial class Compilation
                 _ = WritableRoot(target, scope);
                 SemanticType supplied = CheckExpression(node.ChildAt(1), scope, field.Type);
                 RequireType(node.ChildAt(1), supplied, field.Type!);
-                if (IsConstructingSelf(target.ChildAt(0).Fact!.Symbol))
+                if (ConstructorReceiver(target.ChildAt(0), scope, attach: false) is not null)
                 {
                     MarkAssigned(field);
                 }
@@ -4263,6 +4698,15 @@ internal sealed partial class Compilation
         // caller's admission; this does not grant an array-growth default.
         SemanticType ReadType(SyntaxNode node, SemanticScope scope, bool allowStructs = false)
         {
+            if (node.Kind == SyntaxKind.OptionalType)
+            {
+                SemanticType payload = ReadType(node.ChildAt(0), scope, allowStructs);
+                if (payload.Kind != SemanticTypeKind.Nominal || payload.Class is null)
+                {
+                    Fail(node, "LYC304", "Nullable types currently require a nonnullable class handle.");
+                }
+                return analysis.NullableType(payload);
+            }
             if (node.Kind == SyntaxKind.TypeOf)
             {
                 if (node.Fact is not null)
@@ -4432,6 +4876,8 @@ internal sealed partial class Compilation
             // Discover hints bottom-up once, using temporary algorithm storage rather
             // than recursion or repeated subtree scans. No facts or effects occur here.
             Dictionary<SyntaxNode, SemanticType?> hints = new();
+            Dictionary<SyntaxNode, ParticipantBinding?> views = new();
+            Dictionary<SyntaxNode, SemanticScope?> namespaces = new();
             Stack<(SyntaxNode Node, bool Ready)> discovery = new();
             discovery.Push((root, false));
             while (discovery.Count != 0)
@@ -4443,6 +4889,7 @@ internal sealed partial class Compilation
                 // A reference initializer previews the referent's read type.
                 // This traversal does not acquire storage or grant write access.
                 bool unary = node.Kind is SyntaxKind.Group or SyntaxKind.Cast
+                    || (node.Kind == SyntaxKind.Postfix && Text(node) == "!")
                     || (node.Kind == SyntaxKind.Unary && Text(node) is "-" or "!-" or "!" or "ref");
                 if (!item.Ready && node.Kind is SyntaxKind.Array or SyntaxKind.Tuple or SyntaxKind.Index or SyntaxKind.Member)
                 {
@@ -4471,6 +4918,13 @@ internal sealed partial class Compilation
                     continue;
                 }
                 SemanticType? hint = null;
+                ParticipantBinding? view = null;
+                SemanticScope? placement = null;
+                if (node.Kind == SyntaxKind.Group)
+                {
+                    view = views[node.ChildAt(0)];
+                    placement = namespaces[node.ChildAt(0)];
+                }
                 if (node.Kind == SyntaxKind.Record)
                 {
                     SemanticSymbol? declaration = scope.Lookup(Text(node.ChildAt(0)));
@@ -4490,10 +4944,21 @@ internal sealed partial class Compilation
                         {
                             hint = owner.ComponentAt(index);
                         }
-                        SemanticSymbol? field = owner.Declaration?.MemberScope?.LookupMember(Text(node));
+                        SemanticScope? memberScope = namespaces[node.ChildAt(0)];
+                        SemanticSymbol? field = memberScope is not null
+                            ? memberScope.LookupMember(Text(node))
+                            : views[node.ChildAt(0)]?.FindMember(Text(node))
+                                ?? owner.Declaration?.MemberScope?.LookupMember(Text(node));
                         if (field?.Kind == SymbolKind.Field)
                         {
                             hint = field.Type;
+                            view = field.ParticipantView;
+                        }
+                        else if (field?.Kind == SymbolKind.MemberNamespace)
+                        {
+                            // Preview preserves the physical receiver type only.
+                            hint = owner;
+                            placement = field.MemberScope;
                         }
                     }
                 }
@@ -4554,6 +5019,12 @@ internal sealed partial class Compilation
                         hint = SemanticTypes.ArithmeticType(left, right);
                     }
                 }
+                else if (node.Kind == SyntaxKind.Postfix && Text(node) == "!")
+                {
+                    SemanticType? operand = hints[node.ChildAt(0)];
+                    hint = operand?.Kind == SemanticTypeKind.Nullable ? operand.Element : null;
+                    view = views[node.ChildAt(0)];
+                }
                 else if (unary && node.Kind != SyntaxKind.Cast)
                 {
                     hint = hints[node.ChildAt(0)];
@@ -4602,6 +5073,7 @@ internal sealed partial class Compilation
                         if (symbol?.Kind is SymbolKind.Local or SymbolKind.Parameter)
                         {
                             hint = symbol.Type;
+                            view = symbol.ParticipantView;
                         }
                     }
                 }
@@ -4611,10 +5083,16 @@ internal sealed partial class Compilation
                     SemanticType? receiver = hints[member.ChildAt(0)];
                     if (receiver is SemanticType owner && owner.ArrayDepth == 0)
                     {
-                        SemanticSymbol? method = owner.Declaration?.MemberScope?.LookupMember(Text(member));
+                        SyntaxNode receiverNode = member.ChildAt(0);
+                        SemanticScope? memberNamespace = namespaces[receiverNode];
+                        SemanticSymbol? method = memberNamespace is not null
+                            ? memberNamespace.LookupMember(Text(member))
+                            : views[receiverNode]?.FindMember(Text(member))
+                                ?? owner.Declaration?.MemberScope?.LookupMember(Text(member));
                         if (method?.Kind == SymbolKind.Function)
                         {
                             hint = method.Type;
+                            view = method.ParticipantView;
                         }
                     }
                 }
@@ -4624,6 +5102,7 @@ internal sealed partial class Compilation
                     if (function?.Kind == SymbolKind.Function)
                     {
                         hint = function.Type;
+                        view = function.ParticipantView;
                     }
                     else if (function?.Kind == SymbolKind.Class)
                     {
@@ -4631,6 +5110,8 @@ internal sealed partial class Compilation
                     }
                 }
                 hints.Add(node, hint);
+                views.Add(node, view);
+                namespaces.Add(node, placement);
             }
 
             return hints;
@@ -4967,6 +5448,11 @@ internal sealed partial class Compilation
                 {
                     work.Push((node, item.Expected, 2));
                     work.Push((node.ChildAt(0), analysis.ScalarType(ScalarKind.Bool), 0));
+                }
+                else if (item.Stage == 0 && node.Kind == SyntaxKind.Postfix && Text(node) == "!")
+                {
+                    work.Push((node, item.Expected, 2));
+                    work.Push((node.ChildAt(0), null, 0));
                 }
                 else if (item.Stage == 0 && node.Kind == SyntaxKind.Cast)
                 {
@@ -5432,6 +5918,13 @@ internal sealed partial class Compilation
                         type = analysis.ScalarType(ScalarKind.Bool);
                         break;
                     }
+                    if (Text(node) is "==" or "!="
+                        && SemanticTypes.CanCompareHandleIdentity(
+                            node.ChildAt(0).Fact!.Type, node.ChildAt(1).Fact!.Type))
+                    {
+                        type = analysis.ScalarType(ScalarKind.Bool);
+                        break;
+                    }
                     if (!SemanticTypes.IsInteger(node.ChildAt(0).Fact!.Type)
                         || !SemanticTypes.IsInteger(node.ChildAt(1).Fact!.Type))
                     {
@@ -5448,6 +5941,21 @@ internal sealed partial class Compilation
                     RequireType(node.ChildAt(0), node.ChildAt(0).Fact!.Type, analysis.ScalarType(ScalarKind.Bool));
                     type = analysis.ScalarType(ScalarKind.Bool);
                     break;
+                case SyntaxKind.Postfix when Text(node) == "!":
+                    SemanticType nullableOperand = node.ChildAt(0).Fact!.Type;
+                    if (nullableOperand.Kind != SemanticTypeKind.Nullable)
+                    {
+                        Fail(node, "LYC304", "Checked unwrap requires a nullable class handle.");
+                    }
+                    type = nullableOperand.Element!;
+                    break;
+                case SyntaxKind.Literal when Text(node) == "null":
+                    if (expectedType?.Kind != SemanticTypeKind.Nullable)
+                    {
+                        Fail(node, "LYC304", "Null requires a nullable class-handle context.");
+                    }
+                    type = expectedType!;
+                    break;
                 case SyntaxKind.String:
                     type = SemanticTypes.ArrayOf(analysis.ScalarType(ScalarKind.U8));
                     break;
@@ -5460,6 +5968,10 @@ internal sealed partial class Compilation
                 case SyntaxKind.Group:
                     type = node.ChildAt(0).Fact!.Type;
                     constant = node.ChildAt(0).Fact!.IntegerConstant;
+                    if (node.ChildAt(0).Fact!.Symbol?.Kind == SymbolKind.MemberNamespace)
+                    {
+                        resolved = node.ChildAt(0).Fact!.Symbol;
+                    }
                     break;
                 case SyntaxKind.Member:
                     SemanticType? memberHint = DiscoverHints(node.ChildAt(0), scope)[node.ChildAt(0)];
@@ -5477,7 +5989,8 @@ internal sealed partial class Compilation
                         type = receiver.ComponentAt(componentIndex);
                         break;
                     }
-                    return CheckField(node, scope, true).Type!;
+                    _ = CheckField(node, scope, true);
+                    return node.Fact!.Type;
                 case SyntaxKind.Name:
                     resolved = scope.Lookup(Text(node));
                     if (resolved is null)
@@ -5564,6 +6077,10 @@ internal sealed partial class Compilation
                             && receiverClass.ArrayDepth == 0 && receiverClass.Class is not null)
                         {
                             SemanticType actualReceiver = CheckExpression(receiverNode, scope);
+                            if (actualReceiver.Kind == SemanticTypeKind.Nullable)
+                            {
+                                Fail(receiverNode, "LYC304", "Nullable method access requires checked unwrap.");
+                            }
                             if (Text(callee) == "destroy")
                             {
                                 SemanticSymbol destroyedClass = actualReceiver.Class!;
@@ -5584,8 +6101,14 @@ internal sealed partial class Compilation
                                     classOperation: ClassOperation.Destroy);
                                 return analysis.ScalarType(ScalarKind.Unit);
                             }
-                            SemanticSymbol? method = actualReceiver.Class!.MemberScope!.LookupMember(Text(callee));
-                            if (method?.Kind != SymbolKind.Function || method.Name == actualReceiver.Class.Name)
+                            SemanticScope methodScope = receiverNode.Fact?.Symbol?.Kind == SymbolKind.MemberNamespace
+                                ? receiverNode.Fact.Symbol.MemberScope!
+                                : actualReceiver.Class!.MemberScope!;
+                            SemanticSymbol? method = receiverNode.Fact?.Symbol?.Kind == SymbolKind.MemberNamespace
+                                ? methodScope.LookupMember(Text(callee))
+                                : receiverNode.Fact?.ParticipantView?.FindMember(Text(callee))
+                                    ?? methodScope.LookupMember(Text(callee));
+                            if (method?.Kind != SymbolKind.Function || method.Name == actualReceiver.Class!.Name)
                             {
                                 Fail(callee, "LYC329", $"No instance method '{Text(callee)}' exists on {SemanticTypes.Name(actualReceiver)}.");
                             }
@@ -5594,7 +6117,8 @@ internal sealed partial class Compilation
                                 Fail(callee, "LYC332", "A final hook may only be invoked by generated destruction.");
                             }
                             CheckArguments(node, method!, scope, 1);
-                            _ = new SemanticFact(analysis, node, method!.Type!, method);
+                            SemanticFact callFact = new(analysis, node, method!.Type!, method);
+                            method.ParticipantView?.AddViewFact(callFact);
                             return method.Type!;
                         }
                         ArrayOperation operation = Text(callee) switch
@@ -5677,7 +6201,14 @@ internal sealed partial class Compilation
                     Unsupported(node);
                     return analysis.ScalarType(ScalarKind.Unit);
             }
-            _ = new SemanticFact(analysis, node, type, resolved, constant);
+            SemanticFact completedFact = new(analysis, node, type, resolved, constant);
+            ParticipantBinding? expressionView = node.Kind == SyntaxKind.Group
+                || (node.Kind == SyntaxKind.Postfix && Text(node) == "!")
+                ? node.ChildAt(0).Fact?.ParticipantView : resolved?.ParticipantView;
+            if (expressionView is not null && expressionView.AcceptsViewType(type))
+            {
+                expressionView.AddViewFact(completedFact);
+            }
             return type;
         }
     }

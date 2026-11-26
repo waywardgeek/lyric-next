@@ -26,18 +26,16 @@ internal sealed partial class Compilation
                     {
                         SemanticSymbol nominal = declaration.DeclaredSymbol!;
                         _ = new IrFunction(program, nominal, IrFunctionKind.Destruction);
-                        for (int m = 0; m < declaration.ChildCount(); m += 1)
+                        // Contributions belong to semantic scopes, not the parsed
+                        // class tree. Discover the actual concrete members once.
+                        foreach (SemanticSymbol field in nominal.MemberScope!.Fields())
                         {
-                            SyntaxNode member = declaration.ChildAt(m);
-                            if (member.DeclaredSymbol is not SemanticSymbol selected)
-                            {
-                                continue;
-                            }
-                            SupportedType(selected.Type!, member);
-                            if (selected.Kind == SymbolKind.Function)
-                            {
-                                _ = new IrFunction(program, selected);
-                            }
+                            SupportedType(field.Type!, field.Declaration!);
+                        }
+                        foreach (SemanticSymbol method in nominal.MemberScope.Methods())
+                        {
+                            SupportedType(method.Type!, method.Declaration!);
+                            _ = new IrFunction(program, method);
                         }
                         continue;
                     }
@@ -63,6 +61,12 @@ internal sealed partial class Compilation
                                 _ = new IrFunction(program, field, IrFunctionKind.FieldInitializer);
                             }
                         }
+                        continue;
+                    }
+                    if (declaration.Kind is SyntaxKind.Interface or SyntaxKind.Impl)
+                    {
+                        // Their concrete contributions were discovered through
+                        // the owning classes; templates have no executable body.
                         continue;
                     }
                     if (declaration.Kind != SyntaxKind.Function)
@@ -155,10 +159,9 @@ internal sealed partial class Compilation
             }
             // Final observes live fields. Resolve each descriptor after the hook,
             // which may grow class storage; never retain an interior pointer across it.
-            for (int i = 0; i < origin.ChildCount(); i += 1)
+            foreach (SemanticSymbol field in nominal.MemberScope!.Fields())
             {
-                SemanticSymbol? field = origin.ChildAt(i).DeclaredSymbol;
-                if (field?.Kind != SymbolKind.Field || field.Type!.ArrayDepth == 0)
+                if (!SemanticTypes.HasOwnedContents(field.Type!))
                 {
                     continue;
                 }
@@ -170,7 +173,11 @@ internal sealed partial class Compilation
                     type: field.Type, origin: field.Declaration, symbol: field);
                 body.AddChild(place);
                 _ = new IrOperand(place, handle);
-                IrNode release = new(function, IrKind.FreeArray, origin: field.Declaration);
+                // Scalar counted fields own one handle; array fields own backing.
+                // Both releases are explicit IR so validation and emission agree.
+                IrKind releaseKind = field.Type!.ArrayDepth > 0
+                    ? IrKind.FreeArray : IrKind.Unref;
+                IrNode release = new(function, releaseKind, origin: field.Declaration);
                 body.AddChild(release);
                 _ = new IrOperand(release, place);
             }
@@ -189,7 +196,29 @@ internal sealed partial class Compilation
         {
             SemanticSymbol declaration = function.Declaration!;
             SyntaxNode source = declaration.BodySyntax()!;
-            SyntaxNode block = source.ChildAt(source.ChildCount() - 1);
+            // Visibility and other declaration metadata may follow the body.
+            // Select the checked block by role, not by its incidental child index.
+            SyntaxNode? selectedBody = null;
+            if (function.Kind == IrFunctionKind.FieldInitializer)
+            {
+                selectedBody = source.ChildAt(1);
+            }
+            else
+            {
+                for (int index = 0; index < source.ChildCount(); index += 1)
+                {
+                    SyntaxNode child = source.ChildAt(index);
+                    if (child.Kind == SyntaxKind.Block)
+                    {
+                        selectedBody = child;
+                    }
+                }
+            }
+            if (selectedBody is null)
+            {
+                Unsupported(source);
+            }
+            SyntaxNode block = selectedBody!;
             IrNode body = new(function, IrKind.Region, IrRole.Body, origin: block);
             function.AddBody(body);
             Dictionary<SemanticSymbol, IrNode> storage = new();
@@ -278,7 +307,8 @@ internal sealed partial class Compilation
                 region.AddChild(node);
                 if (Owned(type) && (kind is IrKind.Local or IrKind.Copy or IrKind.Ref
                     or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct or IrKind.NewObject
-                    or IrKind.Call || kind == IrKind.CallInitializer && result == IrResult.Value))
+                    or IrKind.Call or IrKind.NullHandle or IrKind.WrapNullable or IrKind.UnwrapNullable
+                    || kind == IrKind.CallInitializer && result == IrResult.Value))
                 {
                     Own(region, node);
                 }
@@ -343,6 +373,13 @@ internal sealed partial class Compilation
                 if (!SemanticTypes.CanWiden(value.Type!, type))
                 {
                     throw new InvalidOperationException("Checked IR widening is invalid.");
+                }
+                if (type.Kind == SemanticTypeKind.Nullable)
+                {
+                    IrNode transferred = Transfer(region, origin, value);
+                    IrNode wrapped = Add(region, IrKind.WrapNullable, origin, type, IrResult.Value);
+                    Input(wrapped, transferred);
+                    return wrapped;
                 }
                 IrNode converted = Add(region, IrKind.Convert, origin, type,
                     IrResult.Value, operation: "widen");
@@ -475,7 +512,8 @@ internal sealed partial class Compilation
             }
             void Receiver(SyntaxNode node, IrNode region, IrNode? loop, Action<IrNode> done)
             {
-                while (node.Kind == SyntaxKind.Group)
+                while (node.Kind == SyntaxKind.Group
+                    || node.Fact?.Symbol?.Kind == SymbolKind.MemberNamespace)
                 {
                     node = node.ChildAt(0);
                 }
@@ -519,7 +557,22 @@ internal sealed partial class Compilation
                         case SyntaxKind.Unit:
                             done(Unit(region, node));
                             return;
+                        case SyntaxKind.Postfix when Text(node) == "!":
+                            Expression(node.ChildAt(0), region, loop, nullable =>
+                            {
+                                IrNode transferred = Transfer(region, node, nullable);
+                                IrNode unwrapped = Add(region, IrKind.UnwrapNullable,
+                                    node, fact.Type, IrResult.Value);
+                                Input(unwrapped, transferred);
+                                done(unwrapped);
+                            });
+                            return;
                         case SyntaxKind.Literal:
+                            if (Text(node) == "null")
+                            {
+                                done(Add(region, IrKind.NullHandle, node, fact.Type, IrResult.Value));
+                                return;
+                            }
                             if (fact.Type.ArrayDepth > 0)
                             {
                                 Unsupported(node);
@@ -543,6 +596,12 @@ internal sealed partial class Compilation
                             done(load);
                             return;
                         case SyntaxKind.Member:
+                            if (fact.Symbol?.Kind == SymbolKind.MemberNamespace)
+                            {
+                                // Namespace placement has no runtime representation.
+                                Expression(node.ChildAt(0), region, loop, done);
+                                return;
+                            }
                             if (node.ChildAt(0).Fact!.Type.Kind == SemanticTypeKind.Tuple
                                 || node.ChildAt(0).Fact!.Type.Declaration?.Kind == SymbolKind.Struct)
                             {

@@ -1,0 +1,8 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"ParticipantBinding" [label="ParticipantBinding", fillcolor="#edf4fb"];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"ParticipantBinding" -> "SemanticSymbol" [id="participant-members", color="#a74b00", penwidth=1.2, style=dashed, arrowhead=normal, label="contributor\nrole", tooltip="ParticipantBinding.Members -> SemanticSymbol; reverse SemanticSymbol.ContributingParticipant"];
+}

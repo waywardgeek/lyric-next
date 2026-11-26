@@ -341,7 +341,8 @@ def run(command):
 
 
 def main(cases=CASES, negative_cases=NEGATIVE_CASES, label="tuple",
-         runtime_cases=(), emission_options=()):
+         runtime_cases=(), emission_options=(),
+         runtime_diagnostic=b'LYR011: array element has no default value'):
     compiler = sys.argv[1:]
     if not compiler:
         raise SystemExit('usage: tuples.py COMPILER [ARG ...]')
@@ -367,7 +368,7 @@ def main(cases=CASES, negative_cases=NEGATIVE_CASES, label="tuple",
                         # Runtime rejection is a precise result, not any nonzero exit.
                         location = re.escape(json.dumps(str(lyric)).encode())
                         diagnostic = (location + rb':[1-9][0-9]*:[1-9][0-9]*: runtime error '
-                                      rb'LYR011: array element has no default value\n  in "main"\n')
+                                      + re.escape(runtime_diagnostic) + rb'\n  in "main"\n')
                         assert result.returncode == 1, (result.returncode, result.stderr)
                         assert result.stdout == b'', result.stdout
                         assert re.fullmatch(diagnostic, result.stderr), result.stderr

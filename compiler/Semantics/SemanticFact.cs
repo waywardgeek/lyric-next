@@ -72,6 +72,7 @@ internal sealed partial class SemanticFact
         {
             return;
         }
+        ParticipantView?.RemoveViewFact(this);
         TypeLink?.RemoveFact(this);
         Symbol?.RemoveUse(this);
         Node?.RemoveFact(this);

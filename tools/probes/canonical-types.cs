@@ -696,6 +696,64 @@ internal static class CanonicalTypeProbe
         syntaxCompilation.Destroy();
     }
 
+    // Nullable handles are separate canonical keys with a non-owning class
+    // dependency. These checks deliberately exercise real retirement operations.
+    private static void NullableIdentities()
+    {
+        Compilation compilation = new();
+        SemanticAnalysis analysis = new(compilation);
+        SemanticScope scope = new(analysis, null);
+        SemanticSymbol owner = new(scope, null, "Owner", SymbolKind.Class, null, false);
+        SemanticType handle = analysis.ClassType(owner);
+        SemanticType nullable = analysis.NullableType(handle);
+        Check(nullable != handle && nullable == analysis.NullableType(handle),
+            "nullable identity merged with its element or failed interning");
+        Check(nullable.Element == handle && nullable.Declaration is null
+            && nullable.Class == owner && nullable.ArrayDepth == 0,
+            "nullable wrapper changed nominal identity or array depth");
+        Check(SemanticTypes.Name(nullable) == "Owner?", "nullable name lost its suffix");
+        SemanticType array = analysis.ArrayType(nullable);
+        Check(array.ArrayDepth == 1 && array.Class == owner
+            && SemanticTypes.Name(array) == "[Owner?]", "nullable array was flattened");
+        Check(SemanticTypes.HasDefaultValue(nullable)
+            && !SemanticTypes.HasDefaultValue(handle), "nullable default changed nonnullable policy");
+        Check(!SemanticTypes.HasOwnedContents(nullable)
+            && !SemanticTypes.HasContainedBorrows(nullable)
+            && SemanticTypes.HasFiniteLayout(nullable), "ordinary nullable handle classified incorrectly");
+        Refuses(() => handle.RemoveNullable(nullable), "live nullable key was editable");
+        Refuses(() => new SemanticType(analysis, SemanticTypeKind.Nullable,
+            ScalarKind.Unit, handle, null), "duplicate nullable key admitted");
+        Check(analysis.NullableType(handle) == nullable && nullable.Element == handle,
+            "duplicate refusal damaged existing nullable dependency");
+        SemanticType integer = analysis.ScalarType(ScalarKind.I32);
+        SemanticSymbol structure = new(scope, null, "Record", SymbolKind.Struct, null, false);
+        SemanticType record = analysis.StructType(structure);
+        foreach (SemanticType invalid in new[] { integer, record, array, nullable })
+        {
+            Refuses(() => analysis.NullableType(invalid), "non-class nullable factory payload admitted");
+            Refuses(() => new SemanticType(analysis, SemanticTypeKind.Nullable,
+                ScalarKind.Unit, invalid, null), "non-class nullable constructor payload admitted");
+        }
+        Compilation foreignCompilation = new();
+        SemanticAnalysis foreign = new(foreignCompilation);
+        Refuses(() => foreign.NullableType(handle), "foreign nullable dependency admitted");
+        foreignCompilation.Destroy();
+        // Retiring a wrapper cascades to its users, never to the base class.
+        nullable.Destroy();
+        Check(nullable.IsUnlinked() && array.Destroyed && !handle.Destroyed && !owner.Destroyed,
+            "nullable retirement destroyed its class or left dependent arrays alive");
+        SemanticType replacement = analysis.NullableType(handle);
+        Check(replacement != nullable && replacement.Element == handle,
+            "retired nullable identity was reused");
+        SemanticType tuple = analysis.TupleType(new[] { replacement, replacement });
+        SemanticSymbol local = new(scope, null, "optional", SymbolKind.Local, replacement, true);
+        handle.Destroy();
+        Check(replacement.Destroyed && replacement.IsUnlinked() && tuple.Destroyed && local.Destroyed,
+            "base retirement left nullable dependents attached");
+        Refuses(() => analysis.NullableType(handle), "retired base handle admitted");
+        compilation.Destroy();
+    }
+
     private static void Main()
     {
         Compilation compilation = new();
@@ -875,7 +933,14 @@ internal static class CanonicalTypeProbe
         Check(SemanticTypes.HasOwnedContents(boxType), "counted handle ownership lost");
         Check(SemanticTypes.HasOwnedContents(boxType.Analysis!.TupleType(new[] { boxType })),
             "tuple counted ownership lost");
+        SemanticType optionalBox = boxType.Analysis!.NullableType(boxType);
+        Check(SemanticTypes.HasOwnedContents(optionalBox), "nullable counted handle lost ownership");
+        Check(SemanticTypes.HasDefaultValue(optionalBox), "nullable counted handle lost null default");
+        Check(SemanticTypes.HasOwnedContents(boxType.Analysis.TupleType(new[] { optionalBox })),
+            "nullable counted tuple lost ownership");
         countedCompilation.Destroy();
+        Check(optionalBox.Destroyed && optionalBox.IsUnlinked(), "counted nullable teardown incomplete");
+        NullableIdentities();
         FiniteStructLayouts();
         StructIdentities();
         ContainedBorrowTypes();

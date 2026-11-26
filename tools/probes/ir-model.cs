@@ -693,6 +693,115 @@ internal static class IrModelProbe
         compilation.Destroy();
     }
 
+    private static void CheckNullableOperations()
+    {
+        // Validation does not execute this null unwrap. It verifies the typed
+        // ownership protocol; the public runtime grader checks the null failure.
+        foreach (bool counted in new[] { false, true })
+        {
+            for (int defect = 0; defect < 6; defect += 1)
+            {
+                Compilation compilation = new();
+                string prefix = counted ? "value " : "";
+                SourceFile source = new(compilation, "nullable-ir.ly",
+                    System.Text.Encoding.UTF8.GetBytes(prefix + "class Box { func Box(self) {} }"));
+                Check(source.Parse(false) is null && compilation.Check(false) is null,
+                    "nullable IR fixture failed checking");
+                SemanticSymbol box = source.SyntaxRoot()!.ChildAt(0).DeclaredSymbol!;
+                SemanticAnalysis analysis = box.Scope!.Analysis!;
+                SemanticType payload = analysis.ClassType(box);
+                SemanticType nullable = analysis.NullableType(payload);
+                SemanticSymbol declaration = new(box.Scope, null, "probe", SymbolKind.Function,
+                    nullable, false);
+                IrProgram program = new(analysis);
+                IrFunction function = new(program, declaration);
+                IrNode body = new(function, IrKind.Region, IrRole.Body);
+                function.AddBody(body);
+                IrNode empty = Add(IrKind.NullHandle, defect == 1 ? payload : nullable);
+                if (defect == 0)
+                {
+                    // Source admission is not enough: mutated IR must preserve
+                    // identity-only equality and reject other handle operators.
+                    foreach (string operation in new[] { "==", "!=", "<", "+" })
+                    {
+                        IrNode comparison = new(function, IrKind.Binary,
+                            result: IrResult.Value,
+                            type: analysis.ScalarType(ScalarKind.Bool), operation: operation);
+                        body.AddChild(comparison);
+                        _ = new IrOperand(comparison, empty);
+                        _ = new IrOperand(comparison, empty);
+                        if (operation is "==" or "!=")
+                        {
+                            program.ValidateOperations();
+                            Check(true, "nullable identity equality accepted");
+                        }
+                        else
+                        {
+                            Refuses(program.ValidateOperations, "handle operator accepted: " + operation);
+                        }
+                        comparison.Destroy();
+                    }
+                    IrNode boolean = new(function, IrKind.Constant,
+                        result: IrResult.Value, type: analysis.ScalarType(ScalarKind.Bool),
+                        literal: new IrLiteral(true));
+                    body.AddChild(boolean);
+                    IrNode mixed = new(function, IrKind.Binary,
+                        result: IrResult.Value, type: analysis.ScalarType(ScalarKind.Bool), operation: "==");
+                    body.AddChild(mixed);
+                    _ = new IrOperand(mixed, empty);
+                    _ = new IrOperand(mixed, boolean);
+                    Refuses(program.ValidateOperations, "handle/bool equality accepted");
+                    mixed.Destroy();
+                    boolean.Destroy();
+                }
+                IrNode unwrapped = Add(IrKind.UnwrapNullable,
+                    defect == 2 ? analysis.ScalarType(ScalarKind.I32) : payload,
+                    Transfer(empty, defect == 3));
+                IrNode wrapped = Add(IrKind.WrapNullable, nullable,
+                    Transfer(unwrapped, defect == 4));
+                IrNode exit = new(function, IrKind.Return);
+                body.AddChild(exit);
+                // Transfer must execute before its consumer in the region.
+                body.RemoveChild(exit);
+                _ = new IrOperand(exit, Transfer(wrapped, defect == 5));
+                body.AddChild(exit);
+                program.ValidateStructure();
+                bool refused = defect is 1 or 2 || counted && defect >= 3;
+                if (refused)
+                {
+                    Refuses(program.ValidateOperations, "nullable IR accepted defect " + defect);
+                }
+                else
+                {
+                    program.ValidateOperations();
+                    program.ValidateExecution();
+                    Check(true, "valid nullable ownership protocol");
+                }
+                compilation.Destroy();
+                Check(empty.Destroyed && wrapped.Destroyed, "nullable IR teardown left nodes");
+
+                IrNode Add(IrKind kind, SemanticType type, IrNode? input = null)
+                {
+                    IrNode node = new(function, kind, result: IrResult.Value, type: type);
+                    body.AddChild(node);
+                    if (input is not null)
+                    {
+                        _ = new IrOperand(node, input);
+                    }
+                    return node;
+                }
+                IrNode Transfer(IrNode holder, bool omit)
+                {
+                    if (!counted || omit)
+                    {
+                        return holder;
+                    }
+                    return Add(IrKind.Move, holder.Type!, holder);
+                }
+            }
+        }
+    }
+
     private static void CheckPublication()
     {
         Compilation compilation = new();
@@ -721,6 +830,7 @@ internal static class IrModelProbe
         CheckExecution();
         CheckConstantPayloads();
         CheckPublication();
+        CheckNullableOperations();
         Compilation compilation = new();
         SourceFile source = new(compilation, "probe.ly", Array.Empty<byte>());
         SyntaxNode origin = new(source, SyntaxKind.Function, -1, 0);

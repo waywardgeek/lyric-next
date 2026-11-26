@@ -118,7 +118,7 @@ internal sealed partial class GenericSpecialization
         // source member may be original parsed syntax and must never be adopted.
         if (Destroyed || Analysis is null || Analysis.Destroyed || Function is not null
             || source.Destroyed || source.Parent != Analysis.Compilation
-            || node.Destroyed || node.Specialization is not null || node.Source is not null
+            || node.Destroyed || node.Specialization is not null || node.MultiClass is not null || node.Source is not null
             || node.Parent is not null || node.ChildCount() != 0
             || node.Fact is not null || node.DeclaredSymbol is not null
             || node.ImplementedSymbol is not null)
@@ -140,7 +140,7 @@ internal sealed partial class GenericSpecialization
 
     internal partial void AddScope(SemanticScope scope)
     {
-        if (Destroyed || scope.Destroyed || scope.Analysis != Analysis || scope.Specialization is not null)
+        if (Destroyed || scope.Destroyed || scope.Analysis != Analysis || scope.Specialization is not null || scope.MultiClass is not null)
         {
             throw new InvalidOperationException("Cannot attach specialized scope.");
         }

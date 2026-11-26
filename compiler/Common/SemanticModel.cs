@@ -91,6 +91,9 @@ internal enum SymbolKind
     Type,
     Class,
     Struct,
+    // Compile-time member placement only: no runtime value or wrapper object.
+    MemberNamespace,
+    Interface,
     Field,
 }
 
@@ -102,9 +105,12 @@ internal sealed partial class SemanticScope
     internal partial SemanticSymbol? Lookup(string name);
     // Searches only this scope, for explicitly qualified member selection.
     internal partial SemanticSymbol? LookupMember(string name);
-    // Existing field symbols in declaration order; callers must not mutate the
-    // scope during enumeration. No copied field inventory or method entries.
+    // Existing fields in member order, descending into contributed namespaces.
+    // Callers must not mutate scopes during enumeration. No copied inventory.
     internal partial System.Collections.Generic.IEnumerable<SemanticSymbol> Fields();
+    // Concrete member callables in member order, including labeled contributions.
+    // Enumeration borrows the authoritative scopes; callers must not mutate them.
+    internal partial System.Collections.Generic.IEnumerable<SemanticSymbol> Methods();
     // Strong membership. Nominal members share a qualified namespace; other
     // declarations refuse an already-visible lexical name before mutation.
     internal partial void AddSymbol(SemanticSymbol symbol);
@@ -139,7 +145,7 @@ internal sealed partial class SemanticSymbol
     internal partial SemanticSymbol(SemanticScope scope, SyntaxNode? declaration,
         string name, SymbolKind kind, SemanticType? type, bool mutable,
         BuiltinKind builtin = BuiltinKind.None, bool acceptsArray = false, bool isReference = false,
-        GenericSpecialization? specialization = null);
+        GenericSpecialization? specialization = null, MultiClassInstantiation? multiClass = null);
     internal partial void Destroy();
     // Queries authoritative syntax/member relationships; no duplicate hook state.
     internal partial bool IsFinalHook();
@@ -269,7 +275,7 @@ internal sealed partial class SemanticFailure : System.Exception
     internal partial SemanticFailure(Diagnostic diagnostic);
 }
 
-// A class or struct declaration owns a qualified member namespace. Its
+// A class, struct, or contributed namespace owns a qualified member scope. Its
 // member scope is strongly owned here and by the analysis; each has a backlink.
 internal sealed partial class SemanticSymbol
 {
@@ -284,8 +290,8 @@ internal sealed partial class SemanticSymbol
 
 internal sealed partial class SemanticScope
 {
-    // Strong nominal owner; the analysis also owns this scope.
+    // Strong nominal or namespace owner; the analysis also owns this scope.
     internal SemanticSymbol? MemberOwner;
-    // Class-only navigation for constructor/finalizer rules, never a second link.
+    // Physical class through an optional namespace; never a copied owner link.
     internal partial SemanticSymbol? Class { get; }
 }

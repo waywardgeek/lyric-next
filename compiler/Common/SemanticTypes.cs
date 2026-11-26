@@ -26,6 +26,7 @@ internal enum SemanticTypeKind
     Array,
     Nominal,
     Tuple,
+    Nullable,
 }
 
 // Identity-bearing canonical type. The analysis strongly owns its lifetime.
@@ -41,6 +42,11 @@ internal sealed partial class SemanticType
     internal readonly int Hash;
     internal bool Destroyed;
     private readonly System.Collections.Generic.List<SemanticType> Arrays = new();
+    // Nullable class wrappers depend on their nonnullable identity. They do not
+    // own the class, and retiring the wrapper must leave that class alive.
+    private readonly System.Collections.Generic.List<SemanticType> NullableUses = new();
+    internal partial void AddNullable(SemanticType nullable);
+    internal partial void RemoveNullable(SemanticType nullable);
     // Ordered occurrences are strongly owned; repeated component types use
     // distinct links. Reverse uses invalidate tuples, not their shared elements.
     private readonly System.Collections.Generic.List<SemanticTypeComponent> Components = new();
@@ -90,6 +96,9 @@ internal sealed partial class SemanticType
 // source values are inspected when deciding conversions of already-typed values.
 internal static partial class SemanticTypes
 {
+    // Identity equality observes handles of the same nominal class, optionally
+    // nullable on either side. It grants neither dereference nor ownership.
+    internal static partial bool CanCompareHandleIdentity(SemanticType left, SemanticType right);
     internal static partial SemanticType ArrayOf(SemanticType element);
     // Requires an array; removes exactly one layer, never flattens nested values.
     internal static partial SemanticType ElementOf(SemanticType array);
@@ -140,6 +149,9 @@ internal sealed partial class SemanticAnalysis
     // Nominal value identity; does not confer object-handle lifetime semantics.
     internal partial SemanticType StructType(SemanticSymbol declaration);
     internal partial SemanticType ArrayType(SemanticType element);
+    // Class handles only in this increment. Repeated lookup preserves identity;
+    // foreign, retired, already-nullable and non-class elements are refused.
+    internal partial SemanticType NullableType(SemanticType element);
     internal partial SemanticType TupleType(System.Collections.Generic.IReadOnlyList<SemanticType> components);
     internal partial SemanticType[] PredefinedTypes();
     private partial SemanticType InternType(SemanticTypeKind kind, ScalarKind scalar,

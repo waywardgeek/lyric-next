@@ -8,7 +8,7 @@ internal sealed partial class SemanticSymbol
 {
     internal partial void AddMemberScope(SemanticScope scope)
     {
-        if (Destroyed || Kind is not (SymbolKind.Class or SymbolKind.Struct) || Scope is null
+        if (Destroyed || Kind is not (SymbolKind.Class or SymbolKind.Struct or SymbolKind.MemberNamespace) || Scope is null
             || MemberScope is not null || scope.Destroyed || scope.MemberOwner is not null
             || scope.Function is not null || scope.Analysis != Scope.Analysis
             || scope.Parent != Scope)
@@ -37,6 +37,10 @@ internal sealed partial class SemanticSymbol
         }
         // Refuse/reserve before changing either the old link or the current IR.
         type?.ReserveSymbol(this);
+        if (ParticipantView is not null && !ParticipantView.AcceptsViewType(type))
+        {
+            ParticipantView?.RemoveViewSymbol(this);
+        }
         Scope?.Analysis?.ClearIr();
         Type?.RemoveSymbol(this);
         type?.AddSymbol(this);
@@ -49,7 +53,14 @@ internal sealed partial class SemanticScope
     {
         get
         {
-            return MemberOwner?.Kind == SymbolKind.Class ? MemberOwner : null;
+            SemanticSymbol? owner = MemberOwner;
+            if (owner?.Kind == SymbolKind.MemberNamespace)
+            {
+                // Namespace admission requires a direct class member scope.
+                // Follow that relationship rather than copying the class link.
+                owner = owner.Scope?.MemberOwner;
+            }
+            return owner?.Kind == SymbolKind.Class ? owner : null;
         }
     }
 }

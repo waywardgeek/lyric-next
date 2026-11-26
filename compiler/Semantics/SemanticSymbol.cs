@@ -32,6 +32,33 @@ internal sealed partial class SemanticScope
             {
                 yield return symbol;
             }
+            else if (symbol.Kind == SymbolKind.MemberNamespace && symbol.MemberScope is not null)
+            {
+                // Labels organize lookup, not object storage. Namespace symbols
+                // are admitted only directly within a class, so this has one level.
+                foreach (SemanticSymbol field in symbol.MemberScope.Fields())
+                {
+                    yield return field;
+                }
+            }
+        }
+    }
+
+    internal partial System.Collections.Generic.IEnumerable<SemanticSymbol> Methods()
+    {
+        foreach (SemanticSymbol symbol in Symbols)
+        {
+            if (symbol.Kind == SymbolKind.Function)
+            {
+                yield return symbol;
+            }
+            else if (symbol.Kind == SymbolKind.MemberNamespace && symbol.MemberScope is not null)
+            {
+                foreach (SemanticSymbol method in symbol.MemberScope.Methods())
+                {
+                    yield return method;
+                }
+            }
         }
     }
 
@@ -140,8 +167,18 @@ internal sealed partial class SemanticSymbol
 
     internal partial SemanticSymbol(SemanticScope scope, SyntaxNode? declaration,
         string name, SymbolKind kind, SemanticType? type, bool mutable,
-        BuiltinKind builtin, bool acceptsArray, bool isReference, GenericSpecialization? specialization)
+        BuiltinKind builtin, bool acceptsArray, bool isReference, GenericSpecialization? specialization,
+        MultiClassInstantiation? multiClass)
     {
+        // Labels occupy the ordinary class namespace but carry no runtime value.
+        // Refuse invalid placement before registering any parent relationship.
+        if (kind == SymbolKind.MemberNamespace
+            && (scope.MemberOwner?.Kind != SymbolKind.Class || type is not null
+                || isReference || mutable || acceptsArray || builtin != BuiltinKind.None
+                || specialization is not null))
+        {
+            throw new ArgumentException("A member namespace requires a direct class scope and no value contract.");
+        }
         // Reference fields belong only to value structs. Object fields still
         // cannot retain nonowning storage aliases beyond a synchronous use.
         bool referenceStorage = kind is SymbolKind.Local or SymbolKind.Parameter
@@ -173,6 +210,13 @@ internal sealed partial class SemanticSymbol
         {
             throw new InvalidOperationException("Invalid specialized callable parents.");
         }
+        if (multiClass is not null
+            && (specialization is not null || multiClass.Destroyed || multiClass.Analysis != analysis
+                || scope.Class is null || kind is not (SymbolKind.Function or SymbolKind.Field or SymbolKind.MemberNamespace)
+                || (declaration is not null && declaration.MultiClass != multiClass)))
+        {
+            throw new InvalidOperationException("Invalid contributed member parents.");
+        }
         SemanticSymbol? existing = scope.MemberOwner is null
             ? scope.Lookup(name) : scope.LookupMember(name);
         if (specialization is null && existing is not null)
@@ -195,6 +239,7 @@ internal sealed partial class SemanticSymbol
             scope.AddSymbol(this);
             SetType(type);
             declaration?.AddDeclaredSymbol(this);
+            multiClass?.AddContribution(this);
         }
         catch
         {
@@ -214,12 +259,26 @@ internal sealed partial class SemanticSymbol
             owner.Destroy();
             return;
         }
+        if (MultiClass is MultiClassInstantiation multiOwner && !multiOwner.Destroyed)
+        {
+            multiOwner.Destroy();
+            return;
+        }
         while (Specializations.Count != 0)
         {
             Specializations[Specializations.Count - 1].Destroy();
         }
+        while (MultiClassInstantiations.Count != 0)
+        {
+            MultiClassInstantiations[MultiClassInstantiations.Count - 1].Destroy();
+        }
+        while (ParticipantBindings.Count != 0)
+        {
+            ParticipantBindings[ParticipantBindings.Count - 1].Destroy();
+        }
         // IR borrows declarations and types; retire it before either disappears.
         Scope?.Analysis?.ClearIr();
+        ContributingParticipant?.RemoveMember(this);
         MemberScope?.Destroy();
         FunctionScope?.Destroy();
         InitializerScope?.Destroy();
@@ -236,6 +295,7 @@ internal sealed partial class SemanticSymbol
         Destroyed = true;
         Scope?.RemoveSymbol(this);
         Specialization?.RemoveFunction(this);
+        MultiClass?.RemoveContribution(this);
     }
 }
 

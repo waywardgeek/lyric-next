@@ -1,0 +1,847 @@
+{
+  "schema": 1,
+  "types": {
+    "Compilation": {
+      "introduced": 1,
+      "description": "Owns the loaded source files and, from Chapter 4 onward, their shared semantic analysis.",
+      "value": false
+    },
+    "SourceFile": {
+      "introduced": 1,
+      "description": "Owns the original immutable UTF-8 bytes and their path. Later chapters attach tokens and syntax nodes to this same source.",
+      "value": false
+    },
+    "Diagnostic": {
+      "introduced": 1,
+      "description": "A value-like error code, message, byte offset, line and column. It stores a location, not a source-object relationship.",
+      "value": true
+    },
+    "Token": {
+      "introduced": 2,
+      "description": "One lexical decision anchored in the original source bytes. Its source owns it; decoded literal bytes are immutable value data.",
+      "value": false
+    },
+    "SyntaxNode": {
+      "introduced": 3,
+      "description": "Source-owned syntax with original byte offsets. A generic specialization or multi-class instantiation co-owns its copied nodes, never both; copied nodes are not parsed roots.",
+      "value": false
+    },
+    "SyntaxFailure": {
+      "introduced": 3,
+      "description": "A value-like exception carrying a Diagnostic to unwind a failed parse. Partially built nodes remain owned by the source.",
+      "value": true
+    },
+    "SemanticAnalysis": {
+      "introduced": 4,
+      "description": "Owns canonical types, scopes, facts, generic specializations and multi-class instantiations. Retires derived IR before semantic teardown.",
+      "value": false
+    },
+    "SemanticScope": {
+      "introduced": 4,
+      "description": "An analysis-owned environment. An instantiation additionally owns its private annotation and method scopes; lexical ancestry remains non-owning.",
+      "value": false
+    },
+    "SemanticSymbol": {
+      "introduced": 4,
+      "description": "A declaration identity: interface template, concrete class, contributed member, or lookup-only member namespace. Scope owns each symbol; an instantiation also owns its contributions. A namespace adds no runtime object.",
+      "value": false
+    },
+    "SemanticFact": {
+      "introduced": 4,
+      "description": "An analysis-owned checked expression. Its canonical type and optional participant view describe runtime representation and compile-time lookup separately.",
+      "value": false
+    },
+    "SemanticFailure": {
+      "introduced": 4,
+      "description": "A value-like exception carrying a Diagnostic to unwind semantic checking. It does not own semantic model objects.",
+      "value": true
+    },
+    "SemanticType": {
+      "introduced": 7,
+      "description": "One analysis-owned canonical identity. Immutable keys depend on element, nominal declaration, or ordered tuple components; retirement invalidates users, never shared ingredients.",
+      "value": false
+    },
+    "IrProgram": {
+      "introduced": 9,
+      "description": "The execution representation owned by one semantic analysis. Owns all source-function, field-initializer, and generated-destruction bodies.",
+      "value": false
+    },
+    "IrFunction": {
+      "introduced": 9,
+      "description": "A program-owned executable IR body. Source callables and field initializers use Declaration/IrBody; class destruction uses its separate role link. These weak identities do not own the body.",
+      "value": false
+    },
+    "IrNode": {
+      "introduced": 9,
+      "description": "One typed operation or structured region. The function owns it; ordered child links describe execution, operands provide inputs, and semantic/source links preserve checked meaning.",
+      "value": false
+    },
+    "IrOperand": {
+      "introduced": 9,
+      "description": "One ordered input use, owned by the consuming node. It points non-owningly to its defining node, which keeps a reverse list of uses.",
+      "value": false
+    },
+    "IrLiteral": {
+      "introduced": 9,
+      "description": "An immutable value-like integer, boolean or byte payload. Byte data is copied at construction; a literal is not a runtime array owner.",
+      "value": true
+    },
+    "SemanticTypeComponent": {
+      "introduced": 10,
+      "value": false,
+      "description": "One tuple-owned position, with a non-owning dependency on its shared component type. Repeated component identities still have distinct positions."
+    },
+    "GenericSpecialization": {
+      "introduced": 11,
+      "value": false,
+      "description": "A concrete callable keyed by its template and ordered canonical bindings. Analysis and template co-own it; it owns its callable, binding occurrences, copied syntax, and concrete-body scopes."
+    },
+    "GenericBinding": {
+      "introduced": 11,
+      "value": false,
+      "description": "One ordered type-argument occurrence, owned by its specialization. Its canonical type retains the reverse dependency; retiring that type retires the specialization without retiring other argument types."
+    },
+    "MultiClassInstantiation": {
+      "introduced": 12,
+      "value": false,
+      "description": "One compile-time interface application, keyed by its template and ordered class/label occurrences. Analysis and template co-own it; it owns contributions, private scopes, copied syntax and participant occurrences."
+    },
+    "ParticipantBinding": {
+      "introduced": 12,
+      "value": false,
+      "description": "One ordered participant occurrence, owned by its instantiation and dependent on a concrete class. It keeps contributor and lookup-view relationships separate; position and label are value data."
+    }
+  },
+  "relationships": [
+    {
+      "id": "sources",
+      "owner": "Compilation",
+      "field": "Sources",
+      "child": "SourceFile",
+      "kind": "strong",
+      "chapter": 1,
+      "back": "Parent",
+      "label": ""
+    },
+    {
+      "id": "tokens",
+      "owner": "SourceFile",
+      "field": "Tokens",
+      "child": "Token",
+      "kind": "strong",
+      "chapter": 2,
+      "back": "Source",
+      "label": ""
+    },
+    {
+      "id": "syntax",
+      "owner": "SourceFile",
+      "field": "SyntaxNodes",
+      "child": "SyntaxNode",
+      "kind": "strong",
+      "chapter": 3,
+      "back": "Source",
+      "label": ""
+    },
+    {
+      "id": "syntax-tree",
+      "owner": "SyntaxNode",
+      "field": "Children",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 3,
+      "back": "Parent",
+      "label": "children"
+    },
+    {
+      "id": "syntax-error",
+      "owner": "SyntaxFailure",
+      "field": "Diagnostic",
+      "child": "Diagnostic",
+      "kind": "data",
+      "chapter": 3,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "analysis",
+      "owner": "Compilation",
+      "field": "Analysis",
+      "child": "SemanticAnalysis",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Compilation",
+      "label": ""
+    },
+    {
+      "id": "scopes",
+      "owner": "SemanticAnalysis",
+      "field": "Scopes",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Analysis",
+      "label": ""
+    },
+    {
+      "id": "facts",
+      "owner": "SemanticAnalysis",
+      "field": "Facts",
+      "child": "SemanticFact",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Analysis",
+      "label": ""
+    },
+    {
+      "id": "scope-tree",
+      "owner": "SemanticScope",
+      "field": "Children",
+      "child": "SemanticScope",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "Parent",
+      "label": "lexical children"
+    },
+    {
+      "id": "symbols",
+      "owner": "SemanticScope",
+      "field": "Symbols",
+      "child": "SemanticSymbol",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Scope",
+      "label": ""
+    },
+    {
+      "id": "function-scope",
+      "owner": "SemanticSymbol",
+      "field": "FunctionScope",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "chapter": 4,
+      "back": "Function",
+      "label": "function scope"
+    },
+    {
+      "id": "declaration",
+      "owner": "SemanticSymbol",
+      "field": "Declaration",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "DeclaredSymbol",
+      "label": "declaration"
+    },
+    {
+      "id": "fact-node",
+      "owner": "SemanticFact",
+      "field": "Node",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "Fact",
+      "label": "checked expression"
+    },
+    {
+      "id": "fact-symbol",
+      "owner": "SemanticFact",
+      "field": "Symbol",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 4,
+      "back": "Uses",
+      "label": "resolved declaration"
+    },
+    {
+      "id": "semantic-error",
+      "owner": "SemanticFailure",
+      "field": "Diagnostic",
+      "child": "Diagnostic",
+      "kind": "data",
+      "chapter": 4,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "member-scope",
+      "owner": "SemanticSymbol",
+      "field": "MemberScope",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "chapter": 8,
+      "back": "MemberOwner",
+      "label": "member scope"
+    },
+    {
+      "id": "nominal",
+      "owner": "SemanticType",
+      "field": "Declaration",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 8,
+      "back": "NominalType",
+      "label": "nominal declaration"
+    },
+    {
+      "id": "ir",
+      "owner": "SemanticAnalysis",
+      "field": "Ir",
+      "child": "IrProgram",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Analysis",
+      "label": ""
+    },
+    {
+      "id": "functions",
+      "owner": "IrProgram",
+      "field": "Functions",
+      "child": "IrFunction",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Program",
+      "label": ""
+    },
+    {
+      "id": "nodes",
+      "owner": "IrFunction",
+      "field": "Nodes",
+      "child": "IrNode",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Function",
+      "label": "arena"
+    },
+    {
+      "id": "body",
+      "owner": "IrFunction",
+      "field": "Body",
+      "child": "IrNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "BodyOwner",
+      "label": "body"
+    },
+    {
+      "id": "ir-tree",
+      "owner": "IrNode",
+      "field": "Children",
+      "child": "IrNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "Parent",
+      "label": "children"
+    },
+    {
+      "id": "loop-target",
+      "owner": "IrNode",
+      "field": "Target",
+      "child": "IrNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "Transfers",
+      "label": "target loop"
+    },
+    {
+      "id": "operands",
+      "owner": "IrNode",
+      "field": "Operands",
+      "child": "IrOperand",
+      "kind": "strong",
+      "chapter": 9,
+      "back": "Consumer",
+      "label": "operands"
+    },
+    {
+      "id": "uses",
+      "owner": "IrNode",
+      "field": "Uses",
+      "child": "IrOperand",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "Definition",
+      "label": "definition uses"
+    },
+    {
+      "id": "ir-declaration",
+      "owner": "IrFunction",
+      "field": "Declaration",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrBody",
+      "label": "function or field"
+    },
+    {
+      "id": "ir-destruction",
+      "owner": "IrFunction",
+      "field": "DestructionClass",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrDestruction",
+      "label": "destruction class"
+    },
+    {
+      "id": "origin",
+      "owner": "IrNode",
+      "field": "Origin",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrOrigins",
+      "label": "source origin"
+    },
+    {
+      "id": "selected",
+      "owner": "IrNode",
+      "field": "Symbol",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "chapter": 9,
+      "back": "IrSymbols",
+      "label": "selected declaration"
+    },
+    {
+      "id": "literal",
+      "owner": "IrNode",
+      "field": "Literal",
+      "child": "IrLiteral",
+      "kind": "data",
+      "chapter": 9,
+      "back": null,
+      "label": ""
+    },
+    {
+      "id": "canonical-types",
+      "owner": "SemanticAnalysis",
+      "field": "TypeBuckets",
+      "child": "SemanticType",
+      "kind": "strong",
+      "back": "Analysis",
+      "label": "interned identities",
+      "chapter": 10
+    },
+    {
+      "id": "array-types",
+      "owner": "SemanticType",
+      "field": "Arrays",
+      "child": "SemanticType",
+      "kind": "dependency",
+      "back": "Element",
+      "label": "dependent arrays",
+      "chapter": 10
+    },
+    {
+      "id": "tuple-positions",
+      "owner": "SemanticType",
+      "field": "Components",
+      "child": "SemanticTypeComponent",
+      "kind": "strong",
+      "back": "Tuple",
+      "label": "ordered positions",
+      "chapter": 10
+    },
+    {
+      "id": "component-users",
+      "owner": "SemanticType",
+      "field": "ComponentUses",
+      "child": "SemanticTypeComponent",
+      "kind": "dependency",
+      "back": "Component",
+      "label": "component uses",
+      "chapter": 10
+    },
+    {
+      "id": "canonical-symbols",
+      "owner": "SemanticType",
+      "field": "Symbols",
+      "child": "SemanticSymbol",
+      "kind": "dependency",
+      "back": "Type",
+      "label": "typed symbols",
+      "chapter": 10
+    },
+    {
+      "id": "canonical-facts",
+      "owner": "SemanticType",
+      "field": "Facts",
+      "child": "SemanticFact",
+      "kind": "dependency",
+      "back": "TypeLink",
+      "label": "typed facts",
+      "chapter": 10
+    },
+    {
+      "id": "canonical-ir",
+      "owner": "SemanticType",
+      "field": "IrNodes",
+      "child": "IrNode",
+      "kind": "weak",
+      "back": "Type",
+      "label": "typed IR nodes",
+      "chapter": 10
+    },
+    {
+      "id": "initializer-scope",
+      "owner": "SemanticSymbol",
+      "field": "InitializerScope",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "back": "InitializerField",
+      "label": "initializer scope",
+      "chapter": 10
+    },
+    {
+      "id": "implementation",
+      "owner": "SemanticSymbol",
+      "field": "Implementation",
+      "child": "SyntaxNode",
+      "kind": "weak",
+      "back": "ImplementedSymbol",
+      "label": "separate body",
+      "chapter": 10
+    },
+    {
+      "id": "analysis-specializations",
+      "owner": "SemanticAnalysis",
+      "field": "Specializations",
+      "child": "GenericSpecialization",
+      "kind": "strong",
+      "back": "Analysis",
+      "label": "concrete instances",
+      "chapter": 11
+    },
+    {
+      "id": "template-specializations",
+      "owner": "SemanticSymbol",
+      "field": "Specializations",
+      "child": "GenericSpecialization",
+      "kind": "strong",
+      "back": "Template",
+      "label": "template instances",
+      "chapter": 11
+    },
+    {
+      "id": "specialized-function",
+      "owner": "GenericSpecialization",
+      "field": "Function",
+      "child": "SemanticSymbol",
+      "kind": "strong",
+      "back": "Specialization",
+      "label": "concrete callable",
+      "chapter": 11
+    },
+    {
+      "id": "generic-bindings",
+      "owner": "GenericSpecialization",
+      "field": "Bindings",
+      "child": "GenericBinding",
+      "kind": "strong",
+      "back": "Specialization",
+      "label": "ordered bindings",
+      "chapter": 11
+    },
+    {
+      "id": "generic-type-users",
+      "owner": "SemanticType",
+      "field": "GenericBindings",
+      "child": "GenericBinding",
+      "kind": "dependency",
+      "back": "Type",
+      "label": "binding dependents",
+      "chapter": 11
+    },
+    {
+      "id": "specialized-syntax",
+      "owner": "GenericSpecialization",
+      "field": "Nodes",
+      "child": "SyntaxNode",
+      "kind": "strong",
+      "back": "Specialization",
+      "label": "copied syntax",
+      "chapter": 11
+    },
+    {
+      "id": "specialized-scopes",
+      "owner": "GenericSpecialization",
+      "field": "Scopes",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "back": "Specialization",
+      "label": "concrete-body scopes",
+      "chapter": 11
+    },
+    {
+      "id": "analysis-multiclass",
+      "owner": "SemanticAnalysis",
+      "field": "MultiClassInstantiations",
+      "child": "MultiClassInstantiation",
+      "kind": "strong",
+      "back": "Analysis",
+      "label": "interface applications",
+      "chapter": 12
+    },
+    {
+      "id": "template-multiclass",
+      "owner": "SemanticSymbol",
+      "field": "MultiClassInstantiations",
+      "child": "MultiClassInstantiation",
+      "kind": "strong",
+      "back": "Template",
+      "label": "template applications",
+      "chapter": 12
+    },
+    {
+      "id": "multiclass-participants",
+      "owner": "MultiClassInstantiation",
+      "field": "Participants",
+      "child": "ParticipantBinding",
+      "kind": "strong",
+      "back": "Instantiation",
+      "label": "ordered participants",
+      "chapter": 12
+    },
+    {
+      "id": "multiclass-syntax",
+      "owner": "MultiClassInstantiation",
+      "field": "Nodes",
+      "child": "SyntaxNode",
+      "kind": "strong",
+      "back": "MultiClass",
+      "label": "copied syntax",
+      "chapter": 12
+    },
+    {
+      "id": "multiclass-contributions",
+      "owner": "MultiClassInstantiation",
+      "field": "Contributions",
+      "child": "SemanticSymbol",
+      "kind": "strong",
+      "back": "MultiClass",
+      "label": "contributed members",
+      "chapter": 12
+    },
+    {
+      "id": "multiclass-scopes",
+      "owner": "MultiClassInstantiation",
+      "field": "Scopes",
+      "child": "SemanticScope",
+      "kind": "strong",
+      "back": "MultiClass",
+      "label": "private scopes",
+      "chapter": 12
+    },
+    {
+      "id": "participant-classes",
+      "owner": "SemanticSymbol",
+      "field": "ParticipantBindings",
+      "child": "ParticipantBinding",
+      "kind": "dependency",
+      "back": "ConcreteClass",
+      "label": "endpoint dependents",
+      "chapter": 12
+    },
+    {
+      "id": "participant-symbol-views",
+      "owner": "ParticipantBinding",
+      "field": "ViewSymbols",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "back": "ParticipantView",
+      "label": "declared value views",
+      "chapter": 12
+    },
+    {
+      "id": "participant-fact-views",
+      "owner": "ParticipantBinding",
+      "field": "ViewFacts",
+      "child": "SemanticFact",
+      "kind": "weak",
+      "back": "ParticipantView",
+      "label": "expression views",
+      "chapter": 12
+    },
+    {
+      "id": "participant-members",
+      "owner": "ParticipantBinding",
+      "field": "Members",
+      "child": "SemanticSymbol",
+      "kind": "weak",
+      "back": "ContributingParticipant",
+      "label": "contributor role",
+      "chapter": 12
+    },
+    {
+      "id": "nullable-dependents",
+      "owner": "SemanticType",
+      "field": "NullableUses",
+      "child": "SemanticType",
+      "kind": "dependency",
+      "back": "Element",
+      "label": "nullable dependents",
+      "chapter": 12
+    }
+  ],
+  "views": [
+    {
+      "id": "ch12-instances",
+      "title": "Application ownership",
+      "chapter": 12,
+      "nodes": [
+        "SemanticAnalysis",
+        "MultiClassInstantiation",
+        "SemanticSymbol"
+      ],
+      "edges": [
+        "analysis-multiclass",
+        "template-multiclass"
+      ],
+      "context": [],
+      "previous_views": []
+    },
+    {
+      "id": "ch12-material",
+      "title": "Generated material",
+      "chapter": 12,
+      "nodes": [
+        "MultiClassInstantiation",
+        "SyntaxNode",
+        "SemanticSymbol",
+        "SemanticScope"
+      ],
+      "edges": [
+        "multiclass-syntax",
+        "multiclass-contributions",
+        "multiclass-scopes"
+      ],
+      "context": [],
+      "previous_views": []
+    },
+    {
+      "id": "ch12-endpoints",
+      "title": "Participant occurrences and class dependencies",
+      "chapter": 12,
+      "nodes": [
+        "MultiClassInstantiation",
+        "ParticipantBinding",
+        "SemanticSymbol"
+      ],
+      "edges": [
+        "multiclass-participants",
+        "participant-classes"
+      ],
+      "context": [],
+      "previous_views": []
+    },
+    {
+      "id": "ch12-views",
+      "title": "Declared and expression value views",
+      "chapter": 12,
+      "nodes": [
+        "ParticipantBinding",
+        "SemanticSymbol",
+        "SemanticFact"
+      ],
+      "edges": [
+        "participant-symbol-views",
+        "participant-fact-views"
+      ],
+      "context": [],
+      "previous_views": []
+    },
+    {
+      "id": "ch12-contributor",
+      "title": "Member contribution role",
+      "chapter": 12,
+      "nodes": [
+        "ParticipantBinding",
+        "SemanticSymbol"
+      ],
+      "edges": [
+        "participant-members"
+      ],
+      "context": [],
+      "previous_views": []
+    },
+    {
+      "id": "ch12-nullable",
+      "title": "Nullable type dependencies",
+      "chapter": 12,
+      "nodes": [
+        "SemanticType"
+      ],
+      "edges": [
+        "nullable-dependents"
+      ],
+      "context": [],
+      "previous_views": []
+    }
+  ],
+  "reviewed_files": {
+    "compiler/Model/Model.cs": "cc1d578ba43cf10c2a846edcd52186aa267d6c22a736d6c343ebd76bb7cc6c85",
+    "compiler/Model/Token.cs": "62522414f455c5d30c572b80b9db0ef652590f1955de156725180855d7c66f57",
+    "compiler/Syntax/SyntaxNode.cs": "9aab81aa1a24685ac9933df5bab8e781f2601485f498ad8120e009800250a998",
+    "compiler/Semantics/SemanticModel.cs": "2957060032eb190a873fc1ac37447738a23520637cf0ac917f4efe88adc16bf3",
+    "compiler/Semantics/SemanticSymbol.cs": "fcb129fc15fdff240f52829d726286a8baa1823f5bf388671405e23d588aaafd",
+    "compiler/Semantics/SemanticFact.cs": "a8185797a475a64763ad895f4dc94e68eb984406cf3defa49522ea4b49d74768",
+    "compiler/Semantics/FunctionScope.cs": "ecf86248c79e0bd999ba8fa0432e3690ccfda8d4371d38b363116edbd4b2ce41",
+    "compiler/Semantics/ClassModel.cs": "deb1658e42698153f63987406736247f3e1fc019c90a638c034974a93eda3383",
+    "compiler/IR/Model.cs": "840af837f9c67704606965e59f4772eb929e7b4a0cb43e9fd371574098fc1c10",
+    "compiler/Semantics/CanonicalTypes.cs": "aaea7b732059fd4619920f0186845a44d7b16eab728fb260d2269a00353233f0",
+    "compiler/Semantics/TupleTypes.cs": "5cf01e78e2d645dcaf262439163e68b4797b3069b549696e375a79ef1ce8df91",
+    "compiler/Semantics/GenericSpecialization.cs": "b3bec4bc9a3372693b85d4d7f97df37ce8f650d89ed6f3fb0d00b0698507188c",
+    "compiler/Semantics/MultiClassInstantiation.cs": "1348a2c1a0179b57412ceda1a0a028c4f08332cf8151f077bfedcbf3f76b79c8",
+    "compiler/Semantics/ParticipantView.cs": "fe5401f2a1bc33a1492262955d2ea3fb5979cf04bc46e1e19d2cb752181cb76e",
+    "compiler/Semantics/NullableTypes.cs": "90b1d9860090b2cc92be5c524701252473a195ff45c2b3d48f0f2f40c9e5f92c"
+  },
+  "type_policy": "canonical",
+  "historical_commit": "5947bed06e8327b0e3c0c079c14508847be0f84f",
+  "changes": {
+    "analysis-multiclass": {
+      "previous": [],
+      "reason": "Analysis and template co-own each application; retirement removes both memberships."
+    },
+    "template-multiclass": {
+      "previous": [],
+      "reason": "The interface declaration owns applications of its body; retiring it retires them."
+    },
+    "multiclass-participants": {
+      "previous": [],
+      "reason": "Each endpoint occurrence has its own identity even when concrete classes repeat."
+    },
+    "multiclass-syntax": {
+      "previous": [],
+      "reason": "Copied syntax is also source-owned under the earlier source relationship; teardown clears facts before endpoint identities."
+    },
+    "multiclass-contributions": {
+      "previous": [],
+      "reason": "Physical members and lookup namespaces are also scope-owned; destroying a live contribution retires the entire application."
+    },
+    "multiclass-scopes": {
+      "previous": [],
+      "reason": "Analysis remains a strong co-owner. Template lexical ancestry is the existing non-owning scope relationship."
+    },
+    "participant-classes": {
+      "previous": [],
+      "reason": "Retiring a concrete class retires dependent applications; retiring an application never destroys shared concrete classes."
+    },
+    "participant-symbol-views": {
+      "previous": [],
+      "reason": "A symbol view can name this endpoint nominal type or its nullable wrapper; retirement clears the view without destroying the symbol."
+    },
+    "participant-fact-views": {
+      "previous": [],
+      "reason": "Expression lookup identity is separate from canonical type and does not authorize nullable dereference."
+    },
+    "participant-members": {
+      "previous": [],
+      "reason": "The contributor identifies where a member was declared, not the participant view of its result. Strong contribution ownership is drawn separately."
+    },
+    "nullable-dependents": {
+      "previous": [],
+      "reason": "A class nominal type retains reverse wrapper dependencies. Base retirement cascades to wrappers; wrapper retirement only detaches from its base. Element is shared with the earlier array-key representation, not an extra base-type owner."
+    }
+  }
+}

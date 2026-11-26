@@ -126,7 +126,10 @@ internal sealed partial class SemanticType
         if (analysis.Destroyed || analysis.Compilation is null || !Enum.IsDefined(kind)
             || kind == SemanticTypeKind.Tuple
             || !Enum.IsDefined(scalar)
-            || (kind == SemanticTypeKind.Array) != (element is not null)
+            || (kind is SemanticTypeKind.Array or SemanticTypeKind.Nullable) != (element is not null)
+            || (kind == SemanticTypeKind.Nullable
+                && (element?.Kind != SemanticTypeKind.Nominal
+                    || element.Declaration?.Kind != SymbolKind.Class))
             || (kind == SemanticTypeKind.Nominal) != (declaration is not null)
             || (kind != SemanticTypeKind.Scalar && scalar != ScalarKind.Unit)
             || (element is not null && (element.Destroyed || element.Analysis != analysis))
@@ -143,14 +146,28 @@ internal sealed partial class SemanticType
         {
             // Dependency methods establish their complete reverse links. The
             // analysis admits the completed key last, never a partially keyed type.
-            element?.AddArray(this);
+            if (kind == SemanticTypeKind.Nullable)
+            {
+                element!.AddNullable(this);
+            }
+            else
+            {
+                element?.AddArray(this);
+            }
             declaration?.AddNominalType(this);
             analysis.AddType(this);
         }
         catch
         {
             Destroyed = true;
-            Element?.RemoveArray(this);
+            if (kind == SemanticTypeKind.Nullable)
+            {
+                Element?.RemoveNullable(this);
+            }
+            else
+            {
+                Element?.RemoveArray(this);
+            }
             Declaration?.RemoveNominalType(this);
             throw;
         }
@@ -175,10 +192,10 @@ internal sealed partial class SemanticType
         {
             int depth = 0;
             SemanticType current = this;
-            while (current.Element is not null)
+            while (current.Kind == SemanticTypeKind.Array)
             {
                 depth = checked(depth + 1);
-                current = current.Element;
+                current = current.Element!;
             }
             return depth;
         }
@@ -310,6 +327,7 @@ internal sealed partial class SemanticType
     internal partial bool IsUnlinked()
     {
         return Element is null && Declaration is null && Arrays.Count == 0
+            && NullableUses.Count == 0
             && Components.Count == 0 && ComponentUses.Count == 0
             && Symbols.Count == 0 && Facts.Count == 0 && IrNodes.Count == 0
             && GenericBindings.Count == 0;
@@ -339,6 +357,10 @@ internal sealed partial class SemanticType
         {
             Components[Components.Count - 1].Destroy();
         }
+        while (NullableUses.Count != 0)
+        {
+            NullableUses[NullableUses.Count - 1].Destroy();
+        }
         while (Arrays.Count != 0)
         {
             Arrays[Arrays.Count - 1].Destroy();
@@ -355,7 +377,14 @@ internal sealed partial class SemanticType
         {
             RemoveIrNode(IrNodes[IrNodes.Count - 1]);
         }
-        Element?.RemoveArray(this);
+        if (Kind == SemanticTypeKind.Nullable)
+        {
+            Element?.RemoveNullable(this);
+        }
+        else
+        {
+            Element?.RemoveArray(this);
+        }
         Analysis?.RemoveType(this);
     }
 }

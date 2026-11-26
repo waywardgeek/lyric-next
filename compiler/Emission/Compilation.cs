@@ -419,6 +419,7 @@ internal sealed partial class Compilation
                 IrNode node = function.NodeAt(i);
                 if (node.Kind is not (IrKind.Region or IrKind.Constant or IrKind.Local
                     or IrKind.Load or IrKind.Store or IrKind.Call or IrKind.CallInitializer or IrKind.Return
+                    or IrKind.NullHandle or IrKind.WrapNullable or IrKind.UnwrapNullable
                     or IrKind.Unary or IrKind.Binary or IrKind.Convert
                     or IrKind.If or IrKind.While or IrKind.Yield or IrKind.Break or IrKind.Continue
                     or IrKind.NewArray or IrKind.Copy or IrKind.Move or IrKind.FreeArray
@@ -530,7 +531,8 @@ internal sealed partial class Compilation
                     {
                         Line($"{values[node]} = (ly_array){{0}};");
                     }
-                    else if (Counted(node.Type!) && !parameters.Contains(node))
+                    else if ((Counted(node.Type!) || node.Type!.Kind == SemanticTypeKind.Nullable)
+                        && !parameters.Contains(node))
                     {
                         Line($"{values[node]} = UINT64_MAX;");
                     }
@@ -705,6 +707,23 @@ internal sealed partial class Compilation
                         _ => "(ly_unit){0}",
                     };
                 }
+                else if (node.Kind == IrKind.NullHandle)
+                {
+                    expression = "UINT64_MAX";
+                }
+                else if (node.Kind is IrKind.WrapNullable or IrKind.UnwrapNullable)
+                {
+                    // IR has already sequenced the input and, for counted handles,
+                    // transferred its ownership. These operations never retain again.
+                    string handle = Operand(0);
+                    if (node.Kind == IrKind.UnwrapNullable)
+                    {
+                        // A checked unwrap is a defined failure even in unsafe code;
+                        // never pass the empty sentinel to object storage access.
+                        Line($"if ({handle} == UINT64_MAX) {{ ly_array_failure({Location(node.Origin!)}, \"LYR013: null handle unwrap\"); }}");
+                    }
+                    expression = handle;
+                }
                 else if (node.Kind is IrKind.Copy or IrKind.Ref)
                 {
                     expression = Copy(Operand(0), node.Type!, node.Origin!);
@@ -812,8 +831,11 @@ internal sealed partial class Compilation
             SemanticType rightType = node.OperandAt(1).Definition!.Type!;
             if (operation is "==" or "!=" or "<" or "<=" or ">" or ">=")
             {
-                if (leftType == Analysis!.ScalarType(ScalarKind.Bool))
+                if (leftType == Analysis!.ScalarType(ScalarKind.Bool)
+                    || SemanticTypes.CanCompareHandleIdentity(leftType, rightType))
                 {
+                    // Values were sequenced separately; equality neither unwraps
+                    // a nullable handle nor consumes its counted owner.
                     return $"({left} {operation} {right})";
                 }
                 bool leftSigned = SemanticTypes.IsSigned(leftType);
@@ -1058,20 +1080,7 @@ internal sealed partial class Compilation
         List<SemanticSymbol> Fields(SemanticSymbol owner)
         {
             List<SemanticSymbol> fields = new();
-            if (owner.Kind == SymbolKind.Struct)
-            {
-                fields.AddRange(owner.MemberScope!.Fields());
-                return fields;
-            }
-            SyntaxNode declaration = owner.Declaration!;
-            for (int i = 0; i < declaration.ChildCount(); i += 1)
-            {
-                SemanticSymbol? field = declaration.ChildAt(i).DeclaredSymbol;
-                if (field?.Kind == SymbolKind.Field)
-                {
-                    fields.Add(field);
-                }
-            }
+            fields.AddRange(owner.MemberScope!.Fields());
             return fields;
         }
         string FieldStorage(SemanticSymbol field, string index)
@@ -1178,7 +1187,12 @@ internal sealed partial class Compilation
             }
             foreach (SemanticSymbol field in fields)
             {
-                Line($"{FieldStorage(field, "index")} = ({CType(field.Type!)}){{0}};");
+                // Empty backing storage is not source-level initialization.
+                // The first owning store may release this slot, so handles must
+                // start with the current empty sentinel, including reused slots.
+                string empty = field.Type!.ArrayDepth == 0 && field.Type.Class is not null
+                    ? "UINT64_MAX" : $"({CType(field.Type!)}){{0}}";
+                Line($"{FieldStorage(field, "index")} = {empty};");
             }
             Line("return index;");
             indentation -= 1;
@@ -1200,7 +1214,8 @@ internal sealed partial class Compilation
             if (owner.IsCountedClass())
             {
                 // UINT64_MAX is reserved by allocation. It denotes an empty
-                // backend holder, not a nullable source-language object.
+                // backend holder or a source null. Nonnullable retain stays strict;
+                // nullable copy checks the sentinel before invoking it.
                 Line($"static inline uint64_t {name}_retain(uint64_t index, const char *file, int line, int column)");
                 Line("{");
                 indentation += 1;
@@ -1275,7 +1290,7 @@ internal sealed partial class Compilation
                     *array = (ly_array){0};
                 }
 
-                static ly_array {{name}}_array_copy(ly_array source, unsigned depth,
+                static ly_array {{name}}_array_copy(ly_array source, unsigned depth, bool nullable,
                     const char *file, int line, int column)
                 {
                     size_t stride = depth > 1 ? sizeof(ly_array) : sizeof(uint64_t);
@@ -1286,7 +1301,7 @@ internal sealed partial class Compilation
                         ly_array *to = result.data;
                         for (uint64_t i = 0; i < source.length; i += 1)
                         {
-                            to[i] = {{name}}_array_copy(from[i], depth - 1, file, line, column);
+                            to[i] = {{name}}_array_copy(from[i], depth - 1, nullable, file, line, column);
                             result.length += 1;
                         }
                     }
@@ -1296,7 +1311,11 @@ internal sealed partial class Compilation
                         uint64_t *to = result.data;
                         for (uint64_t i = 0; i < source.length; i += 1)
                         {
-                            to[i] = {{name}}_retain(from[i], file, line, column);
+                            // Null has no reference to retain. Nonnullable arrays retain
+                            // their strict invalid-empty-holder check.
+                            to[i] = nullable && from[i] == UINT64_MAX
+                                ? UINT64_MAX
+                                : {{name}}_retain(from[i], file, line, column);
                             result.length += 1;
                         }
                     }
@@ -1330,7 +1349,7 @@ internal sealed partial class Compilation
                 for (int i = 0; i < components.Count; i += 1)
                 {
                     SemanticType component = components[i];
-                    if (!ReferenceComponent(type, i) && (Counted(component) || Aggregate(component)))
+                    if (!ReferenceComponent(type, i) && (Counted(component) || component.Kind == SemanticTypeKind.Nullable || Aggregate(component)))
                     {
                         Moved($"result.item{i}", component);
                     }
@@ -1427,11 +1446,24 @@ internal sealed partial class Compilation
             }
             if (Counted(type))
             {
-                return $"{Name(type.Class!)}_retain({value}, {location})";
+                string retained = $"{Name(type.Class!)}_retain({value}, {location})";
+                if (type.Kind == SemanticTypeKind.Nullable)
+                {
+                    // The value is an already sequenced IR holder, never a source
+                    // expression. Null owns no reference and must not be retained.
+                    return $"(({value}) == UINT64_MAX ? UINT64_MAX : {retained})";
+                }
+                return retained;
             }
             if (type.Class is SemanticSymbol owner && owner.IsCountedClass())
             {
-                return $"{Name(owner)}_array_copy({value}, {type.ArrayDepth}, {location})";
+                SemanticType leaf = type;
+                while (leaf.Kind == SemanticTypeKind.Array)
+                {
+                    leaf = SemanticTypes.ElementOf(leaf);
+                }
+                string nullable = leaf.Kind == SemanticTypeKind.Nullable ? "true" : "false";
+                return $"{Name(owner)}_array_copy({value}, {type.ArrayDepth}, {nullable}, {location})";
             }
             SemanticType baseType = type;
             while (baseType.ArrayDepth > 0)
@@ -1451,7 +1483,7 @@ internal sealed partial class Compilation
             {
                 Line($"{name} = {aggregateNames[type]}_empty();");
             }
-            else if (Counted(type))
+            else if (Counted(type) || type.Kind == SemanticTypeKind.Nullable)
             {
                 Line($"{name} = UINT64_MAX;");
             }
@@ -1788,11 +1820,15 @@ internal sealed partial class Compilation
                         Line($"while ({pointer}->length < {argument})");
                         Line("{");
                         indentation += 1;
-                        // The eligibility query excludes handles and structs. For
-                        // supported scalar/array/tuple defaults, C's typed initializer
-                        // recursively produces zero values and empty descriptors.
-                        // Write every newly live element, including dirty reused slots.
-                        Line($"(({element} *){pointer}->data)[{pointer}->length] = ({element}){{0}};");
+                        // Publish the length only after initializing the complete element.
+                        // Null uses the handle sentinel, including inside tuples;
+                        // C zero is not the nullable default. Reused slots are dirty.
+                        string initial = elementType.Kind == SemanticTypeKind.Nullable
+                            ? "UINT64_MAX"
+                            : Aggregate(elementType)
+                                ? $"{aggregateNames[elementType]}_empty()"
+                                : $"({element}){{0}}";
+                        Line($"(({element} *){pointer}->data)[{pointer}->length] = {initial};");
                         Line($"{pointer}->length += 1;");
                         indentation -= 1;
                         Line("}");

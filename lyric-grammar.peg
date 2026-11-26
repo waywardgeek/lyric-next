@@ -72,7 +72,9 @@ VariantFields <- VariantField ("," VariantField)* (",")?
 VariantField <- Ident ":" Type
 InterfaceDecl <- Visibility "interface" Ident (TypeParams)? ("extends" Capability)? InterfaceBody
 InterfaceBody <- "{" SepOpt (InterfaceMember (Sep InterfaceMember)* (Sep)?)? "}"
-InterfaceMember <- FunctionDecl / InterfaceField / AbstractRelation / CleanupTemplate
+# Participant blocks contribute ordinary members to a bound class; participant identity is checked semantically.
+InterfaceMember <- ParticipantClass / FunctionDecl / InterfaceField / AbstractRelation / CleanupTemplate
+ParticipantClass <- "class" Ident ClassBody
 InterfaceField <- "field" Ident "." Ident ":" Type
 CleanupTemplate <- "destructor" RelationKind Ident Block
 FunctionDecl <- Visibility ("safe" / "final")? "func" FunctionName (TypeParams)? Parameters ("->" Type)? (WhereClause)? (Block)?

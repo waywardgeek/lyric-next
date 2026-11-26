@@ -59,7 +59,7 @@ whole syntax rules are not relabeled to conceal deeper errors.
 
 ## Evidence and limits
 
-`make grammar-check` compiles all 180 canonical rules and passes 50 readable
+`make grammar-check` compiles all 181 canonical rules and passes 50 readable
 source fixtures in cases.json. Four malformed-grammar controls test unknown rules,
 left recursion, nullable repetition and unknown hooks. Negative source cases must
 fail in the specified lexer/syntax phase; arbitrary crashes do not pass. The

@@ -376,6 +376,9 @@ Transparent aliases use `type Name = Type`. An alias does not create a second no
 
 Null is accepted only in nullable positions. Optional wrapping is implicit; unwrapping uses `!` or a checked conditional. No unsafe cast may manufacture an arbitrary live object reference.
 
+Class-handle `==` and `!=` compare object identity, not field contents. Operands must name the same nominal class; either or both may be nullable. A nullable neighboring operand supplies the context for a `null` literal on either side. Two null handles compare equal, and null differs from every live handle. These comparisons observe their evaluated operands without transferring ownership. Ordering comparisons on handles are not defined. In the Chapter 12 increment, comparison does not narrow a nullable variable: a subsequent member access still requires explicit checked `!`. Ordinary link fields still require explicit detachment before endpoint destruction; equality does not establish relationship-aware lifetime safety.
+
+
 ### Structs
 
 Struct instances are values without object identity. Struct types are nominal: each distinct struct declaration introduces a distinct type, even when another declaration has identical field names, field types, and layout. A transparent type alias preserves the original type identity. Structural interface satisfaction does not merge nominal struct identities.
@@ -1688,6 +1691,24 @@ impl Endpoint<Edge, Node> {
 
 A complete binding must supply every required operation, either explicitly, through an exact unambiguous match, or through a default body. Missing members are errors. Two applicable explicit implementations are ambiguous, not an invitation to pick the last one registered.
 
+### Explicit participant-block storage contributions (Chapter 12)
+
+The construction-stage storage-providing form groups contributed members by participant:
+
+```lyric
+interface Link<P, C> {
+    class P { peer:C? }
+    class C { parent:P? }
+}
+impl Link<Graph:links, Node:owner> { }
+```
+
+The `class P` and `class C` blocks are participant blocks, not new nested nominal classes. Their fields become physical members of the declared concrete classes. Optional endpoint labels select member namespaces (`graph.links.peer`, `node.owner.parent`); they create no runtime wrapper or extra storage object. Omitting a label places contributions directly in the class. Each class/label belongs to one instance, and all names must pass collision checks before contributions are published. Instance identity includes the interface and ordered concrete class/label occurrences, including distinct roles occupied by the same class. Endpoints must be nominal classes, not nullable or container types.
+
+For this explicit storage-providing form, an empty `impl` requests the declared contributions; it is not merely a capability-conformance assertion. Supplied method bodies are specialized with private participant bindings. Fields are initialized by concrete constructors; contributed declaration initializers are not admitted by the Chapter 12 compiler even though the shared grammar recognizes them. Nonempty mapping/adaptor implementations, implicit structural conformance, and generic classes or structs are outside that construction increment. The broader capability forms below describe later language coverage, not Chapter 12 acceptance requirements.
+
+Chapter 12 permits ordinary user-written link-field updates and explicit removal. Ordinary handles do not retain their endpoints; counted handles retain and may form cycles. Nullable access checks, definite initialization, counted ownership, and existing borrow checks still apply, but arbitrary persistent ordinary links are not yet fully memory-safe. This form provides neither automatic attachment tracking nor relationship-aware destruction. Examples detach before endpoint teardown. Relation statements will supply the stronger mutation and teardown protocol; they are not silently provided by this `impl`.
+
 ### Structural satisfaction
 
 An interface can be satisfied without an explicit `impl` declaration. For the requested participant types and endpoint roles, resolve satisfaction as follows:
@@ -1711,7 +1732,7 @@ class Widget {
 impl Named<Widget> { }
 ```
 
-An empty impl is a checked assertion of conformance using the same derivation/default rules, not mandatory registration or permission to accept missing members. Mixed impls supply selected explicit mappings and derive the remaining requirements. Explicit mappings can adapt different concrete names or choose particular relation roles; they do not waive type, visibility, lifetime, or effect checks.
+For capability conformance (as distinct from the explicit participant-block storage form above), an empty impl is a checked assertion of conformance using the same derivation/default rules, not mandatory registration or permission to accept missing members. Mixed impls supply selected explicit mappings and derive the remaining requirements. Explicit mappings can adapt different concrete names or choose particular relation roles; they do not waive type, visibility, lifetime, or effect checks.
 
 Structural satisfaction inspects existing capabilities. It does not inject fields, create relationships, or change destruction policy merely because a generic algorithm is used. Such changes require an explicit relation or storage-providing implementation declaration. Signature satisfaction is not proof that an implementation preserves behavioral invariants such as both-end relationship maintenance.
 
@@ -1905,7 +1926,7 @@ impl ArrayList<Team:roster, Player:team> {
 
 A field binding is not a second copy or a synchronization callback. Read/write permission, types, and lifetime category must match. A getter alone cannot satisfy a writable field requirement.
 
-An empty impl is an optional checked assertion requesting exact unambiguous derivation of remaining requirements; structurally matching types do not need one merely to satisfy a capability. Mixed-mode impls explicitly bind some members and derive the rest under Section 13's precedence rules. Diagnostics list every unsatisfied requirement and its expected signature. No fuzzy names, arbitrary widening, or declaration-order selection resolves ambiguity.
+For capability conformance rather than explicit participant-block storage contribution, an empty impl is an optional checked assertion requesting exact unambiguous derivation of remaining requirements; structurally matching types do not need one merely to satisfy a capability. Mixed-mode impls explicitly bind some members and derive the rest under Section 13's precedence rules. Diagnostics list every unsatisfied requirement and its expected signature. No fuzzy names, arbitrary widening, or declaration-order selection resolves ambiguity.
 
 ### Ownership-bearing impls and cleanup templates
 
