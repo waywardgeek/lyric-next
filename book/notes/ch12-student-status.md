@@ -1,6 +1,24 @@
-# Chapter 12 reconstruction — current status
+# Chapter 12 reconstruction — status history
 
-This is an interim receipt, not full reconstruction acceptance.
+## Completed after bounded setup repair
+
+All five outstanding PEG comparisons now pass: 50/50, 155/155, 5/5,
+11/11, and 16/16, each exit 0 with grammar corruption controls. Saved final
+status, numerical totals, structural review, and post-PEG integrity receipts
+were inspected. The same 43 candidate source/grammar files and imported public
+inputs are unchanged. The passing cumulative suite and walkthrough were not
+rerun. The student submitted and was shut down; Bill has accepted both the Chapter 12 text and `spin12`.
+See the [full completion receipt](ch12-student-acceptance.md).
+
+Setup used 19 byte-verified installed runtime libraries and 13 internal aliases
+copied into the student's own runtime directory, then process-local library and
+empty OpenSSL configuration paths for offline PEG execution. No installation,
+system configuration change, candidate patch, network use, or TLS bypass occurred.
+
+## Earlier commit checkpoint
+
+The following interim receipt records the state at commit 94cb532. Its PEG blocker
+is resolved above; preserve it as evidence of what that commit actually claimed.
 
 One confined student reconstructed Chapter 12 from the accepted Chapter 11
 compiler (commit 5947bed06e8327b0e3c0c079c14508847be0f84f) and a public bundle

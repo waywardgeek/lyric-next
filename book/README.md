@@ -89,9 +89,9 @@ participant contributions, independent labeled memberships, nullable handles,
 and scalar object fields. Its single code and text reviews are incorporated.
 The reference passed cumulative Debug/Release checks before a narrow admission
 fix and focused checks afterward. The isolated student has passed the complete
-33-runner suite in both configurations and the walkthrough; five PEG checks
-remain pending a sandboxed Node dependency fix. Human walkthrough acceptance
-remains pending. See the [reference evidence](notes/ch12-cumulative-verification.md)
+33-runner suite in both configurations, all five PEG comparisons, and the
+walkthrough. Runtime setup assistance was required; no author implementation
+patches were supplied. Bill has accepted the Chapter 12 text and `spin12` walkthrough. See the [reference evidence](notes/ch12-cumulative-verification.md)
 and [student status](notes/ch12-student-status.md). Chapter 12 requires explicit
 link removal; automatic relationship-aware destruction is not implemented.
 

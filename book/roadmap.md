@@ -1,6 +1,6 @@
 # Agreed next construction increments
 
-This is the dependency spine agreed with Bill, not a fixed table of contents or authorization to skip verification. Chapters 8 through 11 are complete through reviews, independent reconstruction, and Bill’s acceptance of their walkthroughs. Chapter 10 supplies composite types and canonical identity; Chapter 11 supplies generic functions, typeof, and matchtype. Chapter 12 implements explicit multi-class generic instantiation; its reviews are incorporated and independent reconstruction has passed cumulative checks, with PEG verification blocked by student runtime setup. Later relationship chapter boundaries remain provisional.
+This is the dependency spine agreed with Bill, not a fixed table of contents or authorization to skip verification. Chapters 8 through 11 are complete through reviews, independent reconstruction, and Bill’s acceptance of their walkthroughs. Chapter 10 supplies composite types and canonical identity; Chapter 11 supplies generic functions, typeof, and matchtype. Chapter 12 implements explicit multi-class generic instantiation; its reviews are incorporated and independent reconstruction has passed cumulative checks, five PEG comparisons, and the walkthrough with runtime setup assistance. Bill has accepted the Chapter 12 text and `spin12` walkthrough. Later relationship chapter boundaries remain provisional.
 
 ## Chapter 8 — Standalone classes and lifetime policies
 

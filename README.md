@@ -76,8 +76,8 @@ The language specification defines what Lyric means. The codebook will define ho
 Chapter 12 now implements [multi-class generics](book/chapter-12.md): reusable
 fields and methods spanning cooperating domain classes, with independent labeled
 memberships. Its code and text reviews are incorporated. The isolated student
-passed cumulative Debug/Release checks and the walkthrough; PEG checks remain
-blocked by runtime setup, and human acceptance is pending. See the
+passed cumulative Debug/Release checks, all five PEG comparisons, and the
+walkthrough with bounded runtime setup assistance. Bill has accepted the Chapter 12 text and `spin12` walkthrough. See the
 [current verification status](book/notes/ch12-student-status.md).
 
 ## Design in brief

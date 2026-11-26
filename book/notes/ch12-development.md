@@ -736,3 +736,23 @@ This supersedes earlier no-commit notes, not the remaining reconstruction gates.
 Student cumulative Debug/Release and spin12 receipts inspected; five PEG checks
 blocked by Node libuv sandbox access. See ch12-student-status.md. No student
 implementation edits, passing-suite rerun, push, or human acceptance implied.
+
+## Independent reconstruction completed
+
+Same student completed remaining five PEG comparisons after bounded local Node
+runtime/OpenSSL setup; join2996 terminal submission. Parent inspected numerical
+receipts, status exits, structural report and frozen-input integrity receipt3009.
+Full submission saved/readback ch12-student-acceptance.md. Student shutdown confirmed;
+no passing cumulative suite/walkthrough rerun, candidate patch or new reviewer.
+Human acceptance remains pending. Introduction rewritten from Bill's supplied
+public-post prose; student frozen teaching unchanged. These edits postdate94cb532.
+Lesson integrated beside setup instructions: node --version does not establish
+script startup; restricted runtime dependencies/configuration need bounded setup.
+
+## Human acceptance — November 26, 2026
+
+Bill explicitly accepted Chapter 12, both the text and `spin12`. This supersedes
+earlier pending human-acceptance statements. No further student run or review is
+required. Commit permission was separate from this acceptance; Bill subsequently
+authorized committing these book updates for his own push. No Chapter 13 work
+is authorized by this acceptance.

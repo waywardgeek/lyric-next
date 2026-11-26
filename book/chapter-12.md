@@ -57,9 +57,56 @@ and analysis ownership remains in force; the companion links to those figures.
 
 ## Introduction
 
-A doubly linked list is not an operation on just one class. Its parent remembers the first and last child; each child remembers its parent and its previous and next siblings. A reusable implementation must describe those classes together, then place the right fields and methods on each concrete participant.
+Multi-class generics are the most exciting language feature I’ve seen since object-oriented programming.
 
-Lyric calls this compile-time construct an `interface`. In this chapter it is a multi-class generic, not a runtime interface object or dynamic dispatch table. An explicit `impl` binds its ordered participants to concrete classes and requests the declared contributions. Calls then use ordinary checked functions and the existing execution IR.
+We’ve just built them in Lyric. I expect the result will be a wild increase in code reuse.
+
+Generics gave us reusable containers and algorithms. What I’ve wanted for years is a straightforward way to reuse entire sets of algorithms on *my* classes.
+
+A linked list is a simple example of what I want to change.
+
+The parent needs a first and last child. Each child needs a parent, previous sibling, and next sibling. Append and remove must update both sides consistently.
+
+That’s one reusable idea, but its implementation spans two classes.
+
+In Lyric, I can write that collaboration once, then apply it directly to my domain classes:
+
+```lyric
+impl DoublyLinkedList<Graph:nodes, Node:graph> {}
+```
+
+That contributes the fields and methods to `Graph` and `Node`. Now I can write:
+
+```lyric
+graph.nodes.append(node)
+graph.nodes.remove(node)
+```
+
+No separate list-node wrapper. The links belong to my actual domain objects.
+
+Want the same node to participate independently in another list?
+
+```lyric
+impl DoublyLinkedList<Graph:selected, Node:selection> {}
+```
+
+Same classes. Different membership. Separate links.
+
+The unit of reuse is no longer just a class or a function. It’s a cooperating set of classes.
+
+Lyric spells these declarations `interface`, but “multi-class generics” better describes what they do. This is compile-time composition, not dynamic interface dispatch.
+
+Existing libraries already achieve impressive generic reuse. I’m not claiming that became possible for the first time. What excites me is how directly I can express it here.
+
+The larger ambition is graph libraries, trees, and other reusable collaborations that fit the objects in your application instead of forcing your application into someone else’s object model. The linked list is our first working example, not the limit of the idea.
+
+I don’t just want reusable data structures. I want reusable algorithms, applied to *my* data structures.
+
+That’s what we’re building in this chapter.
+
+### What this chapter builds
+
+An explicit `impl` binds ordered participants to concrete classes and requests their declared contributions. Calls use ordinary checked functions and the existing execution IR. The labels organize members at compile time; they do not allocate wrapper objects.
 
 **This is an intentionally incomplete safety milestone.** Ordinary object-reference fields are writable here so we can implement and exercise relationship algorithms directly. Assignment to such a field does not register a relationship, prevent endpoint destruction, or arrange automatic detachment. Our examples remove memberships before destroying endpoints. The later relationship chapter will restrict managed-link mutation and generate relationship-aware teardown. Do not build a new persistent heap-attachment checker as a prerequisite for this chapter.
 
@@ -252,13 +299,13 @@ make DOTNET="$DOTNET" spin12
 
 For the author repository, `GRADERS="$PWD/graders"` selects its public suite. The Make target builds Debug and Release and runs all 33 public runners in each configuration, plus its comparison selfcheck. It includes Chapter 12 handwritten syntax recognition and all four behavioral runners. PEG remains separate and uses the Release compiler for lexer tokens; run the build/cumulative target first. Earlier retained checks and their corruption controls remain required, not just the newest cases.
 
-Use `CC` for an alternate installed C compiler and `PYTHON` for the Python executable. Chapter 11's isolated macOS setup explains direct Command Line Tools paths, `SDKROOT`, local writable SDK/cache directories, and `DOTNET_GENERATE_ASPNET_CERTIFICATE=false`; retain those settings when applicable. Missing tools or dependencies are setup failures, not authorization to install or download them.
+Use `CC` for an alternate installed C compiler and `PYTHON` for the Python executable. Chapter 11's isolated macOS setup explains direct Command Line Tools paths, `SDKROOT`, local writable SDK/cache directories, and `DOTNET_GENERATE_ASPNET_CERTIFICATE=false`; retain those settings when applicable. Missing tools or dependencies are setup failures, not authorization to install or download them. In an isolated macOS workspace, test Node script startup, not only `node --version`: dynamic libraries and OpenSSL configuration may live outside the allowed runtime path. Ask the orchestrator to supply a bounded, verified runtime dependency bundle if necessary. The Chapter 12 student used local byte-identical libraries through a process-local `DYLD_LIBRARY_PATH` and an empty local `OPENSSL_CONF` for offline grammar checks. This did not change system configuration, permit network access, or disable TLS verification.
 
 All Chapter 12 cases are **retained**; none is chapter-only. Stable identifiers are the syntax fixture IDs and named runner cases. The [public grader guide](../graders/ch12/README.md) provides focused commands and comparison contracts. Successful emitted programs require exit zero, exact stdout, and empty stderr at both C optimization levels. Compile-time negatives require their intended located diagnostic and exit one. Checked runtime failures require empty stdout and exit one. List refusals compare the exact assertion line and column, diagnostic, and method/main stack. Nullable unwrap failures compare the exact diagnostic text, source path, and main stack, but accept any positive line and column; their graders do not establish the exact unwrap position. The three unsafe nullable cases still require checked null failure; they are not dangling-reference executions.
 
 Passing behavior does not establish reciprocal model ownership, atomic admission, or guard-before-write ordering. Perform the structural review described above. Source-linked model and IR probes used during development are supplementary author evidence, not hidden student graders or a replacement for these public contracts. The author also exercised list layout variants explicitly; the cumulative target's receipt does not imply every fixture runs under every layout.
 
-Completion requires these applicable retained checks and structural obligations, followed by independent reconstruction and human use under the book's workflow. The author reference passed its full cumulative suite and walkthrough before the narrow nominal-only participant-admission correction; clean Debug/Release builds and focused multi-class and nullable checks passed afterward. The single code and text reviews are incorporated. Independent Chapter 12 reconstruction and human acceptance remain pending. Do not interpret this intermediate chapter as a full ordinary-link memory-safety guarantee.
+Completion requires these applicable retained checks and structural obligations, followed by independent reconstruction and human use under the book's workflow. The author reference passed its full cumulative suite and walkthrough before the narrow nominal-only participant-admission correction; clean Debug/Release builds and focused multi-class and nullable checks passed afterward. The single code and text reviews are incorporated. Independent Chapter 12 reconstruction passed all required automated checks and the walkthrough with runtime setup assistance; see the [completion receipt](notes/ch12-student-acceptance.md). Bill has accepted the Chapter 12 text and `spin12` walkthrough. Do not interpret this intermediate chapter as a full ordinary-link memory-safety guarantee.
 
 ## Take it for a Spin
 
