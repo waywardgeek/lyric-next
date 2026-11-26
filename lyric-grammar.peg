@@ -108,7 +108,8 @@ Type <- UnionType
 UnionType <- PrefixType ("|" PrefixType)*
 PrefixType <- ("ref" / "gen") PrefixType / OptionalType
 OptionalType <- TypePrimary ("?")?
-TypePrimary <- FunctionType / ArrayType / ParenthesizedType / NamedType
+TypePrimary <- FunctionType / TypeOf / ArrayType / ParenthesizedType / NamedType
+TypeOf <- "typeof" "(" Expr ")"
 NamedType <- QualifiedName (TypeArgs)?
 QualifiedName <- Ident ("." Ident)*
 TypeArgs <- "<" Type ("," Type)* TypeClose
@@ -156,7 +157,7 @@ IndexSuffix <- "[" (Expr (":" (Expr)?)? / ":" (Expr)?) "]"
 CastSuffix <- ("as" / "!as") CastType
 CastType <- PrefixType
 VariantTest <- "is" QualifiedName
-Primary <- IfExpr / MatchExpr / ClosureExpr / UnitExpr / TupleExpr / ParenthesizedExpr / ArrayExpr / DictExpr / RecordExpr / Literal / "self" / Ident
+Primary <- IfExpr / MatchTypeExpr / MatchExpr / ClosureExpr / UnitExpr / TupleExpr / ParenthesizedExpr / ArrayExpr / DictExpr / RecordExpr / Literal / "self" / Ident
 Literal <- FString / TripleStringLiteral / StringLiteral / ByteLiteral / SymbolLiteral / FloatLiteral / IntegerLiteral / "true" / "false" / "null"
 UnitExpr <- "(" ")"
 ParenthesizedExpr <- "(" Expr ")"
@@ -173,6 +174,9 @@ ClosureParams <- ClosureParam ("," ClosureParam)* (",")?
 ClosureParam <- Ident ":" Type
 IfExpr <- "if" Condition Block (NLs "else" (IfExpr / Block))?
 Condition <- "let" Pattern "=" HeaderExpr / HeaderExpr
+MatchTypeExpr <- "matchtype" (MatchTypeParams)? HeaderExpr "{" SepOpt (MatchTypeArm (Sep MatchTypeArm)* (Sep)?)? "}"
+MatchTypeParams <- "<" Ident ("," Ident)* TypeClose
+MatchTypeArm <- ("_" / Type) "=>" Block
 MatchExpr <- "match" HeaderExpr "{" SepOpt (MatchArm (Sep MatchArm)* (Sep)?)? "}"
 MatchArm <- MatchPatterns ("if" HeaderExpr)? "=>" Block
 MatchPatterns <- Pattern ("|" Pattern)*
@@ -189,7 +193,7 @@ HeaderAdditive <- HeaderMultiplicative (("+" / "-" / "!+" / "!-") HeaderMultipli
 HeaderMultiplicative <- HeaderPrefixExpr (("*" / "/" / "%" / "!*") HeaderPrefixExpr)*
 HeaderPrefixExpr <- ("-" / "!-" / "!" / "ref") HeaderPrefixExpr / HeaderPostfixExpr
 HeaderPostfixExpr <- HeaderPrimary (PostfixPart)*
-HeaderPrimary <- IfExpr / MatchExpr / ClosureExpr / UnitExpr / TupleExpr / ParenthesizedExpr / ArrayExpr / Literal / "self" / Ident
+HeaderPrimary <- IfExpr / MatchTypeExpr / MatchExpr / ClosureExpr / UnitExpr / TupleExpr / ParenthesizedExpr / ArrayExpr / Literal / "self" / Ident
 Pattern <- "_" / PatternLiteral / NamePattern / TuplePattern
 PatternLiteral <- IntegerLiteral / "-" IntegerLiteral / ByteLiteral / StringLiteral / "true" / "false" / "null"
 NamePattern <- QualifiedName ("(" (PatternList)? ")")?

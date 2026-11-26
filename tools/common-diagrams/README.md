@@ -99,3 +99,28 @@ is still required; computed font metrics cannot detect every confusing routing.
 No Lyric print/EPUB publishing pipeline is added here. SVGs are vector figures;
 PNG previews support local visual inspection. Final pagination and target-reader
 acceptance belong to publication, not this source-only diagram check.
+
+## Chapter 11 additions
+
+`chapter11.json` covers the complete current model while drawing only its seven
+new relationships, once each. `chapter11.py` validates the accepted Chapter 10
+source at `0ea3d8e617bbb3c15680b7fabd2e7df415ced1dd` separately from fresh current
+extraction. It does not refresh or republish Chapter 10's historical manifest.
+
+From the repository root, using the installed SDK and extractor described above:
+
+```sh
+python3 tools/common-diagrams/test_chapter11.py
+python3 tools/common-diagrams/chapter11.py "$DOTNET"
+# After inspecting the preview figures:
+python3 tools/common-diagrams/chapter11.py "$DOTNET" --publish
+```
+
+Preview output is under `.build/chapter11`. The publisher checks every stored
+relationship and reverse link, reviewed lifecycle fingerprints, exact preservation
+of historical relationships, unique new-edge coverage, and ten-point text at a
+five-inch maximum figure width. It prepares all outputs before writing, preserves
+prose outside the Chapter 11 model markers, and rolls back on ordinary publication
+failure. The seven mutation controls test migration refusal; they do not replace
+source review or rendered-image inspection. Publication writes only Chapter 11
+outputs and does not certify a physical printout.

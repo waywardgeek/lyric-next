@@ -75,9 +75,19 @@ internal sealed partial class Compilation
                         continue;
                     }
                     SemanticSymbol symbol = declaration.DeclaredSymbol!;
+                    if (symbol.GenericParameters() is not null)
+                    {
+                        continue;
+                    }
                     SupportedType(symbol.Type!, declaration);
                     _ = new IrFunction(program, symbol);
                 }
+            }
+            foreach (GenericSpecialization specialization in Analysis.ConcreteFunctions())
+            {
+                SemanticSymbol function = specialization.Function!;
+                SupportedType(function.Type!, function.Declaration!);
+                _ = new IrFunction(program, function);
             }
             for (int i = 0; i < program.FunctionCount(); i += 1)
             {
@@ -581,6 +591,9 @@ internal sealed partial class Compilation
                         case SyntaxKind.Group:
                             Expression(node.ChildAt(0), region, loop, done);
                             return;
+                        case SyntaxKind.MatchType:
+                            SelectedBlock(node, region, loop, done);
+                            return;
                         case SyntaxKind.If:
                             Expression(node.ChildAt(0), region, loop, condition =>
                             {
@@ -707,6 +720,8 @@ internal sealed partial class Compilation
                             }
                             if (fact.Symbol is null || fact.Symbol.Kind != SymbolKind.Function
                                 || (node.ChildAt(0).Kind != SyntaxKind.Name
+                                    && !(node.ChildAt(0).Kind == SyntaxKind.Generic
+                                        && fact.Symbol.Specialization is not null)
                                     && fact.Symbol.Scope?.MemberOwner?.Kind != SymbolKind.Struct))
                             {
                                 Unsupported(node);
@@ -910,6 +925,63 @@ internal sealed partial class Compilation
                 {
                     Expression(node.ChildAt(0).ChildAt(0), region, loop,
                         receiver => arguments[0] = receiver);
+                }
+            }
+            void SelectedBlock(SyntaxNode node, IrNode region, IrNode? loop, Action<IrNode> done)
+            {
+                // Compile-time selection has no runtime branch or subject evaluation.
+                // Flatten only its selected block, retaining its lexical cleanup edge.
+                SemanticFact fact = node.Fact!;
+                SyntaxNode block = node.ChildAt(fact.SelectedArmIndex).ChildAt(1);
+                if (!owners.TryGetValue(region, out List<IrNode>? holders))
+                {
+                    holders = new();
+                    owners.Add(region, holders);
+                }
+                int firstLocal = holders.Count;
+                IrNode? result = null;
+                work.Push(() =>
+                {
+                    if (fact.CanContinue)
+                    {
+                        result ??= Unit(region, node);
+                        result = Widen(region, node, result, fact.Type);
+                        // Preserve the outgoing value itself before dropping local
+                        // copies. No artificial branch, shallow copy, or second
+                        // ownership policy is introduced for a compile-time arm.
+                        for (int i = holders.Count - 1; i >= firstLocal; i -= 1)
+                        {
+                            if (holders[i] != result)
+                            {
+                                IrNode release = Add(region, DropKind(holders[i].Type!), node);
+                                Input(release, holders[i]);
+                            }
+                        }
+                    }
+                    holders.RemoveRange(firstLocal, holders.Count - firstLocal);
+                    if (fact.CanContinue)
+                    {
+                        if (Owned(result!.Type))
+                        {
+                            Own(region, result);
+                        }
+                        done(result);
+                    }
+                });
+                bool valueTail = fact.Type != Analysis!.ScalarType(ScalarKind.Unit);
+                for (int i = block.ChildCount() - 1; i >= 0; i -= 1)
+                {
+                    SyntaxNode statement = block.ChildAt(i);
+                    if (valueTail && i == block.ChildCount() - 1
+                        && statement.Kind == SyntaxKind.ExpressionStatement)
+                    {
+                        Expression(statement.ChildAt(0), region, loop, value => result = value);
+                    }
+                    else
+                    {
+                        work.Push(() => Statement(statement, region, loop, false,
+                            Analysis!.ScalarType(ScalarKind.Unit)));
+                    }
                 }
             }
             void Block(SyntaxNode syntax, IrNode region, IrNode? loop, IrKind ending, SemanticType type)

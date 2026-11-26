@@ -1,0 +1,10 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"GenericSpecialization" [label="GenericSpecialization", fillcolor="#edf4fb"];
+"SyntaxNode" [label="SyntaxNode\n(existing)", fillcolor="#ffffff"];
+"SemanticScope" [label="SemanticScope\n(existing)", fillcolor="#ffffff"];
+"GenericSpecialization" -> "SyntaxNode" [id="specialized-syntax", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="copied\nsyntax", tooltip="GenericSpecialization.Nodes -> SyntaxNode; reverse SyntaxNode.Specialization"];
+"GenericSpecialization" -> "SemanticScope" [id="specialized-scopes", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="concrete-body\nscopes", tooltip="GenericSpecialization.Scopes -> SemanticScope; reverse SemanticScope.Specialization"];
+}

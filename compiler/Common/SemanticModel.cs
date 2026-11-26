@@ -138,7 +138,8 @@ internal sealed partial class SemanticSymbol
     // Registers scope ownership and optional syntax backlink, or cleans up both.
     internal partial SemanticSymbol(SemanticScope scope, SyntaxNode? declaration,
         string name, SymbolKind kind, SemanticType? type, bool mutable,
-        BuiltinKind builtin = BuiltinKind.None, bool acceptsArray = false, bool isReference = false);
+        BuiltinKind builtin = BuiltinKind.None, bool acceptsArray = false, bool isReference = false,
+        GenericSpecialization? specialization = null);
     internal partial void Destroy();
     // Queries authoritative syntax/member relationships; no duplicate hook state.
     internal partial bool IsFinalHook();
@@ -186,6 +187,9 @@ internal sealed partial class SemanticFact
     // Block/conditional reachability is checked once. A noncontinuing arm
     // contributes no value at a branch join, even when its placeholder type is unit.
     internal readonly bool CanContinue;
+    // Value-like child position selected by compile-time matching, or -1 for
+    // other facts. Syntax mutation invalidates this fact before positions change.
+    internal readonly int SelectedArmIndex;
     internal readonly ArrayOperation ArrayOperation;
     internal readonly ClassOperation ClassOperation;
     internal bool Destroyed;
@@ -193,7 +197,7 @@ internal sealed partial class SemanticFact
     internal partial SemanticFact(SemanticAnalysis analysis, SyntaxNode node,
         SemanticType type, SemanticSymbol? symbol, BigInteger? integerConstant = null,
         bool canContinue = true, ArrayOperation arrayOperation = ArrayOperation.None,
-        ClassOperation classOperation = ClassOperation.None);
+        ClassOperation classOperation = ClassOperation.None, int selectedArmIndex = -1);
     internal partial void Destroy();
 }
 

@@ -39,7 +39,7 @@ internal sealed partial class SemanticScope
     {
         foreach (SemanticSymbol symbol in Symbols)
         {
-            if (symbol.Name == name)
+            if (symbol.Name == name && symbol.Specialization is null)
             {
                 return symbol;
             }
@@ -53,7 +53,11 @@ internal sealed partial class SemanticScope
             ? Lookup(symbol.Name)
             : LookupMember(symbol.Name);
         if (Destroyed || Analysis is null || Analysis.Destroyed || symbol.Destroyed
-            || symbol.Scope is not null || existing is not null)
+            || symbol.Scope is not null
+            || (symbol.Specialization is null && existing is not null)
+            || (symbol.Specialization is not null
+                && (symbol.Specialization.Template?.Scope != this
+                    || symbol.Specialization.Analysis != Analysis)))
         {
             throw new InvalidOperationException("Cannot attach duplicate or invalid symbol.");
         }
@@ -136,7 +140,7 @@ internal sealed partial class SemanticSymbol
 
     internal partial SemanticSymbol(SemanticScope scope, SyntaxNode? declaration,
         string name, SymbolKind kind, SemanticType? type, bool mutable,
-        BuiltinKind builtin, bool acceptsArray, bool isReference)
+        BuiltinKind builtin, bool acceptsArray, bool isReference, GenericSpecialization? specialization)
     {
         // Reference fields belong only to value structs. Object fields still
         // cannot retain nonowning storage aliases beyond a synchronous use.
@@ -146,6 +150,34 @@ internal sealed partial class SemanticSymbol
             || type is null || acceptsArray || !mutable))
         {
             throw new ArgumentException("A writable storage alias requires a concrete local, parameter, or struct field type.");
+        }
+        // Validate all existing parents before attaching to any of them. In
+        // particular, a failed concrete callable must not cascade destruction
+        // through an already-live specialization during constructor cleanup.
+        SemanticAnalysis? analysis = scope.Analysis;
+        if (scope.Destroyed || analysis is null || analysis.Destroyed
+            || (type is not null && (type.Destroyed || type.Analysis != analysis
+                || (type.Class is not null && kind == SymbolKind.Class)))
+            || (declaration is not null && (declaration.Destroyed
+                || declaration.Source is null || declaration.Source.Destroyed
+                || declaration.Source.Parent != analysis.Compilation
+                || declaration.DeclaredSymbol is not null || declaration.ImplementedSymbol is not null)))
+        {
+            throw new InvalidOperationException("Invalid symbol parents.");
+        }
+        if (specialization is not null
+            && (specialization.Destroyed || specialization.Analysis != analysis
+                || specialization.Template?.Scope != scope || specialization.Function is not null
+                || kind != SymbolKind.Function || name != specialization.Template.Name
+                || declaration != specialization.Root()))
+        {
+            throw new InvalidOperationException("Invalid specialized callable parents.");
+        }
+        SemanticSymbol? existing = scope.MemberOwner is null
+            ? scope.Lookup(name) : scope.LookupMember(name);
+        if (specialization is null && existing is not null)
+        {
+            throw new InvalidOperationException("Duplicate symbol.");
         }
         IsReference = isReference;
         if (acceptsArray && (kind != SymbolKind.Parameter || type is not null))
@@ -157,9 +189,10 @@ internal sealed partial class SemanticSymbol
         Kind = kind;
         Builtin = builtin;
         Mutable = mutable;
-        scope.AddSymbol(this);
+        specialization?.AddFunction(this);
         try
         {
+            scope.AddSymbol(this);
             SetType(type);
             declaration?.AddDeclaredSymbol(this);
         }
@@ -175,6 +208,15 @@ internal sealed partial class SemanticSymbol
         if (Destroyed)
         {
             return;
+        }
+        if (Specialization is GenericSpecialization owner && !owner.Destroyed)
+        {
+            owner.Destroy();
+            return;
+        }
+        while (Specializations.Count != 0)
+        {
+            Specializations[Specializations.Count - 1].Destroy();
         }
         // IR borrows declarations and types; retire it before either disappears.
         Scope?.Analysis?.ClearIr();
@@ -193,6 +235,7 @@ internal sealed partial class SemanticSymbol
         }
         Destroyed = true;
         Scope?.RemoveSymbol(this);
+        Specialization?.RemoveFunction(this);
     }
 }
 

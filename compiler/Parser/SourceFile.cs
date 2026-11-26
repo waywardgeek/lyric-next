@@ -173,6 +173,13 @@ internal sealed partial class SourceFile
             {
                 result = function;
             }
+            else if (At("typeof"))
+            {
+                int operation = Take();
+                Expect("(");
+                result = Node(SyntaxKind.TypeOf, operation, Expression());
+                Expect(")");
+            }
             else if (At("["))
             {
                 Take();
@@ -655,6 +662,46 @@ internal sealed partial class SourceFile
             }
         }
 
+        SyntaxNode MatchType()
+        {
+            int keyword = Take();
+            SyntaxNode parameters = Node(SyntaxKind.TypeParameters);
+            if (At("<"))
+            {
+                Take();
+                do
+                {
+                    parameters.AddChild(Node(SyntaxKind.TypeParameter, Name()));
+                    if (!At(","))
+                    {
+                        break;
+                    }
+                    Take();
+                } while (true);
+                CloseType();
+            }
+            // Keep a fixed child layout even when the declaration list is empty:
+            // parameters, unevaluated subject, then source-ordered arms.
+            SyntaxNode result = Node(SyntaxKind.MatchType, keyword,
+                parameters, Expression(1, true));
+            Expect("{");
+            SkipSeparators();
+            while (!At("}"))
+            {
+                SyntaxNode pattern = At("_")
+                    ? Node(SyntaxKind.Wildcard, Take()) : Type();
+                Expect("=>");
+                result.AddChild(Node(SyntaxKind.MatchTypeArm, -1, pattern, Block()));
+                if (!At("}") && !Separator())
+                {
+                    throw Failure("Expected a matchtype-arm separator.");
+                }
+                SkipSeparators();
+            }
+            Expect("}");
+            return result;
+        }
+
         SyntaxNode Match()
         {
             Expect("match");
@@ -693,6 +740,10 @@ internal sealed partial class SourceFile
             if (At("if"))
             {
                 return If();
+            }
+            if (At("matchtype"))
+            {
+                return MatchType();
             }
             if (At("match"))
             {

@@ -8,18 +8,36 @@ namespace Lyric;
 
 internal sealed partial class SyntaxNode
 {
-    internal partial SyntaxNode(SourceFile source, SyntaxKind kind, int textOffset, int textLength)
+    internal partial SyntaxNode(SourceFile source, SyntaxKind kind, int textOffset, int textLength,
+        GenericSpecialization? specialization)
     {
         Kind = kind;
         TextOffset = textOffset;
         TextLength = textLength;
-        source.AddSyntaxNode(this);
+        if (specialization is not null
+            && (source.Destroyed || specialization.Destroyed || specialization.Analysis is null
+                || specialization.Analysis.Destroyed || specialization.Analysis.Compilation != source.Parent))
+        {
+            throw new InvalidOperationException("Derived syntax requires its original compilation.");
+        }
+        specialization?.AddSyntaxNode(this, source);
+        try
+        {
+            source.AddSyntaxNode(this);
+        }
+        catch
+        {
+            Destroy();
+            throw;
+        }
     }
 
     internal partial void AddChild(SyntaxNode child)
     {
         if (Destroyed || child.Destroyed || Source is null || Source.Destroyed
-            || child.Source != Source || child.Parent is not null)
+            || child.Source != Source || child.Parent is not null
+            || child.Specialization != Specialization
+            || Specialization?.Function is not null)
         {
             throw new InvalidOperationException("Cannot attach syntax child.");
         }
@@ -33,7 +51,10 @@ internal sealed partial class SyntaxNode
             }
         }
 
-        Source.Parent?.ClearAnalysis();
+        if (Specialization is null)
+        {
+            Source.Parent?.ClearAnalysis();
+        }
         Children.Add(child);
         child.Parent = this;
     }
@@ -46,7 +67,14 @@ internal sealed partial class SyntaxNode
             throw new InvalidOperationException("Syntax child has different parent.");
         }
 
-        Source?.Parent?.ClearAnalysis();
+        if (Specialization is null)
+        {
+            Source?.Parent?.ClearAnalysis();
+        }
+        else if (!Specialization.Destroyed && Specialization.Function is not null)
+        {
+            throw new InvalidOperationException("Published derived syntax is structurally fixed.");
+        }
         Children.RemoveAt(index);
         child.Parent = null;
     }
@@ -68,7 +96,20 @@ internal sealed partial class SyntaxNode
             return;
         }
 
-        Source?.Parent?.ClearAnalysis();
+        if (Specialization is GenericSpecialization owner && !owner.Destroyed)
+        {
+            owner.Destroy();
+            return;
+        }
+        if (Specialization is null)
+        {
+            Source?.Parent?.ClearAnalysis();
+        }
+        // Original syntax retires facts through ClearAnalysis above. Derived
+        // syntax has a narrower owner, so retire its own semantic links here.
+        Fact?.Destroy();
+        DeclaredSymbol?.Destroy();
+        ImplementedSymbol?.Destroy();
         Parent?.RemoveChild(this);
         while (Children.Count != 0)
         {
@@ -78,6 +119,7 @@ internal sealed partial class SyntaxNode
         // Mark retirement only after all structural links have been detached.
         Destroyed = true;
         Source?.RemoveSyntaxNode(this);
+        Specialization?.RemoveSyntaxNode(this);
     }
 
     internal partial void Write(Utf8JsonWriter writer)
@@ -145,7 +187,14 @@ internal sealed partial class SourceFile
             throw new InvalidOperationException("Cannot attach syntax node.");
         }
 
-        Parent?.ClearAnalysis();
+        if (node.Specialization is null)
+        {
+            Parent?.ClearAnalysis();
+        }
+        else if (node.Specialization.Analysis?.Compilation != Parent)
+        {
+            throw new InvalidOperationException("Derived syntax belongs to another compilation.");
+        }
         SyntaxNodes.Add(node);
         node.Source = this;
     }

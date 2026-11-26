@@ -37,8 +37,15 @@ internal sealed partial class SemanticFact
 
     internal partial SemanticFact(SemanticAnalysis analysis, SyntaxNode node,
         SemanticType type, SemanticSymbol? symbol, BigInteger? integerConstant, bool canContinue,
-        ArrayOperation arrayOperation, ClassOperation classOperation)
+        ArrayOperation arrayOperation, ClassOperation classOperation, int selectedArmIndex)
     {
+        if (selectedArmIndex != -1 && (node.Kind != SyntaxKind.MatchType
+            || selectedArmIndex < 2 || selectedArmIndex >= node.ChildCount()
+            || node.ChildAt(selectedArmIndex).Kind != SyntaxKind.MatchTypeArm))
+        {
+            throw new InvalidOperationException("Invalid compile-time selected arm.");
+        }
+        SelectedArmIndex = selectedArmIndex;
         ArrayOperation = arrayOperation;
         ClassOperation = classOperation;
         CanContinue = canContinue;

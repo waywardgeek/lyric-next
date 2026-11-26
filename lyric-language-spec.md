@@ -1021,6 +1021,49 @@ Nested generic closing brackets must parse correctly, including `Outer<Inner<T>>
 
 Inline `T: Capability` is shorthand for the corresponding single-participant interface requirement. A relational `where Capability<P, C>` names all participants. Multiple requirements can be listed in a where-clause; adding a separate top-level constraint-alias declaration is deferred.
 
+### Compile-time type selection
+
+`matchtype` selects a block by the static type of an unevaluated expression.
+Its optional header declares the type variables available to its patterns:
+
+```lyric
+func classify<T>(value:T)->i32 {
+    matchtype<U> value {
+        i32 => { return 1 }
+        (U,) => { return 2 }
+        [U] => { return 3 }
+        _ => { return 4 }
+    }
+}
+```
+
+The subject follows the same unevaluated checking rules as `typeof`: it must
+be type-correct but is not executed, and may name uninitialized storage. A
+subject's calls, assignments, and lifetime effects do not occur at runtime.
+Within a generic function, selection uses the concrete specialization's types.
+
+Header variables are explicitly declared, distinct, and obey no-shadowing.
+An arm starts with fresh bindings. A variable matches any type; repeated uses
+in that pattern must match the same canonical type. Thus `(U,U)` matches
+`(i32,i32)` but not `(i32,bool)`. Array and tuple patterns match their component
+structure without conversions. Other names must resolve to existing types;
+unknown names never declare variables implicitly. `_` matches without binding.
+
+Arms are tried in written order and the first match wins. Only variables bound
+by that arm's pattern are visible in its body; those bindings do not escape the
+arm. Declaring `<U>` does not make `U` available in a concrete or fallback arm
+that never binds it. All patterns are validated, including names in arms after
+the first match, and all bodies must parse. Only the selected body is semantically
+checked and lowered; unselected bodies need not be valid for this specialization.
+No match is a located compile-time error (`LYC346`). Separate arms with ordinary
+newlines or semicolons.
+
+The selected block follows ordinary block rules for results, initialization,
+returns, loop transfers, borrows, and cleanup. It may be used as a value when
+its selected block produces one. Selection neither merges flow from unselected
+arms nor weakens lifetime checking. An outgoing owned value survives arm-local
+cleanup; an escaping reference to expired arm-local storage is rejected.
+
 ### Ordinary value parameters
 
 An ordinary parameter is an immutable local binding, like `let`. Argument evaluation follows the ordinary left-to-right rule. Passing a value has the same semantics as assigning that value: arrays are independent at every nested array level, structs copy their values, and class-reference elements copy references rather than clone objects. Counted references retain/release as required; ordinary object references remain subject to lifetime checking.
@@ -1993,9 +2036,34 @@ A negative signed value is less than every unsigned value and is never equal to 
 
 Operands evaluate once, left to right, under ordinary lifetime/effect rules. The backend must implement value-correct comparison rather than inherit C's usual mixed signed/unsigned conversions. A sign test followed by a suitable magnitude comparison can handle the mixed case without requiring a wider integer type. This specifies behavior, not a tested lowering implementation. Floating-point comparisons and integer/float mixtures are separate contracts.
 
+### Unevaluated type queries
+
+`typeof(expression)` is a type expression. It supplies the operand's checked
+static type, not a value. Names and operations in the operand must be valid, but
+no operand code executes: calls, assignments, allocation, destruction, and
+reference acquisition have no runtime effect. A declared but uninitialized
+variable can supply its type. Querying a reference's type does not read its
+possibly expired referent. Neither operation initializes or revives storage for
+subsequent evaluated expressions.
+
+The operand is checked without a destination-type hint. Within a generic body,
+the query is checked for the concrete specialization. The resulting type may
+appear in a composite annotation or a cast target. An explicit function result
+may use `typeof(parameter)`; this is not return-type inference from the body.
+Calls used in signature queries require their target signatures, including
+forward-declared functions. A cyclic signature dependency is rejected with
+`LYC345`, rather than assigning a provisional result type or executing a body.
+
+```lyric
+var source:i64
+let value:typeof(source) = 7
+let converted = 3 as typeof(source)
+// source is still uninitialized here.
+```
+
 ### Explicit integer conversions
 
-`value as Type` converts an integer value to the named integer type. The right operand is a type expression, including a declared generic type parameter, not a value expression whose type is inferred as the target. Expression-derived targets and a typeof facility are not part of the initial language.
+`value as Type` converts an integer value to the named integer type. The right operand is a type expression, including a declared generic type parameter, not a value expression whose type is inferred as the target. The target may use `typeof(expression)`, which supplies a type without evaluating its operand.
 
 In safe mode, `as` preserves the mathematical value when it is representable in the destination type. A statically known out-of-range conversion is a compile-time error; a dynamic out-of-range conversion produces checked failure. In unsafe mode, integer `as` may use an unchecked C conversion. Representable values retain their mathematical value; out-of-range inputs inherit the backend conversion behavior rather than a promised modulo result.
 

@@ -24,6 +24,7 @@ internal sealed partial class SemanticScope
         try
         {
             parent.AddChild(this);
+            function.Specialization?.AddScope(this);
             if (initializer)
             {
                 function.AddInitializerScope(this);

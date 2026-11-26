@@ -1,0 +1,57 @@
+[
+  {
+    "id": "matchtype-concrete-and-unchecked-body",
+    "source": "func classify<T>(value:T)->i32 {\n    matchtype value {\n        i32 => { return value+1 }\n        bool => { return 2 }\n        _ => { return 3 }\n    }\n}\nfunc main() { assert(classify(7)==8); assert(classify(true)==2); print(\"ok\") }\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-structural-arm-bindings",
+    "source": "func classify<T>(value:T)->i32 {\n    matchtype<U> value {\n        (U,) => { let copy:U=value.0; return 1 }\n        [U] => { let copy:U=value[0]; return 2 }\n        _ => { return 3 }\n    }\n}\nfunc main() { assert(classify((true,))==1); assert(classify([7])==2); assert(classify(false)==3); print(\"ok\") }\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-repeated-binding",
+    "source": "func classify<T>(value:T)->i32 {\n    matchtype<U> value {\n        (U,U) => { return 1 }\n        _ => { return 2 }\n    }\n}\nfunc main() { assert(classify((3,4))==1); assert(classify((3,true))==2); print(\"ok\") }\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-unevaluated-subject",
+    "source": "func noisy()->i32 { print(\"wrong\"); return 7 }\nfunc main() {\n    matchtype noisy() {\n        i32 => { print(\"ok\") }\n        _ => { print(\"wrong\") }\n    }\n}\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-value-result",
+    "source": "func main() {\n    var source:i32\n    let result=matchtype source {\n        i32 => { 7 }\n        _ => { missing }\n    }\n    assert(result==7)\n    print(\"ok\")\n}\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-typo-in-later-pattern",
+    "source": "func main() {\n    matchtype 7 {\n        i32 => { print(\"ok\") }\n        Typo => { print(\"wrong\") }\n    }\n}\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-no-arm",
+    "source": "func main() { matchtype 7 { bool => { print(\"wrong\") } } }\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-duplicate-variable",
+    "source": "func main() { matchtype<U,U> 7 { _ => {} } }\n",
+    "accept": true
+  },
+  {
+    "id": "matchtype-empty-variables",
+    "source": "func main() { matchtype<> 7 { _ => {} } }",
+    "accept": false
+  },
+  {
+    "id": "matchtype-missing-arrow",
+    "source": "func main() { matchtype 7 { i32 {} } }",
+    "accept": false
+  },
+  {
+    "id": "matchtype-malformed-unselected",
+    "source": "func main() { matchtype 7 { i32 => {}\n _ => { let = } } }",
+    "accept": false
+  }
+]

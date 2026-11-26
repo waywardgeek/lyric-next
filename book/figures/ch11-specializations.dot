@@ -1,0 +1,11 @@
+digraph Common {
+graph [rankdir=TB, bgcolor="white", pad=0.15, nodesep=0.3, ranksep=0.45, splines=spline, outputorder=edgesfirst];
+node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=17, margin="0.12,0.08", color="#415466"];
+edge [fontname="Helvetica", fontsize=13, arrowsize=1.05];
+"SemanticAnalysis" [label="SemanticAnalysis\n(existing)", fillcolor="#ffffff"];
+"SemanticSymbol" [label="SemanticSymbol\n(existing)", fillcolor="#ffffff"];
+"GenericSpecialization" [label="GenericSpecialization", fillcolor="#edf4fb"];
+"SemanticAnalysis" -> "GenericSpecialization" [id="analysis-specializations", color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="concrete\ninstances", tooltip="SemanticAnalysis.Specializations -> GenericSpecialization; reverse GenericSpecialization.Analysis"];
+"SemanticSymbol" -> "GenericSpecialization" [id="template-specializations", tailport=w, headport=w, color="#164f86", penwidth=2, style=solid, arrowhead=normal, label="template\ninstances", tooltip="SemanticSymbol.Specializations -> GenericSpecialization; reverse GenericSpecialization.Template"];
+"GenericSpecialization" -> "SemanticSymbol" [id="specialized-function", tailport=e, headport=e, constraint=false, color="#164f86", penwidth=2, style=solid, arrowhead=onormal, label="concrete\ncallable", tooltip="GenericSpecialization.Function -> SemanticSymbol; reverse SemanticSymbol.Specialization"];
+}

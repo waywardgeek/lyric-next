@@ -4,7 +4,7 @@ This developer tool executes the syntax rules in `../../lyric-grammar.peg`
 with [Peggy](https://peggyjs.org/documentation.html) 5.1.1. It does not replace
 Lyric's hand-written parser or perform name resolution, type checking, or safety
 analysis. It is separate from `make test`. Chapters 1–2 do not require it; Chapter 3
-and later require the retained 143-fixture comparison documented in Chapter 3
+and later require the retained 155-fixture comparison documented in Chapter 3
 (`DOTNET=dotnet node tools/peg/test.mjs graders/ch03/cases.json`). The base
 grammar-development checks below are distinct from that completion command.
 
@@ -59,7 +59,7 @@ whole syntax rules are not relabeled to conceal deeper errors.
 
 ## Evidence and limits
 
-`make grammar-check` compiles all 176 canonical rules and passes 50 readable
+`make grammar-check` compiles all 180 canonical rules and passes 50 readable
 source fixtures in cases.json. Four malformed-grammar controls test unknown rules,
 left recursion, nullable repetition and unknown hooks. Negative source cases must
 fail in the specified lexer/syntax phase; arbitrary crashes do not pass. The

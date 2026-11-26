@@ -66,19 +66,6 @@ internal sealed partial class Compilation
                         classes.Add(classSymbol);
                         Name(classSymbol);
                     }
-                    for (int m = 0; m < declaration.ChildCount(); m += 1)
-                    {
-                        SyntaxNode member = declaration.ChildAt(m);
-                        if (member.DeclaredSymbol is not SemanticSymbol symbol)
-                        {
-                            continue;
-                        }
-                        if (symbol.Kind == SymbolKind.Function)
-                        {
-                            functions.Add(symbol);
-                            Name(symbol);
-                        }
-                    }
                     continue;
                 }
                 if (declaration.DeclaredSymbol is not SemanticSymbol function
@@ -86,14 +73,24 @@ internal sealed partial class Compilation
                 {
                     continue;
                 }
-                functions.Add(function);
-                Name(function);
                 // Entry selection is orchestration, not call resolution. The
                 // checker already established the executable entry contract.
                 if (function.Name == "main")
                 {
                     entry = function;
                 }
+            }
+        }
+        // IR already contains every concrete callable, including discoveries
+        // from generic bodies. Templates are not executable declarations.
+        for (int index = 0; index < program.FunctionCount(); index += 1)
+        {
+            IrFunction body = program.FunctionAt(index);
+            if (body.Kind == IrFunctionKind.Source)
+            {
+                SemanticSymbol function = body.Declaration!;
+                functions.Add(function);
+                Name(function);
             }
         }
         try

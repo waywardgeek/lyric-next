@@ -62,6 +62,8 @@ internal enum SyntaxKind
     ManyEndpoint,
     Match,
     MatchArm,
+    MatchType,
+    MatchTypeArm,
     Member,
     MethodBinding,
     Modifier,
@@ -98,6 +100,7 @@ internal enum SyntaxKind
     TypeGroup,
     TypeMember,
     TypeName,
+    TypeOf,
     TypeParameter,
     TypeParameters,
     TypePrefix,
@@ -134,7 +137,8 @@ internal sealed partial class SyntaxNode
     internal bool Destroyed;
 
     // Initializes state and registers both ends of source ownership.
-    internal partial SyntaxNode(SourceFile source, SyntaxKind kind, int textOffset, int textLength);
+    internal partial SyntaxNode(SourceFile source, SyntaxKind kind, int textOffset, int textLength,
+        GenericSpecialization? specialization = null);
     // Adds an ordered tree edge and its backlink. Refusal changes neither end.
     internal partial void AddChild(SyntaxNode child);
     internal partial void RemoveChild(SyntaxNode child);

@@ -428,10 +428,10 @@ internal sealed partial class SourceFile
                     "_" => "discard",
                     "func" or "class" or "struct" or "enum" or "interface" or
                     "relation" or "destructor" or "import" or "impl" or "as" or
-                    "is" or "type" or "where" or "owns" or "refs" or "ref" or
+                    "is" or "type" or "typeof" or "where" or "owns" or "refs" or "ref" or
                     "self" or "from" or "true" or "false" or "null" or "pub" or
                     "let" or "var" or "if" or "else" or "for" or "in" or "while" or
-                    "match" or "return" or "break" or "continue" or "yield" or "extends"
+                    "match" or "matchtype" or "return" or "break" or "continue" or "yield" or "extends"
                         => "keyword",
                     _ => "identifier"
                 };

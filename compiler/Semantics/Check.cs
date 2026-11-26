@@ -68,11 +68,22 @@ internal sealed partial class Compilation
         SemanticScope global = new(analysis, null);
         // These lists are temporary traversal work, not duplicated persistent state.
         List<SemanticSymbol> functions = new();
+        // Discovery depth bounds growing monomorphization, not the number of
+        // independent roots. This is temporary checking work, not type identity
+        // or a persistent ownership relationship. Existing keys are reused first.
+        const int maximumSpecializationDepth = 1024;
+        Dictionary<GenericSpecialization, int> specializationDepths = new();
+        // Signature dependencies can arise in typeof operands. These sets
+        // distinguish a completed contract from an active dependency cycle.
+        HashSet<SemanticSymbol> completedSignatures = new();
+        HashSet<SemanticSymbol> activeSignatures = new();
         List<SemanticSymbol> classes = new();
         List<SemanticSymbol> structs = new();
         List<SyntaxNode> implementations = new();
         // Temporary context for constructor initialization, never model ownership.
         SemanticSymbol? checkingFunction = null;
+        // A type query checks operations but never reads runtime storage.
+        bool unevaluated = false;
         // Temporary flow facts, not persistent declaration state. Keeping the
         // sets distinct matters once branch joins are introduced.
         HashSet<SemanticSymbol> definitelyAssigned = new();
@@ -124,8 +135,107 @@ internal sealed partial class Compilation
             SyntaxNode syntax = parameter.ChildAt(0);
             bool reference = syntax.Kind == SyntaxKind.TypePrefix && Text(syntax) == "ref";
             SemanticType resolved = ReadType(reference ? syntax.ChildAt(0) : syntax,
-                function.Scope!, true);
+                function.Specialization is null ? function.Scope! : function.FunctionScope!, true);
             return (resolved, reference);
+        }
+        void CheckSignature(SemanticSymbol function)
+        {
+            if (function.Declaration is null || completedSignatures.Contains(function))
+            {
+                return;
+            }
+            if (!activeSignatures.Add(function))
+            {
+                Fail(function.Declaration, "LYC345", "Cyclic function signature dependency through typeof.");
+            }
+            SemanticSymbol? savedFunction = checkingFunction;
+            checkingFunction = function;
+            try
+            {
+                CheckSignatureCore(function);
+                completedSignatures.Add(function);
+            }
+            finally
+            {
+                checkingFunction = savedFunction;
+                activeSignatures.Remove(function);
+            }
+        }
+        void CheckSignatureCore(SemanticSymbol function)
+        {
+            SemanticScope scope = function.FunctionScope ?? new SemanticScope(function);
+            SyntaxNode declaration = function.Declaration!;
+            SyntaxNode? implementation = function.Implementation;
+            SyntaxNode? implementationParameters = implementation is null
+                ? null : ParametersOf(implementation);
+            // Separate bodies have their own parameter spellings. Keep the
+            // declaration environment alive for its typeof facts, but never put
+            // those names in the implementation body's lexical scope.
+            SemanticScope declarationScope = implementation is null
+                ? scope : new SemanticScope(analysis, function.Scope!);
+            // Keep declaration names distinct even when the implementation uses
+            // different lexical names. The signature types still come from Common.
+            HashSet<string> declaredNames = new();
+            for (int i = 1; i < declaration.ChildCount(); i += 1)
+            {
+                SyntaxNode child = declaration.ChildAt(i);
+                if (child.Kind == SyntaxKind.Parameters)
+                {
+                    if (implementationParameters is not null
+                        && implementationParameters.ChildCount() != child.ChildCount())
+                    {
+                        Fail(implementationParameters, "LYC342", "Implementation parameter count does not match its declaration.");
+                    }
+                    for (int j = 0; j < child.ChildCount(); j += 1)
+                    {
+                        SyntaxNode contract = child.ChildAt(j);
+                        string contractName = Text(contract);
+                        if (!declaredNames.Add(contractName)
+                            || function.Scope!.Lookup(contractName) is not null)
+                        {
+                            Fail(contract, "LYC302", "Duplicate or shadowing declared parameter.");
+                        }
+                        // Resolve types outside parameter-local names. A renamed
+                        // implementation parameter cannot change a declared type.
+                        var signature = ParameterType(contract, function, j);
+                        SyntaxNode parameter = implementationParameters?.ChildAt(j) ?? contract;
+                        string name = Text(parameter);
+                        if (implementationParameters is not null)
+                        {
+                            var supplied = ParameterType(parameter, function, j);
+                            if (signature.Type != supplied.Type
+                                || signature.Reference != supplied.Reference
+                                || (contractName == "self") != (name == "self"))
+                            {
+                                Fail(parameter, "LYC342", "Implementation parameter type, reference mode, or receiver status does not match its declaration.");
+                            }
+                        }
+                        if (implementationParameters is not null)
+                        {
+                            RefuseDuplicate(declarationScope, contract, contractName);
+                            _ = new SemanticSymbol(declarationScope, contract, contractName,
+                                SymbolKind.Parameter, signature.Type, signature.Reference,
+                                isReference: signature.Reference);
+                        }
+                        RefuseDuplicate(scope, parameter, name);
+                        _ = new SemanticSymbol(scope, parameter, name, SymbolKind.Parameter,
+                            signature.Type, signature.Reference, isReference: signature.Reference);
+                    }
+                }
+                else if (child.Kind == SyntaxKind.ResultType)
+                {
+                    function.SetType(ReadType(child.ChildAt(0), declarationScope, true));
+                }
+                else if (child.Kind == SyntaxKind.Modifier && Text(child) == "final"
+                    && function.Scope!.Class is not null)
+                {
+                    // The hook is identified by its existing declaration.
+                }
+                else if (child.Kind != SyntaxKind.Block && child.Kind != SyntaxKind.Visibility)
+                {
+                    Unsupported(child);
+                }
+            }
         }
         try
         {
@@ -322,72 +432,54 @@ internal sealed partial class Compilation
                 }
                 implementation.AddImplementedSymbol(method);
             }
-            foreach (SemanticSymbol function in functions)
+            // Templates retain one source-visible declaration. Only concrete
+            // bodies enter the ordinary signature/checking queue.
+            foreach (SemanticSymbol template in functions)
             {
-                SemanticScope scope = new(function);
-                SyntaxNode declaration = function.Declaration!;
-                SyntaxNode? implementation = function.Implementation;
-                SyntaxNode? implementationParameters = implementation is null
-                    ? null : ParametersOf(implementation);
-                // Keep declaration names distinct even when the implementation uses
-                // different lexical names. The signature types still come from Common.
-                HashSet<string> declaredNames = new();
-                for (int i = 1; i < declaration.ChildCount(); i += 1)
+                if (template.GenericParameters() is not SyntaxNode parameters)
                 {
-                    SyntaxNode child = declaration.ChildAt(i);
-                    if (child.Kind == SyntaxKind.Parameters)
+                    continue;
+                }
+                if (template.Scope!.MemberOwner is not null || template.Implementation is not null)
+                {
+                    Unsupported(template.Declaration!);
+                }
+                HashSet<string> names = new();
+                for (int index = 0; index < parameters.ChildCount(); index += 1)
+                {
+                    SyntaxNode parameter = parameters.ChildAt(index);
+                    if (parameter.ChildCount() != 0)
                     {
-                        if (implementationParameters is not null
-                            && implementationParameters.ChildCount() != child.ChildCount())
-                        {
-                            Fail(implementationParameters, "LYC342", "Implementation parameter count does not match its declaration.");
-                        }
-                        for (int j = 0; j < child.ChildCount(); j += 1)
-                        {
-                            SyntaxNode contract = child.ChildAt(j);
-                            string contractName = Text(contract);
-                            if (!declaredNames.Add(contractName)
-                                || function.Scope!.Lookup(contractName) is not null)
-                            {
-                                Fail(contract, "LYC302", "Duplicate or shadowing declared parameter.");
-                            }
-                            // Resolve types outside parameter-local names. A renamed
-                            // implementation parameter cannot change a declared type.
-                            var signature = ParameterType(contract, function, j);
-                            SyntaxNode parameter = implementationParameters?.ChildAt(j) ?? contract;
-                            string name = Text(parameter);
-                            if (implementationParameters is not null)
-                            {
-                                var supplied = ParameterType(parameter, function, j);
-                                if (signature.Type != supplied.Type
-                                    || signature.Reference != supplied.Reference
-                                    || (contractName == "self") != (name == "self"))
-                                {
-                                    Fail(parameter, "LYC342", "Implementation parameter type, reference mode, or receiver status does not match its declaration.");
-                                }
-                            }
-                            RefuseDuplicate(scope, parameter, name);
-                            _ = new SemanticSymbol(scope, parameter, name, SymbolKind.Parameter,
-                                signature.Type, signature.Reference, isReference: signature.Reference);
-                        }
+                        Unsupported(parameter);
                     }
-                    else if (child.Kind == SyntaxKind.ResultType)
+                    string name = Text(parameter);
+                    if (!names.Add(name) || template.Scope.Lookup(name) is not null)
                     {
-                        function.SetType(ReadType(child.ChildAt(0), scope, true));
+                        Fail(parameter, "LYC302", "Duplicate or shadowing generic parameter.");
                     }
-                    else if (child.Kind == SyntaxKind.Modifier && Text(child) == "final"
-                        && function.Scope!.Class is not null)
+                }
+                for (int index = 0; index < ParametersOf(template.Declaration!).ChildCount(); index += 1)
+                {
+                    SyntaxNode parameter = ParametersOf(template.Declaration!).ChildAt(index);
+                    if (!names.Add(Text(parameter)) || template.Scope.Lookup(Text(parameter)) is not null)
                     {
-                        // The hook is identified by its existing declaration.
-                    }
-                    else if (child.Kind != SyntaxKind.Block && child.Kind != SyntaxKind.Visibility)
-                    {
-                        Unsupported(child);
+                        Fail(parameter, "LYC302", "Duplicate or shadowing declared parameter.");
                     }
                 }
             }
-            foreach (SemanticSymbol function in functions)
+            functions.RemoveAll(function => function.GenericParameters() is not null);
+            // A signature's typeof operand can discover concrete functions.
+            // Index traversal admits that growth; completed signatures are reused.
+            for (int index = 0; index < functions.Count; index += 1)
             {
+                CheckSignature(functions[index]);
+            }
+            // Implementation result queries can discover functions too. Complete
+            // each signature before validating its contract, including new entries.
+            for (int index = 0; index < functions.Count; index += 1)
+            {
+                SemanticSymbol function = functions[index];
+                CheckSignature(function);
                 // Reject the contract even when there is no return expression to check.
                 if (SemanticTypes.HasContainedBorrows(function.Type!))
                 {
@@ -403,7 +495,7 @@ internal sealed partial class Compilation
                     SyntaxNode child = implementation.ChildAt(i);
                     if (child.Kind == SyntaxKind.ResultType)
                     {
-                        result = ReadType(child.ChildAt(0), function.Scope!, true);
+                        result = ReadType(child.ChildAt(0), function.FunctionScope!, true);
                     }
                     else if (child.Kind is not (SyntaxKind.Parameters or SyntaxKind.Block or SyntaxKind.Visibility))
                     {
@@ -477,13 +569,48 @@ internal sealed partial class Compilation
             {
                 Fail(first, "LYC305", "Executable requires a main function.");
             }
-            if (executable && (main!.FunctionScope!.ParameterCount() != 0 || main.Type != analysis.ScalarType(ScalarKind.Unit)))
+            if (executable && (main!.GenericParameters() is not null
+                || main.FunctionScope!.ParameterCount() != 0 || main.Type != analysis.ScalarType(ScalarKind.Unit)))
             {
                 Fail(main!.Declaration!, "LYC305", "main must have no parameters and return unit.");
             }
             Dictionary<SemanticSymbol, SyntaxNode> bodies = new();
-            foreach (SemanticSymbol function in functions)
+            // Check every declared default, even when all current constructions
+            // override it. Its scope excludes the partial receiver and sibling fields.
+            foreach (SemanticSymbol structure in structs)
             {
+                foreach (SemanticSymbol field in structure.MemberScope!.Fields())
+                {
+                    if (field.InitializerScope is not SemanticScope scope)
+                    {
+                        continue;
+                    }
+                    SyntaxNode expression = field.Declaration!.ChildAt(1);
+                    definitelyAssigned.Clear();
+                    possiblyAssigned.Clear();
+                    checkingFunction = field;
+                    SemanticType actual;
+                    if (field.IsReference)
+                    {
+                        // A reference default names storage, not a converted value.
+                        // Declaration scope still excludes caller locals and self.
+                        actual = CheckReference(expression, scope);
+                        if (actual != field.Type)
+                        {
+                            Fail(expression, "LYC325", "Reference field defaults require the exact referent type.");
+                        }
+                    }
+                    else
+                    {
+                        actual = CheckExpression(expression, scope, field.Type);
+                        RequireType(expression, actual, field.Type!);
+                    }
+                    bodies.Add(field, expression);
+                }
+            }
+            for (int nextFunction = 0; nextFunction < functions.Count; nextFunction += 1)
+            {
+                SemanticSymbol function = functions[nextFunction];
                 SyntaxNode? body = null;
                 SyntaxNode declaration = function.BodySyntax()!;
                 for (int i = 0; i < declaration.ChildCount(); i += 1)
@@ -518,39 +645,6 @@ internal sealed partial class Compilation
                 if (continues && function.Type != analysis.ScalarType(ScalarKind.Unit))
                 {
                     Fail(declaration, "LYC309", $"Function '{function.Name}' may finish without returning {SemanticTypes.Name(function.Type!)}.");
-                }
-            }
-            // Check every declared default, even when all current constructions
-            // override it. Its scope excludes the partial receiver and sibling fields.
-            foreach (SemanticSymbol structure in structs)
-            {
-                foreach (SemanticSymbol field in structure.MemberScope!.Fields())
-                {
-                    if (field.InitializerScope is not SemanticScope scope)
-                    {
-                        continue;
-                    }
-                    SyntaxNode expression = field.Declaration!.ChildAt(1);
-                    definitelyAssigned.Clear();
-                    possiblyAssigned.Clear();
-                    checkingFunction = field;
-                    SemanticType actual;
-                    if (field.IsReference)
-                    {
-                        // A reference default names storage, not a converted value.
-                        // Declaration scope still excludes caller locals and self.
-                        actual = CheckReference(expression, scope);
-                        if (actual != field.Type)
-                        {
-                            Fail(expression, "LYC325", "Reference field defaults require the exact referent type.");
-                        }
-                    }
-                    else
-                    {
-                        actual = CheckExpression(expression, scope, field.Type);
-                        RequireType(expression, actual, field.Type!);
-                    }
-                    bodies.Add(field, expression);
                 }
             }
             // Effects and ordered overlap obligations are monotone, finite sets
@@ -2291,6 +2385,30 @@ internal sealed partial class Compilation
                 }
                 void Visit(SyntaxNode node)
                 {
+                    // Type-query facts describe types, not runtime values or
+                    // temporaries. Never import operand effects into this graph.
+                    if (node.Kind == SyntaxKind.TypeOf)
+                    {
+                        return;
+                    }
+                    if (node.Kind == SyntaxKind.MatchType)
+                    {
+                        SemanticFact selection = node.Fact!;
+                        List<int> resultObjects = NewObjects(node, selection.Type);
+                        List<int> resultTargets = new();
+                        objectValues[node] = resultObjects;
+                        containedValues[node] = resultTargets;
+                        SyntaxNode selected = node.ChildAt(selection.SelectedArmIndex).ChildAt(1);
+                        BuildBlock(selected, selection.Type != analysis.ScalarType(ScalarKind.Unit),
+                            resultObjects, resultTargets);
+                        if (HasCountedContents(selection.Type)
+                            && (selection.Type.Kind is SemanticTypeKind.Array or SemanticTypeKind.Tuple
+                                || selection.Type.Declaration?.Kind == SymbolKind.Struct))
+                        {
+                            aggregateTemporaries[node] = RegisterHolder(node, selection.Type, true);
+                        }
+                        return;
+                    }
                     // Completion runs after children. Each saved class-valued
                     // expression has its own identity across later effects.
                     if (node.Fact is SemanticFact fact && node.Kind != SyntaxKind.If)
@@ -3268,6 +3386,10 @@ internal sealed partial class Compilation
                                 RequireType(expression, resultType, expectedType!);
                             }
                         }
+                        else if (expression.Kind == SyntaxKind.MatchType)
+                        {
+                            continues = CheckMatchType(expression, scope, function);
+                        }
                         else if (expression.Kind == SyntaxKind.If)
                         {
                             continues = CheckIf(expression, scope, function);
@@ -3391,6 +3513,143 @@ internal sealed partial class Compilation
                 }
             }
             _ = new SemanticFact(analysis, node, analysis.ScalarType(ScalarKind.Unit), null);
+        }
+        bool CheckMatchType(SyntaxNode node, SemanticScope scope, SemanticSymbol function,
+            bool valueRequired = false, SemanticType? expectedType = null)
+        {
+            HashSet<string> variables = new();
+            SyntaxNode parameters = node.ChildAt(0);
+            for (int i = 0; i < parameters.ChildCount(); i += 1)
+            {
+                SyntaxNode parameter = parameters.ChildAt(i);
+                string name = Text(parameter);
+                RefuseDuplicate(scope, parameter, name);
+                if (!variables.Add(name))
+                {
+                    Fail(parameter, "LYC302", $"Duplicate type-pattern variable '{name}'.");
+                }
+            }
+            // Validate every pattern before choosing: a later misspelling must
+            // not disappear merely because this specialization matches earlier.
+            Dictionary<SyntaxNode, SemanticType> concrete = new();
+            for (int i = 2; i < node.ChildCount(); i += 1)
+            {
+                Stack<SyntaxNode> pending = new();
+                pending.Push(node.ChildAt(i).ChildAt(0));
+                while (pending.Count != 0)
+                {
+                    SyntaxNode pattern = pending.Pop();
+                    if (pattern.Kind == SyntaxKind.Wildcard)
+                    {
+                        continue;
+                    }
+                    if (pattern.Kind is SyntaxKind.TypeGroup or SyntaxKind.ArrayType)
+                    {
+                        for (int j = 0; j < pattern.ChildCount(); j += 1)
+                        {
+                            pending.Push(pattern.ChildAt(j));
+                        }
+                        continue;
+                    }
+                    if (pattern.Kind == SyntaxKind.TypeName)
+                    {
+                        string name = Text(pattern);
+                        if (variables.Contains(name))
+                        {
+                            continue;
+                        }
+                        if (scope.Lookup(name) is null)
+                        {
+                            Fail(pattern, "LYC301", $"Unknown type '{name}'.");
+                        }
+                    }
+                    concrete.Add(pattern, ReadType(pattern, scope, true));
+                }
+            }
+            SemanticType subject = CheckUnevaluated(node.ChildAt(1), scope);
+            for (int i = 2; i < node.ChildCount(); i += 1)
+            {
+                Dictionary<string, SemanticType> bindings = new();
+                Stack<(SyntaxNode Pattern, SemanticType Type)> pending = new();
+                pending.Push((node.ChildAt(i).ChildAt(0), subject));
+                bool matches = true;
+                while (matches && pending.Count != 0)
+                {
+                    var item = pending.Pop();
+                    SyntaxNode pattern = item.Pattern;
+                    SemanticType type = item.Type;
+                    if (pattern.Kind == SyntaxKind.Wildcard)
+                    {
+                        continue;
+                    }
+                    if (pattern.Kind == SyntaxKind.TypeName && variables.Contains(Text(pattern)))
+                    {
+                        string name = Text(pattern);
+                        if (bindings.TryGetValue(name, out SemanticType? previous))
+                        {
+                            matches = previous == type;
+                        }
+                        else
+                        {
+                            bindings.Add(name, type);
+                        }
+                    }
+                    else if (pattern.Kind == SyntaxKind.ArrayType)
+                    {
+                        matches = type.Kind == SemanticTypeKind.Array;
+                        if (matches)
+                        {
+                            pending.Push((pattern.ChildAt(0), type.Element!));
+                        }
+                    }
+                    else if (pattern.Kind == SyntaxKind.TypeGroup)
+                    {
+                        if (pattern.ChildCount() == 1 && (pattern.TextOffset < 0 || Text(pattern) != ","))
+                        {
+                            pending.Push((pattern.ChildAt(0), type));
+                            continue;
+                        }
+                        matches = type.Kind == SemanticTypeKind.Tuple
+                            && pattern.ChildCount() == type.ComponentCount();
+                        if (matches)
+                        {
+                            for (int j = pattern.ChildCount() - 1; j >= 0; j -= 1)
+                            {
+                                pending.Push((pattern.ChildAt(j), type.ComponentAt(j)));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        matches = concrete[pattern] == type;
+                    }
+                }
+                if (!matches)
+                {
+                    continue;
+                }
+                // Only the chosen arm acquires a scope and checked declarations.
+                // These ordinary type symbols retain canonical reverse links.
+                SemanticScope armScope = new(analysis, scope);
+                foreach (var binding in bindings)
+                {
+                    _ = new SemanticSymbol(armScope, null, binding.Key,
+                        SymbolKind.Type, binding.Value, false);
+                }
+                SyntaxNode block = node.ChildAt(i).ChildAt(1);
+                bool continues = CheckBlock(block, armScope, function, valueRequired, expectedType);
+                if (valueRequired && !continues)
+                {
+                    Unsupported(node);
+                }
+                SemanticType result = valueRequired
+                    ? block.Fact!.Type : analysis.ScalarType(ScalarKind.Unit);
+                _ = new SemanticFact(analysis, node, result, null,
+                    canContinue: continues, selectedArmIndex: i);
+                return continues;
+            }
+            Fail(node, "LYC346", "No matchtype arm matches the subject type.");
+            return false;
         }
         bool CheckIf(SyntaxNode node, SemanticScope scope, SemanticSymbol function,
             bool valueRequired = false, SemanticType? expectedType = null)
@@ -3708,7 +3967,7 @@ internal sealed partial class Compilation
         }
         void RequireInitializedReceiver(SyntaxNode location)
         {
-            if (!IsConstructor())
+            if (unevaluated || !IsConstructor())
             {
                 return;
             }
@@ -3744,7 +4003,7 @@ internal sealed partial class Compilation
             {
                 Fail(node, "LYC329", $"No field '{Text(node)}' exists on {SemanticTypes.Name(receiverType)}.");
             }
-            if (read && IsConstructingSelf(receiverSymbol) && !definitelyAssigned.Contains(field!))
+            if (!unevaluated && read && IsConstructingSelf(receiverSymbol) && !definitelyAssigned.Contains(field!))
             {
                 Fail(node, "LYC328", $"Field '{field!.Name}' is not definitely initialized.");
             }
@@ -3854,7 +4113,7 @@ internal sealed partial class Compilation
             {
                 Fail(target, "LYC308", $"Cannot assign immutable binding '{symbol.Name}' again.");
             }
-            if (compound && !definitelyAssigned.Contains(symbol))
+            if (!unevaluated && compound && !definitelyAssigned.Contains(symbol))
             {
                 Fail(target, "LYC307", $"Local '{symbol.Name}' is not definitely assigned.");
             }
@@ -3970,14 +4229,53 @@ internal sealed partial class Compilation
                 }
             }
         }
+        // Type queries share real checking while isolating runtime flow state.
+        SemanticType CheckUnevaluated(SyntaxNode operand, SemanticScope scope)
+        {
+            // Reuse real expression checking, not hints. Isolate flow state:
+            // assignments and control flow inside an unevaluated expression
+            // must not initialize caller storage or exit a surrounding loop.
+            var savedDefinite = definitelyAssigned;
+            var savedPossible = possiblyAssigned;
+            var savedLoops = loops;
+            var savedProtected = protectedArrays;
+            bool savedUnevaluated = unevaluated;
+            definitelyAssigned = new(savedDefinite);
+            possiblyAssigned = new(savedPossible);
+            loops = new();
+            protectedArrays = new();
+            unevaluated = true;
+            try
+            {
+                return CheckExpression(operand, scope);
+            }
+            finally
+            {
+                definitelyAssigned = savedDefinite;
+                possiblyAssigned = savedPossible;
+                loops = savedLoops;
+                protectedArrays = savedProtected;
+                unevaluated = savedUnevaluated;
+            }
+        }
         // Value signatures, local annotations and struct fields admit structs.
         // Class fields remain separately gated. Recursive calls preserve the
         // caller's admission; this does not grant an array-growth default.
         SemanticType ReadType(SyntaxNode node, SemanticScope scope, bool allowStructs = false)
         {
+            if (node.Kind == SyntaxKind.TypeOf)
+            {
+                if (node.Fact is not null)
+                {
+                    return node.Fact.Type;
+                }
+                SemanticType result = CheckUnevaluated(node.ChildAt(0), scope);
+                _ = new SemanticFact(analysis, node, result, null);
+                return result;
+            }
             if (node.Kind == SyntaxKind.TypeGroup)
             {
-                if (node.ChildCount() == 1 && Text(node) != ",")
+                if (node.ChildCount() == 1 && (node.TextOffset < 0 || Text(node) != ","))
                 {
                     return ReadType(node.ChildAt(0), scope, allowStructs);
                 }
@@ -4007,6 +4305,10 @@ internal sealed partial class Compilation
             if (node.Kind == SyntaxKind.TypeName)
             {
                 SemanticSymbol? symbol = scope.Lookup(Text(node));
+                if (symbol is null)
+                {
+                    Fail(node, "LYC301", $"Unknown type '{Text(node)}'.");
+                }
                 if (symbol?.Kind == SymbolKind.Type)
                 {
                     return symbol.Type!;
@@ -4085,6 +4387,43 @@ internal sealed partial class Compilation
                 bits -= modulus;
             }
             return bits;
+        }
+        SemanticType? PreviewType(SyntaxNode node, SemanticScope scope,
+            Dictionary<string, SemanticType?>? locals = null)
+        {
+            if (node.Kind == SyntaxKind.TypeOf)
+            {
+                if (node.Fact is not null)
+                {
+                    return node.Fact.Type;
+                }
+                SyntaxNode operand = node.ChildAt(0);
+                return DiscoverHints(operand, scope, locals)[operand];
+            }
+            if (node.Kind == SyntaxKind.ArrayType)
+            {
+                SemanticType? element = PreviewType(node.ChildAt(0), scope, locals);
+                return element is null ? null : SemanticTypes.ArrayOf(element);
+            }
+            if (node.Kind == SyntaxKind.TypeGroup)
+            {
+                if (node.ChildCount() == 1 && (node.TextOffset < 0 || Text(node) != ","))
+                {
+                    return PreviewType(node.ChildAt(0), scope, locals);
+                }
+                List<SemanticType> components = new();
+                for (int index = 0; index < node.ChildCount(); index += 1)
+                {
+                    SemanticType? component = PreviewType(node.ChildAt(index), scope, locals);
+                    if (component is null)
+                    {
+                        return null;
+                    }
+                    components.Add(component);
+                }
+                return analysis.TupleType(components);
+            }
+            return ReadType(node, scope, true);
         }
         Dictionary<SyntaxNode, SemanticType?> DiscoverHints(SyntaxNode root, SemanticScope scope,
             Dictionary<string, SemanticType?>? locals = null)
@@ -4222,7 +4561,7 @@ internal sealed partial class Compilation
                 else if (node.Kind == SyntaxKind.Cast)
                 {
                     // A cast fixes its result type, not its operand's type.
-                    hint = ReadType(node.ChildAt(1), scope);
+                    hint = PreviewType(node.ChildAt(1), scope, locals);
                 }
                 else if (node.Kind == SyntaxKind.Integer)
                 {
@@ -4353,7 +4692,7 @@ internal sealed partial class Compilation
                         // reference permission/acquisition remains the real check's job.
                         SyntaxNode annotation = statement.ChildAt(next).ChildAt(0);
                         bool reference = annotation.Kind == SyntaxKind.TypePrefix && Text(annotation) == "ref";
-                        type = ReadType(reference ? annotation.ChildAt(0) : annotation, scope, true);
+                        type = PreviewType(reference ? annotation.ChildAt(0) : annotation, scope, locals);
                         next += 1;
                     }
                     if (type is null && next < statement.ChildCount())
@@ -4653,8 +4992,172 @@ internal sealed partial class Compilation
             }
             return root.Fact!.Type;
         }
-        void CheckArguments(SyntaxNode call, SemanticSymbol target, SemanticScope scope, int offset)
+        // Match syntax structure against an already checked argument type. This
+        // binds variables; it does not solve conversions or infer from a result.
+        void MatchTypePattern(SyntaxNode pattern, SemanticType actual,
+            Dictionary<string, SemanticType?> bindings, SyntaxNode argument)
         {
+            Stack<(SyntaxNode Pattern, SemanticType Actual)> pending = new();
+            pending.Push((pattern, actual));
+            while (pending.Count != 0)
+            {
+                var item = pending.Pop();
+                SyntaxNode syntax = item.Pattern;
+                SemanticType type = item.Actual;
+                if (syntax.Kind == SyntaxKind.TypeName
+                    && bindings.TryGetValue(Text(syntax), out SemanticType? previous))
+                {
+                    if (previous is not null && previous != type)
+                    {
+                        Fail(argument, "LYC304", $"Conflicting inferred types for '{Text(syntax)}'.");
+                    }
+                    bindings[Text(syntax)] = type;
+                }
+                else if (syntax.Kind == SyntaxKind.ArrayType && syntax.ChildCount() == 1)
+                {
+                    if (type.Kind != SemanticTypeKind.Array)
+                    {
+                        Fail(argument, "LYC304", "Expected an array type for generic inference.");
+                    }
+                    pending.Push((syntax.ChildAt(0), type.Element!));
+                }
+                else if (syntax.Kind == SyntaxKind.TypeGroup)
+                {
+                    if (syntax.ChildCount() == 1 && (syntax.TextOffset < 0 || Text(syntax) != ","))
+                    {
+                        pending.Push((syntax.ChildAt(0), type));
+                        continue;
+                    }
+                    if (type.Kind != SemanticTypeKind.Tuple
+                        || type.ComponentCount() != syntax.ChildCount())
+                    {
+                        Fail(argument, "LYC304", "Tuple shape does not match generic parameter.");
+                    }
+                    for (int index = syntax.ChildCount() - 1; index >= 0; index -= 1)
+                    {
+                        pending.Push((syntax.ChildAt(index), type.ComponentAt(index)));
+                    }
+                }
+                // Concrete leaves are checked against the completed signature
+                // later. They do not contribute or negotiate variable bindings.
+            }
+        }
+        SemanticSymbol Specialize(SyntaxNode call, SemanticSymbol template,
+            SemanticScope callerScope, out List<SemanticType>? checkedArguments)
+        {
+            SyntaxNode callee = call.ChildAt(0);
+            SyntaxNode? parameters = template.GenericParameters();
+            checkedArguments = null;
+            if (parameters is null)
+            {
+                Unsupported(callee);
+            }
+            List<SemanticType> types = new();
+            if (callee.Kind == SyntaxKind.Generic)
+            {
+                SyntaxNode arguments = callee.ChildAt(1);
+                if (arguments.ChildCount() != parameters!.ChildCount())
+                {
+                    Fail(callee, "LYC303", "Generic type argument count does not match the declaration.");
+                }
+                for (int index = 0; index < arguments.ChildCount(); index += 1)
+                {
+                    types.Add(ReadType(arguments.ChildAt(index), callerScope, true));
+                }
+            }
+            else
+            {
+                Dictionary<string, SemanticType?> bindings = new();
+                for (int index = 0; index < parameters!.ChildCount(); index += 1)
+                {
+                    bindings.Add(Text(parameters.ChildAt(index)), null);
+                }
+                SyntaxNode valueParameters = ParametersOf(template.Declaration!);
+                if (valueParameters.ChildCount() != call.ChildCount() - 1)
+                {
+                    Fail(callee, "LYC303", "Function argument count does not match the declaration.");
+                }
+                checkedArguments = new();
+                for (int index = 0; index < valueParameters.ChildCount(); index += 1)
+                {
+                    SyntaxNode parameter = valueParameters.ChildAt(index);
+                    if (parameter.ChildCount() != 1)
+                    {
+                        Unsupported(parameter);
+                    }
+                    SyntaxNode pattern = parameter.ChildAt(0);
+                    bool reference = pattern.Kind == SyntaxKind.TypePrefix && Text(pattern) == "ref";
+                    if (reference)
+                    {
+                        pattern = pattern.ChildAt(0);
+                    }
+                    SyntaxNode argument = call.ChildAt(index + 1);
+                    // Preserve evaluation/checking order and acquire reference
+                    // storage once. Completed-signature validation reuses this
+                    // result instead of attaching duplicate expression facts.
+                    SemanticType actual = reference
+                        ? CheckReference(argument, callerScope)
+                        : CheckExpression(argument, callerScope);
+                    checkedArguments.Add(actual);
+                    MatchTypePattern(pattern, actual, bindings, argument);
+                }
+                for (int index = 0; index < parameters.ChildCount(); index += 1)
+                {
+                    string name = Text(parameters.ChildAt(index));
+                    if (bindings[name] is not SemanticType type)
+                    {
+                        Fail(callee, "LYC303", $"Cannot infer '{name}'; supply explicit type arguments.");
+                    }
+                    types.Add(bindings[name]!);
+                }
+            }
+            GenericSpecialization? existing = analysis.FindSpecialization(template, types);
+            if (existing is not null)
+            {
+                return existing.Function!;
+            }
+            int depth = 0;
+            if (checkingFunction?.Specialization is GenericSpecialization requester)
+            {
+                depth = specializationDepths[requester] + 1;
+            }
+            if (depth > maximumSpecializationDepth)
+            {
+                Fail(callee, "LYC344",
+                    $"Generic specialization discovery depth exceeds {maximumSpecializationDepth}.");
+            }
+            GenericSpecialization specialization = new(template, types);
+            specializationDepths.Add(specialization, depth);
+            SemanticSymbol function = new(template.Scope!, specialization.Root(), template.Name,
+                SymbolKind.Function, analysis.ScalarType(ScalarKind.Unit), false,
+                specialization: specialization);
+            SemanticScope scope = new(function);
+            for (int index = 0; index < parameters.ChildCount(); index += 1)
+            {
+                SyntaxNode parameter = parameters.ChildAt(index);
+                if (parameter.ChildCount() != 0)
+                {
+                    Unsupported(parameter);
+                }
+                string name = Text(parameter);
+                RefuseDuplicate(scope, parameter, name);
+                _ = new SemanticSymbol(scope, null, name, SymbolKind.Type,
+                    specialization.BindingAt(index), false);
+            }
+            CheckSignature(function);
+            if (SemanticTypes.HasContainedBorrows(function.Type!))
+            {
+                Fail(function.Declaration!, "LYC343", "Function results must not contain borrowed references.");
+            }
+            // Signature is now complete. A recursive request finds this same
+            // callable before its body is checked, rather than copying again.
+            functions.Add(function);
+            return function;
+        }
+        void CheckArguments(SyntaxNode call, SemanticSymbol target, SemanticScope scope, int offset,
+            List<SemanticType>? checkedArguments = null)
+        {
+            CheckSignature(target);
             int count = target.FunctionScope!.ParameterCount() - offset;
             SyntaxNode callee = call.ChildAt(0);
             if (count != call.ChildCount() - 1)
@@ -4677,14 +5180,16 @@ internal sealed partial class Compilation
                 SemanticType expected = parameter.Type!;
                 if (parameter.IsReference)
                 {
-                    SemanticType referenced = CheckReference(argument, scope);
+                    SemanticType referenced = checkedArguments is null
+                        ? CheckReference(argument, scope) : checkedArguments[i];
                     if (referenced != expected)
                     {
                         Fail(argument, "LYC325", "Reference storage type must match exactly.");
                     }
                     continue;
                 }
-                SemanticType actual = CheckExpression(argument, scope, expected);
+                SemanticType actual = checkedArguments is null
+                    ? CheckExpression(argument, scope, expected) : checkedArguments[i];
                 if (!SemanticTypes.CanWiden(actual, expected))
                 {
                     Fail(argument, "LYC304", $"Expected {SemanticTypes.Name(expected)}, got {SemanticTypes.Name(actual)}.");
@@ -4771,6 +5276,7 @@ internal sealed partial class Compilation
                     }
                     type = SemanticTypes.ElementOf(containerType);
                     break;
+                case SyntaxKind.MatchType:
                 case SyntaxKind.If:
                     SemanticScope functionScope = scope;
                     while (functionScope.Function is null && functionScope.InitializerField is null
@@ -4783,7 +5289,14 @@ internal sealed partial class Compilation
                     {
                         Unsupported(node);
                     }
-                    CheckIf(node, scope, executionOwner!, true, expectedType);
+                    if (node.Kind == SyntaxKind.MatchType)
+                    {
+                        CheckMatchType(node, scope, executionOwner!, true, expectedType);
+                    }
+                    else
+                    {
+                        CheckIf(node, scope, executionOwner!, true, expectedType);
+                    }
                     return node.Fact!.Type;
                 case SyntaxKind.Cast:
                     type = ReadType(node.ChildAt(1), scope);
@@ -4975,7 +5488,7 @@ internal sealed partial class Compilation
                     {
                         Unsupported(node);
                     }
-                    if (!definitelyAssigned.Contains(resolved))
+                    if (!unevaluated && !definitelyAssigned.Contains(resolved))
                     {
                         Fail(node, "LYC307", $"Local '{resolved.Name}' is not definitely assigned.");
                     }
@@ -5124,14 +5637,15 @@ internal sealed partial class Compilation
                             arrayOperation: operation);
                         return analysis.ScalarType(ScalarKind.Unit);
                     }
-                    if (callee.Kind != SyntaxKind.Name)
+                    SyntaxNode callableName = callee.Kind == SyntaxKind.Generic ? callee.ChildAt(0) : callee;
+                    if (callableName.Kind != SyntaxKind.Name)
                     {
                         Unsupported(callee);
                     }
-                    SemanticSymbol? target = scope.Lookup(Text(callee));
+                    SemanticSymbol? target = scope.Lookup(Text(callableName));
                     if (target is null)
                     {
-                        Fail(callee, "LYC301", $"Unknown name '{Text(callee)}'.");
+                        Fail(callableName, "LYC301", $"Unknown name '{Text(callableName)}'.");
                     }
                     SemanticSymbol? constructedClass = target!.Kind == SymbolKind.Class ? target : null;
                     if (constructedClass is not null)
@@ -5146,7 +5660,13 @@ internal sealed partial class Compilation
                     {
                         Unsupported(callee);
                     }
-                    CheckArguments(node, target, scope, constructedClass is null ? 0 : 1);
+                    List<SemanticType>? checkedArguments = null;
+                    if (callee.Kind == SyntaxKind.Generic || target.GenericParameters() is not null)
+                    {
+                        target = Specialize(node, target, scope, out checkedArguments);
+                    }
+                    CheckArguments(node, target, scope, constructedClass is null ? 0 : 1,
+                        checkedArguments);
                     // A constructor body returns unit; the call produces the new
                     // class identity. The fact still resolves its actual method.
                     resolved = target;

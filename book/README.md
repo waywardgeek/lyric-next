@@ -56,9 +56,10 @@ See [the next-increment roadmap](roadmap.md) for the approved Chapter 8 scope an
 
 - [Chapter 8 — Classes, Lifetimes, and Two Storage Layouts](chapter-08.md): reference implementation and teaching complete through the single code and text reviews and fresh independent reconstruction. Both configurations pass all retained checks, including 154 static class cases and 212 layout executions, plus allocation/ownership checks, PEG143, and the scripted walkthrough. The student received a grader correction and constructor-scope clarification, but no implementation assistance; see the [reconstruction report](notes/ch08-student-report.md). Bill has read and accepted Chapter 8 and reports running `make spin08`.
 
-Chapter 9 completes **explicit execution and ownership IR**. The agreed next
-chapter is **Chapter 10: composite types and canonical type identity**.
-Generic specialization and multi-class interfaces follow that foundation. Chapter 5
+Chapter 9 completes **explicit execution and ownership IR**. Chapter 10 adds
+**composite types and canonical type identity**. Chapter 11 builds generic
+specialization and compile-time type selection on that accepted foundation;
+multi-class interfaces remain later work. Chapter 5
 stays where it is to provide early executable behavior. See the [design
 record](notes/ir-interface-design.md) for the semantic-resolution/IR/C-emission
 boundary. [Chapter 9 — Make Execution Explicit](chapter-09.md) now has a full
@@ -74,9 +75,18 @@ text reviews, and assisted independent reconstruction. The student passed every
 applicable retained check in Debug and Release; see its
 [acceptance receipt](notes/ch10-student-acceptance.md).
 
+[Chapter 11 — Generic Functions and Compile-Time Type Selection](chapter-11.md)
+is complete through implementation, teaching, source-checked diagrams, and both
+independent reviews. A fresh isolated student passed all retained Debug/Release
+checks, four PEG comparisons, and the walkthrough, with toolchain setup assistance
+and no author implementation edits. See the [acceptance receipt](notes/ch11-student-acceptance.md)
+and [development evidence](notes/ch11-development.md). Bill has read and accepted
+Chapter 11 and reports that `make spin11` passes. He authorized the scoped local
+Chapter 11 commit; no push or later-chapter work is included.
+
 ## Provisional construction sequence
 
-This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 9 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
+This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 11 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 
 1. **Read characters and report errors.** Establish the executable foundation, character parsing, and the error interface together. Independent positive and negative graders must test successful output and illegal-input diagnostics. Demonstrate Common declarations, functional implementations, complete relationships, and cleanup in this small slice.
 2. **Recognize tokens.** Build on Chapter 1’s UTF-8 validation and source locations to recognize lexical elements and enforce identifier rules. Settle remaining relevant lexical questions before treating this slice as complete.

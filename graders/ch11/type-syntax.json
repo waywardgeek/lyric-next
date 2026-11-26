@@ -1,0 +1,27 @@
+[
+  {
+    "id": "typeof-annotation",
+    "source": "func main() { var x:i32; let y:typeof(x)=3 }",
+    "accept": true
+  },
+  {
+    "id": "typeof-composite-syntax",
+    "source": "func f<T>(x:T)->typeof(x) { let a:[typeof(x)]=[x]; return x }",
+    "accept": true
+  },
+  {
+    "id": "typeof-cast-syntax",
+    "source": "func main() { let x=3 as typeof(7) }",
+    "accept": true
+  },
+  {
+    "id": "typeof-empty",
+    "source": "func main() { let x:typeof()=3 }",
+    "accept": false
+  },
+  {
+    "id": "typeof-missing-close",
+    "source": "func main() { let x:typeof(3=3 }",
+    "accept": false
+  }
+]

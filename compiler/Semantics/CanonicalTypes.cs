@@ -311,7 +311,8 @@ internal sealed partial class SemanticType
     {
         return Element is null && Declaration is null && Arrays.Count == 0
             && Components.Count == 0 && ComponentUses.Count == 0
-            && Symbols.Count == 0 && Facts.Count == 0 && IrNodes.Count == 0;
+            && Symbols.Count == 0 && Facts.Count == 0 && IrNodes.Count == 0
+            && GenericBindings.Count == 0;
     }
 
     internal partial void Destroy()
@@ -325,6 +326,10 @@ internal sealed partial class SemanticType
         // Detach the declaration first: invalidating a member that uses this
         // type must not reenter the same nominal dependency through its owner.
         Declaration?.RemoveNominalType(this);
+        while (GenericBindings.Count != 0)
+        {
+            GenericBindings[GenericBindings.Count - 1].Destroy();
+        }
         // Dependency retirement cascades toward users, never toward components.
         while (ComponentUses.Count != 0)
         {
