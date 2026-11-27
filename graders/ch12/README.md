@@ -83,8 +83,9 @@ Eleven retained execution contracts and ten intended compile-time rejections cov
 nullable wrapping, checked unwrap, scalar/nested counted copies, typed empty array
 growth, and same-class identity equality. Both operand orders accept a contextually
 typed null; different nominal classes and handle ordering are rejected. Equality
-does not narrow a nullable variable or consume counted ownership. Three checked
-null-unwrap failures also run under `--unsafe`. The shared harness checks the exact LYR013 message, source path and main
+does not narrow a nullable variable or consume counted ownership. Three null-unwrap failures run only in safe mode. Under `--unsafe`, their generated
+C is inspected for omitted unwrap checks but is never executed. Eight valid
+nullable programs execute under unsafe mode at O0/O2. The shared harness checks the exact LYR013 message, source path and main
 stack frame, a positive line and column, exit one and empty stdout—not an arbitrary
 crash. It does not compare the line and column to the particular unwrap expression. All execution contracts run at both C optimization levels.
 

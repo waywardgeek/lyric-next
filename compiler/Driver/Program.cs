@@ -14,6 +14,7 @@ internal static class Program
         // as emission; layout remains a representation-only backend choice.
         bool structureOfArrays = false;
         bool unsafeMode = false;
+        bool debugChecks = false;
         if (args.Length >= 2 && args[0] is "--emit-c" or "--check" or "--check-library" or "--inspect-ir")
         {
             for (int i = 1; i < args.Length - 1; i += 1)
@@ -21,6 +22,10 @@ internal static class Program
                 if (args[i] == "--unsafe" && !unsafeMode)
                 {
                     unsafeMode = true;
+                }
+                else if (args[i] == "--debug" && args[0] == "--emit-c" && !debugChecks)
+                {
+                    debugChecks = true;
                 }
                 else if (args[i] == "--soa" && args[0] == "--emit-c" && !structureOfArrays)
                 {
@@ -98,7 +103,7 @@ internal static class Program
             }
             if (diagnostic is null && emitC)
             {
-                diagnostic = compilation.EmitC(Console.Out, structureOfArrays);
+                diagnostic = compilation.EmitC(Console.Out, structureOfArrays, debugChecks);
             }
             if (diagnostic is not null)
             {

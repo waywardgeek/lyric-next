@@ -11,6 +11,7 @@ internal enum IrKind
     Constant, Local, Borrow, SelectField, AddressOf, SelectIndex, Load, Store, Call, CallInitializer,
     Unary, Binary, Convert, Copy, Move, Clear,
     NullHandle, WrapNullable, UnwrapNullable,
+    MembershipRetain, MembershipRelease,
     Ref, Unref, NewArray, FreeArray, NewObject, DestroyObject, ReclaimObject,
     ArrayLength, ArrayCapacity, ArrayReserve, ArrayResize, ArrayTruncate, ArrayPush,
     NewTuple, SelectTuple, DropTuple,
@@ -74,6 +75,9 @@ internal sealed partial class IrProgram
     // Requires structural and operation validity. Checks reachable definition order
     // and region exits, not storage initialization or ownership liveness.
     internal partial void ValidateExecution();
+    // Mandatory ownership simplification, before publication. Keeps caller owners
+    // across proven observing receiver calls; never adds runtime dispatch.
+    internal partial void SimplifyOwnership();
     internal partial int FunctionCount();
     internal partial IrFunction FunctionAt(int index);
 }
@@ -88,6 +92,10 @@ internal sealed partial class IrFunction
     // Weak class identity, paired with SemanticSymbol.IrDestruction. Program owns us.
     internal SemanticSymbol? DestructionClass;
     internal readonly IrFunctionKind Kind;
+    // IR calling contract inferred from nonescaping receiver uses. Calls retain
+    // their holder across this body rather than transferring it into the body.
+    internal bool ObservesReceiver;
+    internal partial bool BorrowsReceiver();
     internal bool Destroyed;
     private readonly List<IrNode> Nodes = new();
     internal IrNode? Body;
@@ -111,11 +119,17 @@ internal sealed partial class IrFunction
 // without changing the count. Constructor/final self slots are borrowed handles,
 // not owning Local slots; field receiver snapshots likewise do not retain.
 //
+// MembershipRetain/Release change the independent reference owned by a refs
+// membership. They have no result and never empty the child parameter holder.
+// The function contributor identifies the relationship; the operand is its
+// declared child parameter slot. Structural links themselves do not own counts.
+//
 // NullHandle creates the empty value of a nullable class type. WrapNullable and
 // UnwrapNullable preserve the handle and its class identity; unwrap checks for
-// null before returning a nonnullable value. For counted classes their inputs
-// are Move transfers and their results are new cleanup holders. Neither operation
-// increments the count. NullHandle is an empty cleanup holder for a counted type.
+// null in safe mode before returning a nonnullable value. For counted classes,
+// owning inputs are Move transfers and produce cleanup holders; borrowed Load
+// inputs (including nested nullable conversions) produce borrowed observations.
+// Neither operation increments the count. NullHandle is an empty cleanup holder for a counted type.
 // These are not numeric conversions and never manufacture a live object.
 //
 // Identity-bearing typed execution node, NEVER a value-like class. Region nodes
@@ -212,13 +226,24 @@ internal sealed partial class IrNode
     // Add appends; remove detaches both ends without deleting the child.
     internal partial void AddChild(IrNode child);
     internal partial void RemoveChild(IrNode child);
+    // Atomic ordered tree replacement/insertion; refused edits leave both ends intact.
+    internal partial void ReplaceChild(IrNode oldChild, IrNode newChild);
+    internal partial void InsertAfter(IrNode previous, IrNode child);
     internal partial int ChildCount();
     internal partial IrNode ChildAt(int index);
     internal partial void AddOperand(IrOperand operand);
     internal partial void RemoveOperand(IrOperand operand);
+    // Scalar managed-link storage, local address aliases, or writable participant
+    // parameters declared by this relationship implementation. Other types keep
+    // ordinary ownership even when used inside a relationship helper.
+    internal partial bool IsManagedHandleStorage();
+    // Scalar observations remain borrowed through nullable conversions. Derive
+    // this from operand identity; no second mutable ownership flag is stored.
+    internal partial bool IsBorrowedHandleValue();
     internal partial int OperandCount();
     internal partial IrOperand OperandAt(int index);
     internal partial void AddUse(IrOperand operand);
+    internal partial void ReserveUse();
     internal partial void RemoveUse(IrOperand operand);
     internal partial int UseCount();
     internal partial IrOperand UseAt(int index);
@@ -238,6 +263,8 @@ internal sealed partial class IrOperand
     internal IrNode? Definition;
     internal bool Destroyed;
     internal partial IrOperand(IrNode consumer, IrNode definition);
+    // Change the weak definition and its reverse use membership atomically.
+    internal partial void SetDefinition(IrNode definition);
     internal partial void Destroy();
 }
 

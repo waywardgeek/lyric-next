@@ -115,11 +115,94 @@ internal sealed partial class IrProgram
 
     internal partial void ValidateOperations()
     {
+        static void ReceiverRequire(bool valid, string reason)
+        {
+            if (!valid)
+            {
+                throw new InvalidOperationException("Invalid IR ownership: " + reason + ".");
+            }
+        }
         // Run after structural validation: all definitions and arena memberships
         // exist. Keep this pass separate from execution-order/ownership analysis.
         for (int f = 0; f < FunctionCount(); f += 1)
         {
             IrFunction function = FunctionAt(f);
+            if (function.ObservesReceiver)
+            {
+                SemanticSymbol? declaration = function.Declaration;
+                SemanticScope? signature = declaration?.FunctionScope;
+                ReceiverRequire(function.Kind == IrFunctionKind.Source
+                    && declaration?.Scope?.Class?.IsCountedClass() == true
+                    && signature is not null && signature.ParameterCount() > 0,
+                    "observing receiver requires a counted instance method");
+                SemanticSymbol receiverSymbol = signature!.ParameterAt(0);
+                ReceiverRequire(receiverSymbol.Name == "self" && !receiverSymbol.IsReference
+                    && receiverSymbol.Type?.Kind == SemanticTypeKind.Nominal
+                    && receiverSymbol.Type.Class == declaration!.Scope!.Class,
+                    "observing receiver is not the declared instance receiver");
+                IrNode? receiver = null;
+                for (int n = 0; n < function.NodeCount(); n += 1)
+                {
+                    IrNode candidate = function.NodeAt(n);
+                    if (candidate.Kind == IrKind.Local && candidate.Symbol == receiverSymbol)
+                    {
+                        ReceiverRequire(receiver is null, "duplicate observing receiver");
+                        receiver = candidate;
+                    }
+                }
+                ReceiverRequire(receiver is not null, "missing observing receiver");
+                for (int u = 0; u < receiver!.UseCount(); u += 1)
+                {
+                    IrNode load = receiver.UseAt(u).Consumer!;
+                    ReceiverRequire(load.Kind == IrKind.Load,
+                        "observing receiver cannot be retained, released, assigned or transferred");
+                    for (int v = 0; v < load.UseCount(); v += 1)
+                    {
+                        IrOperand use = load.UseAt(v);
+                        IrNode consumer = use.Consumer!;
+                        bool observation = consumer.Kind == IrKind.Binary
+                            && consumer.Operator is "==" or "!=";
+                        observation |= consumer.Kind == IrKind.SelectField
+                            && consumer.OperandAt(0) == use;
+                        observation |= consumer.Kind == IrKind.Call
+                            && consumer.OperandCount() > 0 && consumer.OperandAt(0) == use
+                            && consumer.Symbol?.IrBody?.BorrowsReceiver() == true;
+                        ReceiverRequire(observation, "observing receiver escapes its borrowed contract");
+                    }
+                }
+            }
+            // Account for absence as well as malformed existing instructions.
+            // Ordinary holders cannot stand in for the membership's one count.
+            SemanticSymbol? declaredOperation = function.Declaration;
+            RelationshipOperation designation = declaredOperation?.RelationshipOperationKind()
+                ?? RelationshipOperation.None;
+            bool countedMembership = function.Kind == IrFunctionKind.Source
+                && designation != RelationshipOperation.None
+                && declaredOperation!.ContributingParticipant!.Instantiation!.Policy == RelationshipPolicy.Refs
+                && declaredOperation.FunctionScope!.ParameterCount() == 2
+                && declaredOperation.FunctionScope.ParameterAt(1).Type!.Class!.IsCountedClass();
+            int retains = 0;
+            int releases = 0;
+            for (int index = 0; index < function.NodeCount(); index += 1)
+            {
+                IrKind kind = function.NodeAt(index).Kind;
+                if (kind == IrKind.MembershipRetain)
+                {
+                    retains += 1;
+                }
+                if (kind == IrKind.MembershipRelease)
+                {
+                    releases += 1;
+                }
+            }
+            int expectedRetains = countedMembership && designation == RelationshipOperation.Add ? 1 : 0;
+            int expectedReleases = countedMembership && designation == RelationshipOperation.Remove
+                && function.Body!.Origin!.Fact!.CanContinue ? 1 : 0;
+            if (retains != expectedRetains || releases != expectedReleases)
+            {
+                throw new InvalidOperationException("Invalid IR operation: membership accounting count.");
+            }
+
             for (int i = 0; i < function.NodeCount(); i += 1)
             {
                 IrNode node = function.NodeAt(i);
@@ -133,6 +216,7 @@ internal sealed partial class IrProgram
                         or IrKind.AddressOf or IrKind.Load or IrKind.Unary or IrKind.Convert
                         or IrKind.WrapNullable or IrKind.UnwrapNullable
                         or IrKind.Copy or IrKind.Move or IrKind.Ref or IrKind.Unref
+                        or IrKind.MembershipRetain or IrKind.MembershipRelease
                         or IrKind.FreeArray or IrKind.DestroyObject or IrKind.ReclaimObject
                         or IrKind.ArrayLength or IrKind.ArrayCapacity
                         or IrKind.SelectTuple or IrKind.DropTuple
@@ -189,6 +273,7 @@ internal sealed partial class IrProgram
                 {
                     IrKind.Region or IrKind.While or IrKind.Break or IrKind.Continue
                         or IrKind.Return or IrKind.Yield or IrKind.Store or IrKind.Unref
+                        or IrKind.MembershipRetain or IrKind.MembershipRelease
                         or IrKind.FreeArray or IrKind.DropTuple or IrKind.DropStruct
                         or IrKind.ReclaimObject => IrResult.None,
                     IrKind.Local or IrKind.Borrow or IrKind.AddressOf or IrKind.SelectIndex or IrKind.SelectTuple or IrKind.SelectStruct
@@ -422,12 +507,98 @@ internal sealed partial class IrProgram
                     else if (node.Kind is IrKind.Ref or IrKind.Unref)
                     {
                         Require(counted, "counted operation requires counted scalar object");
+                        if (node.Kind == IrKind.Unref)
+                        {
+                            IrNode source = node.OperandAt(0).Definition!;
+                            Require(!source.IsBorrowedHandleValue(),
+                                "cannot release a borrowed handle value");
+                            Require(source.Kind != IrKind.Local
+                                || (function.Declaration?.BorrowsParticipantParameter(source.Symbol) != true
+                                    && function.Declaration?.BorrowsParticipantLocal(source.Symbol) != true),
+                                "cannot release borrowed participant storage");
+                        }
                     }
                     else
                     {
                         Require(held is not null && SemanticTypes.HasOwnedContents(held),
                             "move requires ownership-bearing type");
                     }
+                }
+                if (node.Kind is IrKind.MembershipRetain or IrKind.MembershipRelease)
+                {
+                    SemanticSymbol? operation = function.Declaration;
+                    ParticipantBinding? endpoint = operation?.ContributingParticipant;
+                    MultiClassInstantiation? instance = endpoint?.Instantiation;
+                    RelationshipOperation expectedOperation = node.Kind == IrKind.MembershipRetain
+                        ? RelationshipOperation.Add : RelationshipOperation.Remove;
+                    Require(function.Kind == IrFunctionKind.Source
+                        && instance?.Policy == RelationshipPolicy.Refs
+                        && operation!.RelationshipOperationKind() == expectedOperation,
+                        "membership accounting requires its designated refs operation");
+                    SemanticScope? signature = operation!.FunctionScope;
+                    Require(signature?.ParameterCount() == 2, "membership accounting signature");
+                    SemanticSymbol child = signature!.ParameterAt(1);
+                    IrNode holder = node.OperandAt(0).Definition!;
+                    Require(holder.Kind == IrKind.Local && holder.Symbol == child
+                        && child.ParticipantView?.Instantiation == instance
+                        && instance!.Template!.ParticipantRoleAt(child.ParticipantView!.Position)
+                            == ParticipantRole.Child
+                        && child.Type?.Kind == SemanticTypeKind.Nominal
+                        && child.Type.Class?.IsCountedClass() == true,
+                        "membership accounting requires its counted child parameter holder");
+                    Require(node.Parent == function.Body,
+                        "membership accounting must execute in the outer operation body");
+                    Require(node.Kind == IrKind.MembershipRetain
+                        ? node.Origin?.Kind == SyntaxKind.Prepare
+                            && node.Origin.Parent == function.Body!.Origin
+                        : node.Origin == function.Body!.Origin,
+                        "membership accounting has the wrong phase boundary");
+                    // Origin identifies the work's phase, not its scheduled
+                    // position. Check the actual outer-region sequence as well:
+                    // preparation precedes accounting; structural work follows
+                    // retain or precedes release; final cleanup follows both.
+                    // Nested work executes with its enclosing If/While node.
+                    IrNode body = function.Body!;
+                    SyntaxNode bodySyntax = body.Origin!;
+                    bool passedAccounting = false;
+                    for (int index = 0; index < body.ChildCount(); index += 1)
+                    {
+                        IrNode scheduled = body.ChildAt(index);
+                        if (scheduled == node)
+                        {
+                            passedAccounting = true;
+                            continue;
+                        }
+                        SyntaxNode? source = scheduled.Origin;
+                        if (source == bodySyntax)
+                        {
+                            Require(passedAccounting,
+                                "operation cleanup precedes membership accounting");
+                            continue;
+                        }
+                        while (source is not null && source.Parent != bodySyntax)
+                        {
+                            source = source.Parent;
+                        }
+                        if (source is null)
+                        {
+                            // Parameter setup has declaration origins outside
+                            // the body. Availability is checked separately.
+                            continue;
+                        }
+                        if (source.Kind == SyntaxKind.Prepare)
+                        {
+                            Require(!passedAccounting,
+                                "membership accounting precedes preparation");
+                        }
+                        else
+                        {
+                            Require(passedAccounting == (node.Kind == IrKind.MembershipRetain),
+                                "membership accounting crosses structural work");
+                        }
+                    }
+                    Require(node.Type is null && node.Symbol is null,
+                        "membership accounting has no result or duplicate binding identity");
                 }
                 if (node.Kind == IrKind.Move)
                 {
@@ -442,12 +613,14 @@ internal sealed partial class IrProgram
                         SemanticSymbol? declaration = function.Declaration;
                         SemanticSymbol? nominal = declaration?.Scope?.Class;
                         bool borrowedSelf = declaration is not null && nominal is not null
-                            && (declaration.Name == nominal.Name || declaration.IsFinalHook())
+                            && function.BorrowsReceiver()
                             && declaration.FunctionScope!.ParameterCount() > 0
                             && source.Symbol == declaration.FunctionScope.ParameterAt(0);
-                        holder = function.Kind != IrFunctionKind.Destruction && !borrowedSelf;
+                        holder = function.Kind != IrFunctionKind.Destruction && !borrowedSelf
+                            && declaration?.BorrowsParticipantParameter(source.Symbol) != true
+                            && declaration?.BorrowsParticipantLocal(source.Symbol) != true;
                     }
-                    Require(holder, "move source is not an owning holder");
+                    Require(holder && !source.IsBorrowedHandleValue(), "move source is not an owning holder");
                     Require(node.UseCount() == 1, "transfer must have exactly one consumer");
                     IrOperand use = node.UseAt(0);
                     IrNode consumer = use.Consumer!;
@@ -456,6 +629,11 @@ internal sealed partial class IrProgram
                     if (consumer.Kind is IrKind.Store or IrKind.ArrayPush)
                     {
                         consumes = consumer.OperandCount() == 2 && consumer.OperandAt(1) == use;
+                        IrNode destination = consumer.OperandAt(0).Definition!;
+                        if (consumer.Kind == IrKind.Store && destination.IsManagedHandleStorage())
+                        {
+                            consumes = false;
+                        }
                     }
                     if (consumer.Kind == IrKind.Call)
                     {
@@ -469,11 +647,12 @@ internal sealed partial class IrProgram
                             {
                                 continue;
                             }
-                            bool borrowedSelf = argument == 0 && selected.Scope?.Class is SemanticSymbol nominal
-                                && (selected.Name == nominal.Name || selected.IsFinalHook());
+                            bool borrowedSelf = argument == 0
+                                && selected.IrBody?.BorrowsReceiver() == true;
                             consumes = selected.Builtin == BuiltinKind.None
                                 && argument < parameters.ParameterCount()
-                                && !parameters.ParameterAt(argument).IsReference && !borrowedSelf;
+                                && !parameters.ParameterAt(argument).IsReference && !borrowedSelf
+                                && !selected.BorrowsParticipantParameter(parameters.ParameterAt(argument));
                         }
                     }
                     Require(consumes, "transfer use does not consume ownership");
@@ -491,6 +670,11 @@ internal sealed partial class IrProgram
                     }
                     bool consumes = node.Kind is IrKind.Return or IrKind.Yield or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct
                         or IrKind.WrapNullable or IrKind.UnwrapNullable;
+                    if (node.Kind is IrKind.WrapNullable or IrKind.UnwrapNullable
+                        && value.IsBorrowedHandleValue())
+                    {
+                        consumes = false;
+                    }
                     // Returning a borrowed address never consumes its referent,
                     // even when that referent contains owned arrays or handles.
                     if (node.Kind == IrKind.Return && function.Kind == IrFunctionKind.FieldInitializer
@@ -501,6 +685,11 @@ internal sealed partial class IrProgram
                     if (node.Kind is IrKind.Store or IrKind.ArrayPush)
                     {
                         consumes = argument == 1;
+                        IrNode destination = node.OperandAt(0).Definition!;
+                        if (node.Kind == IrKind.Store && destination.IsManagedHandleStorage())
+                        {
+                            consumes = false;
+                        }
                     }
                     if (node.Kind == IrKind.NewStruct)
                     {
@@ -520,10 +709,11 @@ internal sealed partial class IrProgram
                     if (node.Kind == IrKind.Call)
                     {
                         SemanticSymbol selected = node.Symbol!;
-                        bool borrowedSelf = argument == 0 && selected.Scope?.Class is SemanticSymbol nominal
-                            && (selected.Name == nominal.Name || selected.IsFinalHook());
+                        bool borrowedSelf = argument == 0
+                            && selected.IrBody?.BorrowsReceiver() == true;
                         consumes = selected.Builtin == BuiltinKind.None
-                            && !selected.FunctionScope!.ParameterAt(argument).IsReference && !borrowedSelf;
+                            && !selected.FunctionScope!.ParameterAt(argument).IsReference && !borrowedSelf
+                            && !selected.BorrowsParticipantParameter(selected.FunctionScope.ParameterAt(argument));
                     }
                     if (consumes)
                     {

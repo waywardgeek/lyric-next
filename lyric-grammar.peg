@@ -70,11 +70,17 @@ EnumBody <- "{" SepOpt (EnumVariant (MemberSep)?)* "}"
 EnumVariant <- Ident ("(" (VariantFields)? ")")?
 VariantFields <- VariantField ("," VariantField)* (",")?
 VariantField <- Ident ":" Type
-InterfaceDecl <- Visibility "interface" Ident (TypeParams)? ("extends" Capability)? InterfaceBody
+InterfaceDecl <- Visibility "interface" Ident (ParticipantParams)? ("extends" Capability)? InterfaceBody
 InterfaceBody <- "{" SepOpt (InterfaceMember (Sep InterfaceMember)* (Sep)?)? "}"
 # Participant blocks contribute ordinary members to a bound class; participant identity is checked semantically.
 InterfaceMember <- ParticipantClass / FunctionDecl / InterfaceField / AbstractRelation / CleanupTemplate
-ParticipantClass <- "class" Ident ClassBody
+ParticipantClass <- "class" Ident ParticipantBody
+ParticipantParams <- "<" ParticipantParam ("," ParticipantParam)* TypeClose
+ParticipantParam <- ("parent" / "child")? TypeParam
+ParticipantBody <- "{" SepOpt (ParticipantMember (MemberSep ParticipantMember)* (MemberSep)?)? "}"
+ParticipantMember <- DestructorFragment / RelationshipFunction / AggregateMember
+DestructorFragment <- "partial" RelationKind "destroy" "(" "self" ")" Block
+RelationshipFunction <- Visibility ("add" / "remove") "func" FunctionName Parameters ("->" Type)? (Block)?
 InterfaceField <- "field" Ident "." Ident ":" Type
 CleanupTemplate <- "destructor" RelationKind Ident Block
 FunctionDecl <- Visibility ("safe" / "final")? "func" FunctionName (TypeParams)? Parameters ("->" Type)? (WhereClause)? (Block)?
@@ -124,7 +130,8 @@ ParenthesizedType <- "(" Type ("," (Type ("," Type)* (",")?)?)? ")"
 FunctionType <- "fn" "(" (TypeList)? ")" "->" Type
 TypeList <- Type ("," Type)* (",")?
 Block <- "{" SepOpt (Statement (Sep Statement)* (Sep)?)? "}"
-Statement <- LocalBinding / ReturnStmt / YieldStmt / BreakStmt / ContinueStmt / WhileStmt / ForStmt / Block / ExpressionStmt
+PrepareStmt <- "prepare" Block
+Statement <- PrepareStmt / LocalBinding / ReturnStmt / YieldStmt / BreakStmt / ContinueStmt / WhileStmt / ForStmt / Block / ExpressionStmt
 LocalBinding <- ("let" / "var") Pattern BindingTail
 BindingTail <- ":" Type ("=" Expr)? (LetElse)? / "=" Expr (LetElse)?
 LetElse <- "else" Block

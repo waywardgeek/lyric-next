@@ -164,6 +164,22 @@ internal sealed partial class Compilation
             }
             return null;
         }
+        // Chapter 13 carries participant views only on scalar handles. Do not
+        // silently turn those borrowed values into owning aggregate elements.
+        // An explicit concrete local drops the view and remains an ordinary owner.
+        void RequireAggregateElementView(SyntaxNode origin, ParticipantBinding? view,
+            bool annotation = false)
+        {
+            if (view?.Instantiation is not MultiClassInstantiation instance
+                || instance.Policy == RelationshipPolicy.None)
+            {
+                return;
+            }
+            if (annotation || checkingFunction?.ContributingParticipant?.Instantiation == instance)
+            {
+                Fail(origin, "LYC304", "Participant aggregate elements are not supported in this chapter; use scalar participant values or explicit concrete owning values.");
+            }
+        }
         void CheckSignature(SemanticSymbol function)
         {
             if (function.Declaration is null || completedSignatures.Contains(function))
@@ -262,9 +278,61 @@ internal sealed partial class Compilation
                 {
                     // The hook is identified by its existing declaration.
                 }
+                else if (child.Kind == SyntaxKind.Modifier && Text(child) is "add" or "remove"
+                    && function.ContributingParticipant is ParticipantBinding endpoint
+                    && endpoint.Instantiation!.Policy != RelationshipPolicy.None)
+                {
+                    // Signature validation below identifies the child endpoint.
+                    // Lowering inserts refs-counted accounting at the checked
+                    // preparation/structural boundaries, not at function entry.
+                }
+                else if (child.Kind == SyntaxKind.RelationKind && function.IsDestructorFragment())
+                {
+                    // The binding selected this policy before publishing the body.
+                }
                 else if (child.Kind != SyntaxKind.Block && child.Kind != SyntaxKind.Visibility)
                 {
                     Unsupported(child);
+                }
+            }
+            // Membership accounting needs one unambiguous parent/child pair.
+            // Views distinguish endpoint occurrences even when their classes agree.
+            for (int index = 0; index < declaration.ChildCount(); index += 1)
+            {
+                SyntaxNode modifier = declaration.ChildAt(index);
+                if (modifier.Kind != SyntaxKind.Modifier
+                    || Text(modifier) is not ("add" or "remove"))
+                {
+                    continue;
+                }
+                ParticipantBinding endpoint = function.ContributingParticipant!;
+                MultiClassInstantiation instance = endpoint.Instantiation!;
+                ParticipantBinding? childEndpoint = null;
+                for (int position = 0; position < instance.ParticipantCount(); position += 1)
+                {
+                    if (instance.Template!.ParticipantRoleAt(position) == ParticipantRole.Child)
+                    {
+                        childEndpoint = instance.ParticipantAt(position);
+                    }
+                }
+                if (instance.Template!.ParticipantRoleAt(endpoint.Position) != ParticipantRole.Parent
+                    || scope.ParameterCount() != 2
+                    || function.Type != analysis.ScalarType(ScalarKind.Unit))
+                {
+                    Fail(declaration, "LYC304",
+                        "A relationship operation must take parent self and one child, and return unit.");
+                }
+                SemanticSymbol receiver = scope.ParameterAt(0);
+                SemanticSymbol childParameter = scope.ParameterAt(1);
+                if (receiver.Name != "self" || receiver.IsReference
+                    || receiver.ParticipantView != endpoint
+                    || receiver.Type != analysis.ClassType(endpoint.ConcreteClass!)
+                    || childParameter.IsReference
+                    || childParameter.ParticipantView != childEndpoint
+                    || childParameter.Type != analysis.ClassType(childEndpoint!.ConcreteClass!))
+                {
+                    Fail(declaration, "LYC304",
+                        "A relationship operation requires its parent receiver and a nonnullable child-role value.");
                 }
             }
         }
@@ -439,11 +507,9 @@ internal sealed partial class Compilation
                         string fieldName = Text(member);
                         RefuseDuplicate(members, member, fieldName);
                         SemanticType fieldType = ReadType(member.ChildAt(0), members);
-                        // Chapter 12 admits scalar object links for explicitly managed
-                        // relationships. Regular links are nonowning; automatic detach
-                        // and controlled link mutation arrive with relation statements.
-                        // This intermediate chapter does not promise complete safety
-                        // for arbitrary regular-object field writes and destruction.
+                        // Preserve the current representation admissions here.
+                        // Persistent handle safety is checked after all relationship
+                        // contributions exist, using their actual participant bindings.
                         if ((fieldType.Class is not null && fieldType.ArrayDepth > 0)
                             || fieldType == analysis.ScalarType(ScalarKind.Unit))
                         {
@@ -471,6 +537,74 @@ internal sealed partial class Compilation
             foreach (SyntaxNode implementation in multiClassImplementations)
             {
                 BindMultiClass(implementation);
+            }
+            // Local lifetime analysis cannot repair a stale handle hidden in an
+            // object. Inspect physical storage after contributions are attached,
+            // including labeled namespaces, before checking any method bodies.
+            foreach (SemanticSymbol owner in classes)
+            {
+                foreach (SemanticSymbol field in owner.MemberScope!.Fields())
+                {
+                    Stack<SemanticType> pending = new();
+                    HashSet<SemanticType> visited = new();
+                    pending.Push(field.Type!);
+                    while (pending.Count != 0)
+                    {
+                        SemanticType stored = pending.Pop();
+                        if (!visited.Add(stored))
+                        {
+                            continue;
+                        }
+                        if (stored.Kind is SemanticTypeKind.Nominal or SemanticTypeKind.Nullable
+                            && stored.Class is SemanticSymbol target)
+                        {
+                            // A handle ends the inline walk. Counted targets keep
+                            // themselves alive; their own fields are checked separately.
+                            if (target.IsCountedClass())
+                            {
+                                continue;
+                            }
+                            bool maintained = false;
+                            MultiClassInstantiation? relationship =
+                                field.ContributingParticipant?.Instantiation;
+                            if (relationship is not null
+                                && relationship.Policy != RelationshipPolicy.None)
+                            {
+                                for (int role = 0; role < relationship.ParticipantCount(); role += 1)
+                                {
+                                    if (relationship.ParticipantAt(role).ConcreteClass == target)
+                                    {
+                                        maintained = true;
+                                    }
+                                }
+                            }
+                            if (!maintained)
+                            {
+                                Fail(field.Declaration!, "LYC304",
+                                    "Persistent ordinary-object references require a maintained relationship to that participant.");
+                            }
+                            continue;
+                        }
+                        if (stored.Kind == SemanticTypeKind.Array)
+                        {
+                            pending.Push(stored.Element!);
+                        }
+                        else if (stored.Kind == SemanticTypeKind.Tuple)
+                        {
+                            for (int index = 0; index < stored.ComponentCount(); index += 1)
+                            {
+                                pending.Push(stored.ComponentAt(index));
+                            }
+                        }
+                        else if (stored.Declaration?.Kind == SymbolKind.Struct)
+                        {
+                            foreach (SemanticSymbol component in stored.Declaration.MemberScope!.Fields())
+                            {
+                                pending.Push(component.Type!);
+                            }
+                        }
+                    }
+                }
             }
             // Resolve bodies only after all member declarations exist. They do not
             // introduce symbols or overloads, regardless of their source order.
@@ -699,6 +833,19 @@ internal sealed partial class Compilation
                     MarkAssigned(scope.ParameterAt(i));
                 }
                 checkingFunction = function;
+                if (IsConstructor())
+                {
+                    foreach (SemanticSymbol field in function.Scope!.Class!.MemberScope!.Fields())
+                    {
+                        // Allocation installs null even in reused slots. Only
+                        // nullable managed links acquire source initialization;
+                        // a nonnullable cleanup sentinel is not a language value.
+                        if (field.IsManagedLink() && field.Type!.Kind == SemanticTypeKind.Nullable)
+                        {
+                            MarkAssigned(field);
+                        }
+                    }
+                }
                 bool continues = CheckBlock(body!, scope, function);
                 if (continues)
                 {
@@ -758,6 +905,133 @@ internal sealed partial class Compilation
                 }
             }
             while (changed);
+            // Preparation may validate and reserve storage, but may not publish
+            // relationship changes. These temporary summaries follow resolved
+            // symbol identities, including forward/recursive helper calls.
+            HashSet<SemanticSymbol> managedWriters = new();
+            bool ManagedDestination(SyntaxNode node)
+            {
+                if (node.Fact?.Symbol?.IsManagedLink() == true)
+                {
+                    return true;
+                }
+                if (node.Kind is SyntaxKind.Group or SyntaxKind.Member or SyntaxKind.Index)
+                {
+                    return node.ChildCount() != 0 && ManagedDestination(node.ChildAt(0));
+                }
+                return false;
+            }
+            bool DestructionWritesLinks(SemanticSymbol owner)
+            {
+                Stack<SemanticSymbol> pending = new();
+                HashSet<SemanticSymbol> visited = new();
+                pending.Push(owner);
+                while (pending.Count != 0)
+                {
+                    SemanticSymbol current = pending.Pop();
+                    if (!visited.Add(current))
+                    {
+                        continue;
+                    }
+                    foreach (SemanticSymbol method in current.MemberScope!.Methods())
+                    {
+                        if ((method.IsFinalHook() || method.IsDestructorFragment())
+                            && managedWriters.Contains(method))
+                        {
+                            return true;
+                        }
+                    }
+                    // The existing class-effect closure already includes releases
+                    // and generated teardown; do not reconstruct object identities.
+                    foreach (SemanticSymbol method in current.MemberScope.Methods())
+                    {
+                        if ((method.IsFinalHook() || method.IsDestructorFragment())
+                            && classEffects.TryGetValue(method, out var affected))
+                        {
+                            foreach (SemanticSymbol other in affected)
+                            {
+                                pending.Push(other);
+                            }
+                        }
+                    }
+                }
+                return false;
+            }
+            bool WritesManagedLinks(SyntaxNode root)
+            {
+                Stack<SyntaxNode> pending = new();
+                pending.Push(root);
+                while (pending.Count != 0)
+                {
+                    SyntaxNode node = pending.Pop();
+                    if (node.Kind == SyntaxKind.TypeOf)
+                    {
+                        continue;
+                    }
+                    if (node.Kind == SyntaxKind.MatchType)
+                    {
+                        pending.Push(node.ChildAt(node.Fact!.SelectedArmIndex).ChildAt(1));
+                        continue;
+                    }
+                    if ((node.Kind == SyntaxKind.Assignment
+                            || (node.Kind == SyntaxKind.Unary && Text(node) == "ref"))
+                        && ManagedDestination(node.ChildAt(0)))
+                    {
+                        return true;
+                    }
+                    if (node.Kind == SyntaxKind.Call && node.Fact is SemanticFact call)
+                    {
+                        if (call.ArrayOperation != ArrayOperation.None
+                            && ManagedDestination(node.ChildAt(0).ChildAt(0)))
+                        {
+                            return true;
+                        }
+                        if (call.ClassOperation == ClassOperation.Destroy
+                            && DestructionWritesLinks(call.Symbol!))
+                        {
+                            return true;
+                        }
+                        if (call.Symbol is SemanticSymbol target && managedWriters.Contains(target))
+                        {
+                            return true;
+                        }
+                    }
+                    for (int index = node.ChildCount() - 1; index >= 0; index -= 1)
+                    {
+                        pending.Push(node.ChildAt(index));
+                    }
+                }
+                return false;
+            }
+            do
+            {
+                changed = false;
+                foreach (SemanticSymbol function in bodies.Keys)
+                {
+                    if (managedWriters.Contains(function))
+                    {
+                        continue;
+                    }
+                    bool writes = WritesManagedLinks(bodies[function]);
+                    foreach (SemanticSymbol owner in classEffects[function])
+                    {
+                        writes |= DestructionWritesLinks(owner);
+                    }
+                    if (writes)
+                    {
+                        changed |= managedWriters.Add(function);
+                    }
+                }
+            }
+            while (changed);
+            foreach (SyntaxNode body in bodies.Values)
+            {
+                if (body.ChildCount() != 0 && body.ChildAt(0).Kind == SyntaxKind.Prepare
+                    && WritesManagedLinks(body.ChildAt(0)))
+                {
+                    Fail(body.ChildAt(0), "LYC308", "Preparation may not mutate managed relationship links, directly or through helpers.");
+                }
+            }
             // Check the full fixed point before ordinary stale-use diagnostics:
             // the final contract forbids same-class destruction even without a
             // later source read, and includes effects of other generated hooks.
@@ -770,7 +1044,7 @@ internal sealed partial class Compilation
             }
             foreach (SemanticSymbol function in bodies.Keys)
             {
-                CheckBorrows(function, bodies[function], effects, obligations, classEffects, replacements, returningFunctions, initializerResults, true);
+                CheckBorrows(function, bodies[function], effects, obligations, classEffects, replacements, returningFunctions, initializerResults, true, DestructionWritesLinks);
             }
             return null;
         }
@@ -797,7 +1071,7 @@ internal sealed partial class Compilation
                 (HashSet<(SemanticSymbol Root, int Depth, int Component)> Targets,
                  HashSet<(SemanticSymbol Root, int Depth, int Component)> Causes,
                  bool Expired, List<HashSet<int>> Referents, bool Repeated)>> initializerResults,
-            bool diagnose)
+            bool diagnose, Func<SemanticSymbol, bool>? destructionWritesLinks = null)
         {
             bool summaryChanged = false;
             // Component -1 denotes ordinary storage. Nonnegative components name
@@ -870,6 +1144,9 @@ internal sealed partial class Compilation
             // Class effects are separate from array-path mutations: allocation
             // does not invalidate indexed object handles; destruction does.
             List<SemanticSymbol> objectClasses = new();
+            // The generated caller retains this receiver's storage until every
+            // teardown fragment returns. Other values of its class are not protected.
+            HashSet<int> teardownReceivers = new();
             Dictionary<SemanticSymbol, List<int>> objectBindings = new();
             Dictionary<SyntaxNode, List<int>> objectValues = new();
             Dictionary<int, SemanticSymbol> destroyedClasses = new();
@@ -895,12 +1172,19 @@ internal sealed partial class Compilation
             Dictionary<SyntaxNode, int> aggregateTemporaries = new();
             int entry = Event(body, 0, -1);
             SemanticScope executionScope = function.InitializerScope ?? function.FunctionScope!;
+            SemanticSymbol? teardownReceiver = function.IsDestructorFragment()
+                ? executionScope.ParameterAt(0) : null;
             for (int i = 0; i < executionScope.ParameterCount(); i += 1)
             {
                 SemanticSymbol parameter = executionScope.ParameterAt(i);
                 if (parameter.Type is SemanticType parameterType)
                 {
-                    objectBindings.Add(parameter, NewObjects(parameter.Declaration!, parameterType));
+                    List<int> parameterObjects = NewObjects(parameter.Declaration!, parameterType);
+                    objectBindings.Add(parameter, parameterObjects);
+                    if (parameter == teardownReceiver)
+                    {
+                        teardownReceivers.UnionWith(parameterObjects);
+                    }
                     var formal = FormalStorage(parameterType, parameter.IsReference);
                     List<int> allTargets = new();
                     for (int component = 0; component < formal.Slots.Count; component += 1)
@@ -944,7 +1228,8 @@ internal sealed partial class Compilation
                     }
                 }
                 bool borrowedSelf = i == 0 && function.Scope!.Class is SemanticSymbol receiverClass
-                    && (function.Name == receiverClass.Name || function.IsFinalHook());
+                    && (function.Name == receiverClass.Name || function.IsFinalHook()
+                        || function.IsDestructorFragment());
                 if (!parameter.IsReference)
                 {
                     // The parameter slot is callee-local even when its value has
@@ -1155,6 +1440,20 @@ internal sealed partial class Compilation
                 }
                 void ApplyClassEffect(SemanticSymbol owner)
                 {
+                    // Use the scheduled release event, not a declaration-type
+                    // guess: preparation locals can survive into the body, while
+                    // nested scopes and overwritten holders release immediately.
+                    if (diagnose && destructionWritesLinks is not null
+                        && destructionWritesLinks(owner))
+                    {
+                        for (SyntaxNode? source = step.Node; source is not null; source = source.Parent)
+                        {
+                            if (source.Kind == SyntaxKind.Prepare)
+                            {
+                                Fail(step.Node, "LYC308", "Preparation cleanup may not mutate managed relationship links.");
+                            }
+                        }
+                    }
                     // Ordinary field ownership can cascade into counted children.
                     // This is a conservative effect closure, not a traversal of
                     // runtime objects: cycles in the class graph terminate here.
@@ -1170,23 +1469,35 @@ internal sealed partial class Compilation
                         }
                         summaryChanged |= classEffects[function].Add(current);
                         ApplyMutation((current, classDestruction, -1));
-                        SemanticSymbol? finalHook = current.FinalHook();
-                        if (finalHook is not null)
+                        // Generated destruction invokes these actual checked
+                        // functions. Include their effects in the same fixed point
+                        // as ordinary calls; hidden syntax grants no safety waiver.
+                        foreach (SemanticSymbol hook in current.MemberScope!.Methods())
                         {
-                            foreach (var effect in effects[finalHook])
+                            if (!hook.IsFinalHook() && !hook.IsDestructorFragment())
+                            {
+                                continue;
+                            }
+                            foreach (var effect in effects[hook])
                             {
                                 if (effect.Depth == classGrowth || effect.Root.Kind == SymbolKind.Field)
                                 {
                                     ApplyMutation(effect);
                                 }
                             }
-                            foreach (SemanticSymbol affected in classEffects[finalHook])
+                            foreach (SemanticSymbol affected in classEffects[hook])
                             {
                                 pending.Push(affected);
                             }
                         }
                         foreach (SemanticSymbol field in current.MemberScope!.Fields())
                         {
+                            // Membership teardown, not each structural slot, owns
+                            // the counted release. Its operation supplies the effect.
+                            if (field.IsManagedHandle())
+                            {
+                                continue;
+                            }
                             foreach (SemanticSymbol contained in ContainedClasses(field.Type!))
                             {
                                 if (contained.IsCountedClass())
@@ -1197,7 +1508,8 @@ internal sealed partial class Compilation
                         }
                         for (int i = 0; i < objectClasses.Count; i += 1)
                         {
-                            if (objectClasses[i] == current && !current.IsCountedClass())
+                            if (objectClasses[i] == current && !current.IsCountedClass()
+                                && !teardownReceivers.Contains(i))
                             {
                                 objectState.Add(i);
                             }
@@ -1905,6 +2217,13 @@ internal sealed partial class Compilation
             {
                 int handle = objectClasses.Count;
                 objectClasses.Add(owner);
+                // Protect a fresh direct observation of the exact receiver, not
+                // every object reached through it or a saved child of equal type.
+                if (teardownReceiver is not null && node.Kind == SyntaxKind.Name
+                    && node.Fact?.Symbol == teardownReceiver)
+                {
+                    teardownReceivers.Add(handle);
+                }
                 Event(node, 5, handle);
                 return handle;
             }
@@ -2613,6 +2932,16 @@ internal sealed partial class Compilation
                         if (node.Fact.ClassOperation == ClassOperation.Destroy)
                         {
                             SyntaxNode receiver = node.ChildAt(0).ChildAt(0);
+                            SyntaxNode identity = receiver;
+                            while (identity.Kind == SyntaxKind.Group
+                                || identity.Fact?.Symbol?.Kind == SymbolKind.MemberNamespace)
+                            {
+                                identity = identity.ChildAt(0);
+                            }
+                            if (teardownReceiver is not null && identity.Fact?.Symbol == teardownReceiver)
+                            {
+                                Fail(node, "LYC334", "A destructor fragment cannot destroy its active receiver.");
+                            }
                             BuildExpression(receiver);
                             UseObject(receiver);
                             SemanticSymbol destroyedOwner = node.Fact.Symbol!;
@@ -3152,14 +3481,23 @@ internal sealed partial class Compilation
                 }
                 frontier.AddRange(thenExit);
             }
-            void BuildBlock(SyntaxNode block, bool transfersTail = false, List<int>? resultObjects = null, List<int>? resultTargets = null)
+            void BuildBlock(SyntaxNode block, bool transfersTail = false, List<int>? resultObjects = null,
+                List<int>? resultTargets = null, bool sharesCleanup = false)
             {
-                cleanupFrames.Add((new(), new()));
+                // Preparation is a phase of the surrounding body, not a local
+                // lifetime boundary. Its holders join that body's cleanup frame.
+                if (!sharesCleanup)
+                {
+                    cleanupFrames.Add((new(), new()));
+                }
                 for (int i = 0; i < block.ChildCount(); i += 1)
                 {
                     SyntaxNode statement = block.ChildAt(i);
                     switch (statement.Kind)
                     {
+                        case SyntaxKind.Prepare:
+                            BuildBlock(statement.ChildAt(0), sharesCleanup: true);
+                            break;
                         case SyntaxKind.Binding:
                             if (statement.ChildAt(0).Kind is SyntaxKind.PatternTuple or SyntaxKind.Wildcard)
                             {
@@ -3431,7 +3769,10 @@ internal sealed partial class Compilation
                             break;
                     }
                 }
-                Cleanup(block, cleanupFrames.Count - 1);
+                if (!sharesCleanup)
+                {
+                    Cleanup(block, cleanupFrames.Count - 1);
+                }
                 if (resultObjects is not null)
                 {
                     // As with return, the preserved result must remain valid
@@ -3445,7 +3786,10 @@ internal sealed partial class Compilation
                         Use(block, target);
                     }
                 }
-                cleanupFrames.RemoveAt(cleanupFrames.Count - 1);
+                if (!sharesCleanup)
+                {
+                    cleanupFrames.RemoveAt(cleanupFrames.Count - 1);
+                }
             }
         }
 
@@ -3454,9 +3798,10 @@ internal sealed partial class Compilation
         // The return value describes reachability, not whether a return appeared
         // somewhere in the syntax: only continuing paths reach a later read.
         bool CheckBlock(SyntaxNode block, SemanticScope parent, SemanticSymbol function,
-            bool valueBlock = false, SemanticType? expectedType = null)
+            bool valueBlock = false, SemanticType? expectedType = null, bool sharesScope = false)
         {
-            SemanticScope scope = new(analysis, parent);
+            // Only the initial preparation phase shares the outer body scope.
+            SemanticScope scope = sharesScope ? parent : new(analysis, parent);
             bool continues = true;
             SemanticType resultType = analysis.ScalarType(ScalarKind.Unit);
             for (int i = 0; i < block.ChildCount(); i += 1)
@@ -3474,6 +3819,23 @@ internal sealed partial class Compilation
                 }
                 switch (statement.Kind)
                 {
+                    case SyntaxKind.Prepare:
+                        SyntaxNode declaration = function.Declaration!;
+                        bool operation = false;
+                        bool functionBody = false;
+                        for (int childIndex = 0; childIndex < declaration.ChildCount(); childIndex += 1)
+                        {
+                            SyntaxNode child = declaration.ChildAt(childIndex);
+                            operation |= child.Kind == SyntaxKind.Modifier && Text(child) is "add" or "remove";
+                            functionBody |= child == block && child.Kind == SyntaxKind.Block;
+                        }
+                        if (!operation || !functionBody || i != 0)
+                        {
+                            Fail(statement, "LYC303", "Prepare is only the initial phase of a relationship operation.");
+                        }
+                        continues = CheckBlock(statement.ChildAt(0), scope, function, sharesScope: true);
+                        _ = new SemanticFact(analysis, statement, resultType, null, canContinue: continues);
+                        break;
                     case SyntaxKind.Binding:
                         CheckBinding(statement, scope);
                         break;
@@ -3545,8 +3907,11 @@ internal sealed partial class Compilation
             }
             // Only temporary flow entries expire here. Persistent declarations
             // and their semantic uses remain owned by the analysis graph.
-            definitelyAssigned.RemoveWhere(symbol => symbol.Scope == scope);
-            possiblyAssigned.RemoveWhere(symbol => symbol.Scope == scope);
+            if (!sharesScope)
+            {
+                definitelyAssigned.RemoveWhere(symbol => symbol.Scope == scope);
+                possiblyAssigned.RemoveWhere(symbol => symbol.Scope == scope);
+            }
             _ = new SemanticFact(analysis, block, resultType, null, canContinue: continues);
             return continues;
         }
@@ -3867,11 +4232,13 @@ internal sealed partial class Compilation
         }
         void BindMultiClass(SyntaxNode implementation)
         {
-            // Empty, explicitly bound impls are the current language boundary.
-            // Adapter bodies and ownership policies must not be silently ignored.
-            if (implementation.ChildCount() != 2
+            // Empty explicit bindings may select a relationship policy. Adapter
+            // bodies remain unsupported; never silently discard an impl member.
+            if (implementation.ChildCount() is not (2 or 3)
                 || implementation.ChildAt(0).Kind != SyntaxKind.Name
-                || implementation.ChildAt(1).Kind != SyntaxKind.TypeArguments)
+                || implementation.ChildAt(1).Kind != SyntaxKind.TypeArguments
+                || (implementation.ChildCount() == 3
+                    && implementation.ChildAt(2).Kind != SyntaxKind.RelationKind))
             {
                 Unsupported(implementation);
             }
@@ -3880,6 +4247,17 @@ internal sealed partial class Compilation
             if (template?.Kind != SymbolKind.Interface)
             {
                 Fail(name, "LYC301", $"Unknown multi-class interface '{Text(name)}'.");
+            }
+            RelationshipPolicy policy = RelationshipPolicy.None;
+            if (implementation.ChildCount() == 3)
+            {
+                policy = Text(implementation.ChildAt(2)) == "owns"
+                    ? RelationshipPolicy.Owns : RelationshipPolicy.Refs;
+            }
+            bool relationship = template!.ParticipantRoleAt(0) != ParticipantRole.None;
+            if (relationship != (policy != RelationshipPolicy.None))
+            {
+                Fail(implementation, "LYC304", "Relationship roles require an owns or refs binding; ordinary interfaces have no policy.");
             }
             SyntaxNode arguments = implementation.ChildAt(1);
             if (arguments.ChildCount() != template!.ParticipantArity())
@@ -3905,10 +4283,16 @@ internal sealed partial class Compilation
                 {
                     Fail(typeSyntax, "LYC304", "A participant requires a concrete class.");
                 }
+                if (policy == RelationshipPolicy.Owns
+                    && template.ParticipantRoleAt(index) == ParticipantRole.Child
+                    && type.Class!.IsCountedClass())
+                {
+                    Fail(typeSyntax, "LYC304", "An owning relationship requires an ordinary child class.");
+                }
                 endpoints.Add(type.Class!);
                 labels.Add(label);
             }
-            if (analysis.FindMultiClassInstantiation(template, endpoints, labels) is not null)
+            if (analysis.FindMultiClassInstantiation(template, endpoints, labels, policy) is not null)
             {
                 Fail(implementation, "LYC302", "Duplicate multi-class instantiation.");
             }
@@ -3942,6 +4326,11 @@ internal sealed partial class Compilation
                     for (int memberIndex = 0; memberIndex < block.ChildCount(); memberIndex += 1)
                     {
                         SyntaxNode member = block.ChildAt(memberIndex);
+                        if (member.Kind == SyntaxKind.DestructorFragment)
+                        {
+                            // Hidden teardown bodies have identity, not source names.
+                            continue;
+                        }
                         if (member.Kind is not (SyntaxKind.Function or SyntaxKind.Field))
                         {
                             Unsupported(member);
@@ -3957,7 +4346,7 @@ internal sealed partial class Compilation
                     }
                 }
             }
-            MultiClassInstantiation instance = new(template, endpoints, labels);
+            MultiClassInstantiation instance = new(template, endpoints, labels, policy);
             try
             {
                 // Field annotations share the template's private role environment,
@@ -4007,11 +4396,19 @@ internal sealed partial class Compilation
                         for (int memberIndex = 0; memberIndex < block.ChildCount(); memberIndex += 1)
                         {
                             SyntaxNode member = block.ChildAt(memberIndex);
+                            if (member.Kind == SyntaxKind.DestructorFragment)
+                            {
+                                string selectedPolicy = policy == RelationshipPolicy.Owns ? "owns" : "refs";
+                                if (Text(member.ChildAt(1)) != selectedPolicy)
+                                {
+                                    continue;
+                                }
+                            }
                             if (member.Kind == SyntaxKind.Field)
                             {
-                                // Match ordinary scalar-handle field admission.
-                                // Explicit relationship removal remains the caller's
-                                // responsibility until relation teardown is implemented.
+                                // Match ordinary field representation admission.
+                                // The post-registration persistent-reference check
+                                // also visits these contributed physical fields.
                                 if (member.ChildCount() != 1)
                                 {
                                     Unsupported(member);
@@ -4056,6 +4453,8 @@ internal sealed partial class Compilation
         {
             SyntaxNode declaration = template.Declaration!;
             Dictionary<string, HashSet<string>> participants = new();
+            int parents = 0;
+            int children = 0;
             for (int index = 0; index < declaration.ChildCount(); index += 1)
             {
                 SyntaxNode child = declaration.ChildAt(index);
@@ -4066,9 +4465,20 @@ internal sealed partial class Compilation
                 for (int position = 0; position < child.ChildCount(); position += 1)
                 {
                     SyntaxNode parameter = child.ChildAt(position);
-                    if (parameter.ChildCount() != 0)
+                    if (parameter.ChildCount() > 1
+                        || (parameter.ChildCount() == 1
+                            && parameter.ChildAt(0).Kind != SyntaxKind.Modifier))
                     {
                         Unsupported(parameter);
+                    }
+                    ParticipantRole role = template.ParticipantRoleAt(position);
+                    if (role == ParticipantRole.Parent)
+                    {
+                        parents += 1;
+                    }
+                    if (role == ParticipantRole.Child)
+                    {
+                        children += 1;
                     }
                     string name = Text(parameter);
                     if (participants.ContainsKey(name) || global.Lookup(name) is not null)
@@ -4081,6 +4491,11 @@ internal sealed partial class Compilation
             if (participants.Count == 0)
             {
                 Unsupported(declaration);
+            }
+            if ((parents != 0 || children != 0)
+                && (parents != 1 || children != 1 || participants.Count != 2))
+            {
+                Fail(declaration, "LYC303", "A relationship requires exactly one parent and one child participant.");
             }
             for (int index = 0; index < declaration.ChildCount(); index += 1)
             {
@@ -4102,8 +4517,25 @@ internal sealed partial class Compilation
                 {
                     SyntaxNode member = participant.ChildAt(memberIndex);
                     SyntaxNode nameNode = member;
+                    if (member.Kind == SyntaxKind.DestructorFragment)
+                    {
+                        if (parents != 1 || children != 1)
+                        {
+                            Fail(member, "LYC303", "Destructor fragments require parent and child roles.");
+                        }
+                        // Policy-qualified fragments share no ordinary member name.
+                        // Reserve a private validation key only to reject duplicates
+                        // across repeated blocks for the same participant.
+                        string fragmentKey = "partial " + Text(member.ChildAt(1));
+                        if (!members!.Add(fragmentKey))
+                        {
+                            Fail(member, "LYC302", "Duplicate destructor fragment policy.");
+                        }
+                        continue;
+                    }
                     if (member.Kind == SyntaxKind.Function)
                     {
+                        ValidateRelationshipOperation(member, parents == 1 && children == 1);
                         nameNode = member.ChildAt(0);
                         if (nameNode.Kind != SyntaxKind.Name)
                         {
@@ -4119,6 +4551,64 @@ internal sealed partial class Compilation
                     {
                         Fail(nameNode, "LYC302", $"Duplicate contributed member '{memberName}'.");
                     }
+                }
+            }
+        }
+        // Validate the source boundary even for an unused template. This is
+        // not proof of the trusted link algorithm: resolved managed writes and
+        // membership accounting are separate obligations of specialization.
+        void ValidateRelationshipOperation(SyntaxNode declaration, bool relationship)
+        {
+            SyntaxNode? operation = null;
+            SyntaxNode? body = null;
+            for (int index = 0; index < declaration.ChildCount(); index += 1)
+            {
+                SyntaxNode child = declaration.ChildAt(index);
+                if (child.Kind == SyntaxKind.Modifier && Text(child) is "add" or "remove")
+                {
+                    if (operation is not null)
+                    {
+                        Fail(child, "LYC303", "A method has only one relationship operation.");
+                    }
+                    operation = child;
+                }
+                if (child.Kind == SyntaxKind.Block)
+                {
+                    body = child;
+                }
+            }
+            if (operation is null)
+            {
+                return;
+            }
+            if (!relationship)
+            {
+                Fail(operation, "LYC303", "Relationship operations require parent and child roles.");
+            }
+            if (body is null || body.ChildCount() == 0 || body.ChildAt(0).Kind != SyntaxKind.Prepare)
+            {
+                Fail(operation, "LYC303", "A relationship operation must begin with prepare.");
+            }
+            SyntaxNode preparation = body!.ChildAt(0);
+            Stack<(SyntaxNode Node, bool Structural)> pending = new();
+            for (int index = body.ChildCount() - 1; index >= 0; index -= 1)
+            {
+                pending.Push((body.ChildAt(index), index != 0));
+            }
+            while (pending.Count != 0)
+            {
+                (SyntaxNode node, bool structural) = pending.Pop();
+                if (node.Kind == SyntaxKind.Prepare && node != preparation)
+                {
+                    Fail(node, "LYC303", "Only the initial prepare block is permitted.");
+                }
+                if (structural && node.Kind == SyntaxKind.Return)
+                {
+                    Fail(node, "LYC303", "A structural relationship body cannot return early.");
+                }
+                for (int index = node.ChildCount() - 1; index >= 0; index -= 1)
+                {
+                    pending.Push((node.ChildAt(index), structural));
                 }
             }
         }
@@ -4484,6 +4974,12 @@ internal sealed partial class Compilation
             {
                 Fail(root, "LYC308", $"Cannot modify immutable binding '{symbol.Name}'.");
             }
+            if (symbol.IsManagedLink()
+                && checkingFunction?.ContributingParticipant?.Instantiation
+                    != symbol.ContributingParticipant!.Instantiation)
+            {
+                Fail(root, "LYC308", "Managed links are writable only inside their relationship implementation.");
+            }
             return symbol;
         }
         void CheckAssignment(SyntaxNode node, SemanticScope scope)
@@ -4522,6 +5018,7 @@ internal sealed partial class Compilation
                 SemanticSymbol owner = WritableRoot(target, scope);
                 protectedArrays.Push(owner);
                 SemanticType supplied = CheckExpression(node.ChildAt(1), scope, selected);
+                RequireAggregateElementView(node.ChildAt(1), node.ChildAt(1).Fact!.ParticipantView);
                 RequireType(node.ChildAt(1), supplied, selected);
                 protectedArrays.Pop();
                 return;
@@ -4726,7 +5223,9 @@ internal sealed partial class Compilation
                 List<SemanticType> components = new();
                 for (int i = 0; i < node.ChildCount(); i += 1)
                 {
-                    components.Add(ReadType(node.ChildAt(i), scope, allowStructs));
+                    SyntaxNode component = node.ChildAt(i);
+                    components.Add(ReadType(component, scope, allowStructs));
+                    RequireAggregateElementView(component, TypeView(component, scope), annotation: true);
                 }
                 SemanticType tuple = analysis.TupleType(components);
                 RequireTupleSlice(node, tuple);
@@ -4735,6 +5234,8 @@ internal sealed partial class Compilation
             if (node.Kind == SyntaxKind.ArrayType && node.ChildCount() == 1)
             {
                 SemanticType element = ReadType(node.ChildAt(0), scope, allowStructs);
+                RequireAggregateElementView(node.ChildAt(0),
+                    TypeView(node.ChildAt(0), scope), annotation: true);
                 if (element.ArrayDepth == 0 && element != analysis.ScalarType(ScalarKind.Bool)
                     && !SemanticTypes.IsInteger(element) && element.Class is null
                     && !(allowStructs && (element.Kind == SemanticTypeKind.Tuple
@@ -5705,6 +6206,7 @@ internal sealed partial class Compilation
                         && expectedType.ComponentCount() == node.ChildCount();
                     for (int i = 0; i < node.ChildCount(); i += 1)
                     {
+                        RequireAggregateElementView(node.ChildAt(i), node.ChildAt(i).Fact!.ParticipantView);
                         SemanticType actual = node.ChildAt(i).Fact!.Type;
                         SemanticType component = contextualTuple ? expectedType!.ComponentAt(i) : actual;
                         RequireType(node.ChildAt(i), actual, component);
@@ -5744,6 +6246,7 @@ internal sealed partial class Compilation
                     for (int i = 0; i < node.ChildCount(); i += 1)
                     {
                         SyntaxNode element = node.ChildAt(i);
+                        RequireAggregateElementView(element, element.Fact!.ParticipantView);
                         if (!SemanticTypes.CanWiden(element.Fact!.Type, elementType))
                         {
                             Fail(element, "LYC304", $"Expected {SemanticTypes.Name(elementType)}, got {SemanticTypes.Name(element.Fact.Type)}.");
@@ -6081,7 +6584,10 @@ internal sealed partial class Compilation
                             {
                                 Fail(receiverNode, "LYC304", "Nullable method access requires checked unwrap.");
                             }
-                            if (Text(callee) == "destroy")
+                            // A label selects members; it is not a second object
+                            // value or an alternate route to built-in destruction.
+                            if (Text(callee) == "destroy"
+                                && receiverNode.Fact?.Symbol?.Kind != SymbolKind.MemberNamespace)
                             {
                                 SemanticSymbol destroyedClass = actualReceiver.Class!;
                                 SyntaxNode declaration = destroyedClass.Declaration!;
@@ -6152,6 +6658,10 @@ internal sealed partial class Compilation
                         SemanticType argumentType = operation == ArrayOperation.Push
                             ? SemanticTypes.ElementOf(arrayType) : analysis.ScalarType(ScalarKind.U64);
                         SemanticType supplied = CheckExpression(node.ChildAt(1), scope, argumentType);
+                        if (operation == ArrayOperation.Push)
+                        {
+                            RequireAggregateElementView(node.ChildAt(1), node.ChildAt(1).Fact!.ParticipantView);
+                        }
                         RequireType(node.ChildAt(1), supplied, argumentType);
                         if (nested)
                         {

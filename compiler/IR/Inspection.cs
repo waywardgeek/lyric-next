@@ -73,6 +73,7 @@ internal sealed partial class Compilation
                 writer.WriteStartObject();
                 SemanticSymbol identity = function.Declaration ?? function.DestructionClass!;
                 writer.WriteString("kind", function.Kind.ToString());
+                writer.WriteBoolean("borrowedReceiver", function.BorrowsReceiver());
                 writer.WriteString("name", identity.Name);
                 WriteSymbol("symbolId", identity);
                 WriteSymbol("ownerClass", function.DestructionClass ?? identity.Scope?.Class);

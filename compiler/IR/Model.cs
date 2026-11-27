@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 
 namespace Lyric;
@@ -511,5 +512,166 @@ internal sealed partial class SyntaxNode
         }
         IrOrigins.RemoveAt(index);
         node.Origin = null;
+    }
+}
+
+internal sealed partial class IrFunction
+{
+    internal partial bool BorrowsReceiver()
+    {
+        SemanticSymbol? declaration = Declaration;
+        SemanticSymbol? nominal = declaration?.Scope?.Class;
+        return Kind == IrFunctionKind.Destruction
+            || (nominal is not null && declaration is not null
+                && (ObservesReceiver || declaration.Name == nominal.Name
+                    || declaration.IsFinalHook() || declaration.IsDestructorFragment()));
+    }
+}
+internal sealed partial class IrNode
+{
+    internal partial void ReplaceChild(IrNode oldChild, IrNode newChild)
+    {
+        int index = Children.IndexOf(oldChild);
+        if (Destroyed || Function is null || index < 0 || oldChild.Parent != this
+            || newChild.Destroyed || newChild.Function != Function
+            || newChild.Parent is not null || newChild.BodyOwner is not null)
+        {
+            throw new InvalidOperationException("Invalid ordered IR replacement.");
+        }
+        for (IrNode? ancestor = this; ancestor is not null; ancestor = ancestor.Parent)
+        {
+            if (ancestor == newChild)
+            {
+                throw new InvalidOperationException("Cyclic ordered IR replacement.");
+            }
+        }
+        Children[index] = newChild;
+        oldChild.Parent = null;
+        newChild.Parent = this;
+    }
+    internal partial void InsertAfter(IrNode previous, IrNode child)
+    {
+        int index = Children.IndexOf(previous);
+        if (Destroyed || Function is null || index < 0 || previous.Parent != this
+            || child.Destroyed || child.Function != Function
+            || child.Parent is not null || child.BodyOwner is not null)
+        {
+            throw new InvalidOperationException("Invalid ordered IR insertion.");
+        }
+        for (IrNode? ancestor = this; ancestor is not null; ancestor = ancestor.Parent)
+        {
+            if (ancestor == child)
+            {
+                throw new InvalidOperationException("Cyclic ordered IR insertion.");
+            }
+        }
+        Children.Insert(index + 1, child);
+        child.Parent = this;
+    }
+}
+internal sealed partial class IrOperand
+{
+    internal partial void SetDefinition(IrNode definition)
+    {
+        if (Destroyed || Consumer is null || definition.Destroyed
+            || definition.Function != Consumer.Function || definition.Result == IrResult.None)
+        {
+            throw new InvalidOperationException("Invalid IR definition replacement.");
+        }
+        if (Definition == definition)
+        {
+            return;
+        }
+        // Reserve before detaching so allocation failure preserves the old edge.
+        definition.ReserveUse();
+        Definition?.RemoveUse(this);
+        definition.AddUse(this);
+    }
+}
+
+internal sealed partial class IrNode
+{
+    internal partial void ReserveUse()
+    {
+        if (Destroyed)
+        {
+            throw new InvalidOperationException("Destroyed IR definition.");
+        }
+        Uses.EnsureCapacity(Uses.Count + 1);
+    }
+}
+
+internal sealed partial class IrNode
+{
+    internal partial bool IsManagedHandleStorage()
+    {
+        // Address aliases preserve the field's ownership policy. Do not infer it
+        // from the value type: ordinary fields of the same type own their values.
+        IrNode current = this;
+        HashSet<IrNode> visited = new();
+        while (current.Kind is IrKind.Borrow or IrKind.AddressOf)
+        {
+            // A relationship's writable participant parameter is a borrowed
+            // structural slot, even though its caller's address is not a local
+            // operand. Use the declared endpoint occurrence, not concrete class
+            // equality: unrelated counted types keep ordinary owning stores.
+            if (current.Kind == IrKind.Borrow && current.OperandCount() == 0
+                && current.Symbol is SemanticSymbol parameter
+                && parameter.Kind == SymbolKind.Parameter && parameter.IsReference
+                && parameter.ParticipantView is ParticipantBinding participant
+                && participant.Instantiation is MultiClassInstantiation instance
+                && instance.Policy != RelationshipPolicy.None
+                && current.Function?.Declaration?.ContributingParticipant?.Instantiation == instance
+                && participant.AcceptsViewType(current.Type))
+            {
+                return true;
+            }
+            if (!visited.Add(current) || current.OperandCount() != 1)
+            {
+                return false;
+            }
+            IrNode? origin = current.OperandAt(0).Definition;
+            if (origin is null)
+            {
+                return false;
+            }
+            current = origin;
+        }
+        if (current.Kind == IrKind.Local
+            && current.Function?.Declaration?.BorrowsParticipantLocal(current.Symbol) == true)
+        {
+            return true;
+        }
+        return current.Kind == IrKind.SelectField
+            && current.Symbol is not null
+            && current.Symbol.IsManagedHandle();
+    }
+}
+
+internal sealed partial class IrNode
+{
+    internal partial bool IsBorrowedHandleValue()
+    {
+        if (Type is null || Type.ArrayDepth != 0 || Type.Class?.IsCountedClass() != true)
+        {
+            return false;
+        }
+        IrNode current = this;
+        HashSet<IrNode> visited = new();
+        while (current.Kind is IrKind.WrapNullable or IrKind.UnwrapNullable)
+        {
+            // Incomplete drafts and cycles are not evidence of borrowing.
+            if (!visited.Add(current) || current.OperandCount() != 1)
+            {
+                return false;
+            }
+            IrNode? input = current.OperandAt(0).Definition;
+            if (input is null)
+            {
+                return false;
+            }
+            current = input;
+        }
+        return current.Kind == IrKind.Load && current.Result == IrResult.Value;
     }
 }

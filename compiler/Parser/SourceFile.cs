@@ -896,6 +896,11 @@ internal sealed partial class SourceFile
 
         SyntaxNode Statement()
         {
+            if (At("prepare") && cursor + 1 < Tokens.Count && TokenText(cursor + 1) == "{")
+            {
+                Take();
+                return Node(SyntaxKind.Prepare, -1, Block());
+            }
             if (At("let") || At("var"))
             {
                 return Binding(false);
@@ -1003,13 +1008,19 @@ internal sealed partial class SourceFile
             }
         }
 
-        SyntaxNode TypeParameters()
+        SyntaxNode TypeParameters(bool participants = false)
         {
             Expect("<");
             SyntaxNode parameters = Node(SyntaxKind.TypeParameters);
             do
             {
+                // Role words are contextual only in interface parameter lists.
+                int role = participants && (At("parent") || At("child")) ? Take() : -1;
                 SyntaxNode parameter = Node(SyntaxKind.TypeParameter, Name());
+                if (role >= 0)
+                {
+                    parameter.AddChild(Node(SyntaxKind.Modifier, role));
+                }
                 if (At(":"))
                 {
                     Take();
@@ -1047,10 +1058,11 @@ internal sealed partial class SourceFile
             return simple ?? Capability();
         }
 
-        SyntaxNode Function()
+        SyntaxNode Function(bool relationship = false)
         {
             int modifier = -1;
-            if (At("safe") || At("final"))
+            if (At("safe") || At("final")
+                || (relationship && (At("add") || At("remove"))))
             {
                 modifier = Take();
             }
@@ -1199,6 +1211,27 @@ internal sealed partial class SourceFile
             return relation;
         }
 
+        SyntaxNode DestructorFragment()
+        {
+            Expect("partial");
+            if (!At("owns") && !At("refs"))
+            {
+                throw Failure("Expected destructor policy 'owns' or 'refs'.");
+            }
+            int policy = Take();
+            int name = Expect("destroy");
+            Expect("(");
+            int receiver = Expect("self");
+            Expect(")");
+            // Preserve a distinct declaration kind, but use the ordinary callable
+            // signature shape so checking owns a real self parameter and scope.
+            return Node(SyntaxKind.DestructorFragment, name,
+                Node(SyntaxKind.Name, name),
+                Node(SyntaxKind.RelationKind, policy),
+                Node(SyntaxKind.Parameters, -1, Node(SyntaxKind.Parameter, receiver)),
+                Block());
+        }
+
         SyntaxNode Aggregate(bool isClass, bool participant = false)
         {
             int value = At("value") ? Take() : -1;
@@ -1223,7 +1256,8 @@ internal sealed partial class SourceFile
                 SyntaxNode? function = Attempt(() =>
                 {
                     int visibility = At("pub") ? Take() : -1;
-                    SyntaxNode member = Function();
+                    SyntaxNode member = participant && At("partial")
+                        ? DestructorFragment() : Function(relationship: participant);
                     if (visibility >= 0)
                     {
                         member.AddChild(Node(SyntaxKind.Visibility, visibility));
@@ -1288,7 +1322,7 @@ internal sealed partial class SourceFile
             SyntaxNode contract = Node(SyntaxKind.Interface, Name());
             if (At("<"))
             {
-                contract.AddChild(TypeParameters());
+                contract.AddChild(TypeParameters(participants: true));
             }
             if (At("extends"))
             {

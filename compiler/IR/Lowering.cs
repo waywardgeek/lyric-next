@@ -108,6 +108,10 @@ internal sealed partial class Compilation
             program.ValidateStructure();
             program.ValidateOperations();
             program.ValidateExecution();
+            program.SimplifyOwnership();
+            program.ValidateStructure();
+            program.ValidateOperations();
+            program.ValidateExecution();
             return null;
         }
         catch (SemanticFailure failure)
@@ -157,11 +161,40 @@ internal sealed partial class Compilation
                 body.AddChild(call);
                 _ = new IrOperand(call, handle);
             }
+            // A class may occupy both roles in independent bindings. Detach all
+            // child occurrences before cleaning any parent occurrence, regardless
+            // of declaration order. Calls borrow the live teardown receiver.
+            foreach (ParticipantRole phase in new[] { ParticipantRole.Child, ParticipantRole.Parent })
+            {
+                foreach (SemanticSymbol fragment in nominal.MemberScope!.Methods())
+                {
+                    if (!fragment.IsDestructorFragment())
+                    {
+                        continue;
+                    }
+                    ParticipantBinding participant = fragment.ContributingParticipant!;
+                    ParticipantRole role = participant.Instantiation!.Template!
+                        .ParticipantRoleAt(participant.Position);
+                    if (role != phase)
+                    {
+                        continue;
+                    }
+                    IrNode handle = new(function, IrKind.Load, result: IrResult.Value,
+                        type: receiverType, origin: origin);
+                    body.AddChild(handle);
+                    _ = new IrOperand(handle, receiver);
+                    IrNode call = new(function, IrKind.Call, result: IrResult.Value,
+                        type: Analysis!.ScalarType(ScalarKind.Unit),
+                        origin: fragment.Declaration, symbol: fragment);
+                    body.AddChild(call);
+                    _ = new IrOperand(call, handle);
+                }
+            }
             // Final observes live fields. Resolve each descriptor after the hook,
             // which may grow class storage; never retain an interior pointer across it.
             foreach (SemanticSymbol field in nominal.MemberScope!.Fields())
             {
-                if (!SemanticTypes.HasOwnedContents(field.Type!))
+                if (field.IsManagedHandle() || !SemanticTypes.HasOwnedContents(field.Type!))
                 {
                     continue;
                 }
@@ -238,11 +271,13 @@ internal sealed partial class Compilation
                 IrNode local = Add(body, parameter.IsReference ? IrKind.Borrow : IrKind.Local,
                     parameter.Declaration!,
                     parameter.Type, IrResult.Address, symbol: parameter);
-                // Constructors and final hooks borrow self. Ordinary methods consume
-                // a receiver holder, just like any other value parameter.
+                // Constructors/final hooks borrow self. Relationship participant
+                // parameters also borrow; unrelated value parameters remain owners.
                 bool borrowedSelf = p == 0 && declaration.Scope!.Class is SemanticSymbol owner
-                    && (declaration.Name == owner.Name || declaration.IsFinalHook());
-                if (borrowedSelf && Owned(parameter.Type))
+                    && (declaration.Name == owner.Name || declaration.IsFinalHook()
+                        || declaration.IsDestructorFragment());
+                if ((borrowedSelf || declaration.BorrowsParticipantParameter(parameter))
+                    && Owned(parameter.Type))
                 {
                     owners[body].Remove(local);
                 }
@@ -300,12 +335,14 @@ internal sealed partial class Compilation
             IrNode Add(IrNode region, IrKind kind, SyntaxNode origin,
                 SemanticType? type = null, IrResult result = IrResult.None,
                 string? operation = null, SemanticSymbol? symbol = null,
-                IrLiteral? literal = null)
+                IrLiteral? literal = null, bool registerOwner = true)
             {
                 IrNode node = new(function, kind, result: result, type: type,
                     origin: origin, symbol: symbol, literal: literal, operation: operation);
                 region.AddChild(node);
-                if (Owned(type) && (kind is IrKind.Local or IrKind.Copy or IrKind.Ref
+                bool borrowedLocal = kind == IrKind.Local
+                    && declaration.BorrowsParticipantLocal(symbol);
+                if (registerOwner && !borrowedLocal && Owned(type) && (kind is IrKind.Local or IrKind.Copy or IrKind.Ref
                     or IrKind.NewArray or IrKind.NewTuple or IrKind.NewStruct or IrKind.NewObject
                     or IrKind.Call or IrKind.NullHandle or IrKind.WrapNullable or IrKind.UnwrapNullable
                     || kind == IrKind.CallInitializer && result == IrResult.Value))
@@ -329,11 +366,43 @@ internal sealed partial class Compilation
                 {
                     return value;
                 }
+                // A scalar Load and its nullable conversions observe without
+                // owning the object. Owning boundaries acquire a holder first;
+                // moving the borrowed observation would steal someone else's count.
+                if (value.IsBorrowedHandleValue())
+                {
+                    IrNode retained = Add(region, IrKind.Ref, origin, value.Type, IrResult.Value);
+                    Input(retained, value);
+                    value = retained;
+                }
                 // Move produces a transient transfer value and empties the source
                 // holder. Its designated consumer establishes the next owner; cleanup may intervene.
                 IrNode move = Add(region, IrKind.Move, origin, value.Type, IrResult.Value);
                 Input(move, value);
                 return move;
+            }
+            void ReleaseBorrowedArguments(IrNode region, SyntaxNode origin,
+                SemanticSymbol target, IrNode[] arguments)
+            {
+                // Borrowing changes the callee contract, not the lifetime of the
+                // caller's evaluated argument holders. Keep those through the
+                // call, then empty them at the former consuming-call boundary.
+                // A direct borrowed value is not registered here and is untouched.
+                if (!owners.TryGetValue(region, out List<IrNode>? holders))
+                {
+                    return;
+                }
+                for (int index = arguments.Length - 1; index >= 0; index -= 1)
+                {
+                    SemanticSymbol parameter = target.FunctionScope!.ParameterAt(index);
+                    IrNode argument = arguments[index];
+                    if (target.BorrowsParticipantParameter(parameter)
+                        && holders.Contains(argument))
+                    {
+                        IrNode release = Add(region, DropKind(argument.Type!), origin);
+                        Input(release, argument);
+                    }
+                }
             }
             void Cleanup(IrNode output, IrNode scope, SyntaxNode origin)
             {
@@ -376,8 +445,10 @@ internal sealed partial class Compilation
                 }
                 if (type.Kind == SemanticTypeKind.Nullable)
                 {
-                    IrNode transferred = Transfer(region, origin, value);
-                    IrNode wrapped = Add(region, IrKind.WrapNullable, origin, type, IrResult.Value);
+                    bool borrowed = value.IsBorrowedHandleValue();
+                    IrNode transferred = borrowed ? value : Transfer(region, origin, value);
+                    IrNode wrapped = Add(region, IrKind.WrapNullable, origin, type,
+                        IrResult.Value, registerOwner: !borrowed);
                     Input(wrapped, transferred);
                     return wrapped;
                 }
@@ -560,9 +631,10 @@ internal sealed partial class Compilation
                         case SyntaxKind.Postfix when Text(node) == "!":
                             Expression(node.ChildAt(0), region, loop, nullable =>
                             {
-                                IrNode transferred = Transfer(region, node, nullable);
+                                bool borrowed = nullable.IsBorrowedHandleValue();
+                                IrNode transferred = borrowed ? nullable : Transfer(region, node, nullable);
                                 IrNode unwrapped = Add(region, IrKind.UnwrapNullable,
-                                    node, fact.Type, IrResult.Value);
+                                    node, fact.Type, IrResult.Value, registerOwner: !borrowed);
                                 Input(unwrapped, transferred);
                                 done(unwrapped);
                             });
@@ -590,9 +662,17 @@ internal sealed partial class Compilation
                                 IrResult.Value, literal: new IrLiteral(bytes)));
                             return;
                         case SyntaxKind.Name:
-                            IrNode load = Add(region, ReadKind(fact.Type),
+                            // Participant values and aliases to their borrowed
+                            // storage observe without acquiring ownership. Follow
+                            // the actual address chain, not the local's spelling.
+                            // Transfer retains at a later owning boundary.
+                            IrNode namedStorage = Storage(node);
+                            IrKind read = declaration.BorrowsParticipantParameter(fact.Symbol)
+                                || namedStorage.IsManagedHandleStorage()
+                                ? IrKind.Load : ReadKind(fact.Type);
+                            IrNode load = Add(region, read,
                                 node, fact.Type, IrResult.Value);
-                            Input(load, Storage(node));
+                            Input(load, namedStorage);
                             done(load);
                             return;
                         case SyntaxKind.Member:
@@ -627,7 +707,16 @@ internal sealed partial class Compilation
                             }
                             SelectStorage(node, region, loop, selected =>
                             {
-                                IrNode value = Add(region, ReadKind(fact.Type),
+                                // Only this relationship's participant fields are
+                                // borrowed here. Application reads and unrelated
+                                // counted types still acquire ordinary owners.
+                                SemanticSymbol? field = selected.Symbol;
+                                bool borrowed = field?.IsManagedHandle() == true
+                                    && field.ParticipantView is ParticipantBinding participant
+                                    && participant.Instantiation == declaration.ContributingParticipant?.Instantiation
+                                    && participant.AcceptsViewType(fact.Type);
+                                IrKind read = borrowed ? IrKind.Load : ReadKind(fact.Type);
+                                IrNode value = Add(region, read,
                                     node, fact.Type, IrResult.Value);
                                 Input(value, selected);
                                 done(value);
@@ -852,7 +941,8 @@ internal sealed partial class Compilation
                                 arguments[a] = Widen(region, node, arguments[a], parameter.Type!);
                                 // Builtins observe argument values; their temporary owners
                                 // remain in this region for explicit cleanup after the call.
-                                if (target.Builtin == BuiltinKind.None)
+                                if (target.Builtin == BuiltinKind.None
+                                    && !target.BorrowsParticipantParameter(parameter))
                                 {
                                     arguments[a] = Transfer(region, node, arguments[a]);
                                 }
@@ -922,6 +1012,10 @@ internal sealed partial class Compilation
                         {
                             Input(operation, argument);
                         }
+                        if (target is not null && target.Builtin == BuiltinKind.None)
+                        {
+                            ReleaseBorrowedArguments(region, node, target, arguments);
+                        }
                         done(operation);
                     });
                     for (int i = count - 1; i >= 0; i -= 1)
@@ -954,7 +1048,10 @@ internal sealed partial class Compilation
                         if (!parameter.IsReference)
                         {
                             arguments[a] = Widen(region, node, arguments[a], parameter.Type!);
-                            arguments[a] = Transfer(region, node, arguments[a]);
+                            if (!target.BorrowsParticipantParameter(parameter))
+                            {
+                                arguments[a] = Transfer(region, node, arguments[a]);
+                            }
                         }
                     }
                     if (constructing)
@@ -963,7 +1060,8 @@ internal sealed partial class Compilation
                         arguments[0] = Add(region, IrKind.NewObject, node,
                             node.Fact.Type, IrResult.Value, symbol: nominal);
                     }
-                    if (!constructing)
+                    if (!constructing
+                        && !target.BorrowsParticipantParameter(target.FunctionScope.ParameterAt(0)))
                     {
                         arguments[0] = Transfer(region, node, arguments[0]);
                     }
@@ -972,6 +1070,10 @@ internal sealed partial class Compilation
                     foreach (IrNode argument in arguments)
                     {
                         Input(call, argument);
+                    }
+                    if (!constructing)
+                    {
+                        ReleaseBorrowedArguments(region, node, target, arguments);
                     }
                     done(constructing ? arguments[0] : call);
                 });
@@ -1043,6 +1145,25 @@ internal sealed partial class Compilation
                     }
                 }
             }
+            void Membership(IrNode region, SyntaxNode origin, RelationshipOperation operation)
+            {
+                if (declaration.RelationshipOperationKind() != operation
+                    || declaration.ContributingParticipant!.Instantiation!.Policy != RelationshipPolicy.Refs)
+                {
+                    return;
+                }
+                SemanticSymbol child = parameters.ParameterAt(1);
+                if (!Counted(child.Type))
+                {
+                    return;
+                }
+                // Membership owns one count independently of ordinary caller holders.
+                // The participant parameter borrows; accounting must not empty it.
+                IrKind kind = operation == RelationshipOperation.Add
+                    ? IrKind.MembershipRetain : IrKind.MembershipRelease;
+                IrNode accounting = Add(region, kind, origin);
+                Input(accounting, storage[child]);
+            }
             void Block(SyntaxNode syntax, IrNode region, IrNode? loop, IrKind ending, SemanticType type)
             {
                 bool tail = ending == IrKind.Yield && syntax.ChildCount() != 0
@@ -1050,6 +1171,12 @@ internal sealed partial class Compilation
                 if (!tail && syntax.Fact!.CanContinue)
                 {
                     work.Push(() => End(region, ending, syntax, Unit(region, syntax), type));
+                    if (syntax == block)
+                    {
+                        // LIFO scheduling runs this after the structural statements
+                        // but before End releases locals and parameter holders.
+                        work.Push(() => Membership(region, syntax, RelationshipOperation.Remove));
+                    }
                 }
                 for (int i = syntax.ChildCount() - 1; i >= 0; i -= 1)
                 {
@@ -1062,6 +1189,19 @@ internal sealed partial class Compilation
             {
                 switch (node.Kind)
                 {
+                    case SyntaxKind.Prepare:
+                        // Keep preparation storage in the surrounding region;
+                        // no End instruction or early cleanup belongs here.
+                        SyntaxNode preparation = node.ChildAt(0);
+                        // Publish membership ownership only after validation and
+                        // preparation have completed, before the first link write.
+                        work.Push(() => Membership(region, node, RelationshipOperation.Add));
+                        for (int index = preparation.ChildCount() - 1; index >= 0; index -= 1)
+                        {
+                            SyntaxNode statement = preparation.ChildAt(index);
+                            work.Push(() => Statement(statement, region, loop, false, type));
+                        }
+                        return;
                     case SyntaxKind.DiscardResult:
                         return;
                     case SyntaxKind.Binding:
@@ -1252,8 +1392,14 @@ internal sealed partial class Compilation
             void Store(IrNode destination, IrNode value, SyntaxNode origin, IrNode region)
             {
                 IrNode converted = Widen(region, origin, value, destination.Type!);
-                converted = Transfer(region, origin, converted);
-                if (Owned(destination.Type))
+                // Structural links observe a handle; the membership owns the
+                // reference. The value temporary still owns its normal copy.
+                bool managed = destination.IsManagedHandleStorage();
+                if (!managed)
+                {
+                    converted = Transfer(region, origin, converted);
+                }
+                if (!managed && Owned(destination.Type))
                 {
                     IrNode release = Add(region,
                         DropKind(destination.Type!), origin);

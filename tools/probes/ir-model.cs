@@ -802,6 +802,142 @@ internal static class IrModelProbe
         }
     }
 
+    private static void CheckMembershipAccounting()
+    {
+        // Lower real guards, structural stores and ordinary cleanup. Corrupt
+        // cardinality or order without breaking graph links; never emit or run it.
+        const string text = """
+            interface Link<parent P, child C> {
+                class P {
+                    first: C?
+                    pub add func attach(self, child: C) {
+                        prepare { assert(self.first == null); let token = Payload() }
+                        self.first = child
+                    }
+                    pub remove func detach(self, child: C) {
+                        prepare { assert(self.first == child); let token = Payload() }
+                        self.first = null
+                    }
+                }
+                class C {}
+            }
+            class Graph { func Graph(self) {} }
+            value class Node { func Node(self) {} }
+            impl Link<Graph:links, Node:graph> refs {}
+            value class Payload { func Payload(self) {} }
+            func main() {}
+            """;
+        for (int defect = 0; defect < 8; defect += 1)
+        {
+            Compilation compilation = new();
+            SourceFile source = new(compilation, "membership.ly",
+                System.Text.Encoding.UTF8.GetBytes(text));
+            Check(source.Parse(false) is null && compilation.Check(false) is null
+                && compilation.LowerIr() is null, "membership fixture failed lowering");
+            SyntaxNode root = source.SyntaxRoot()!;
+            IrProgram program = root.ChildAt(root.ChildCount() - 1).DeclaredSymbol!.IrBody!.Program!;
+            IrKind selected = defect < 2 || defect is 4 or 5
+                ? IrKind.MembershipRetain : IrKind.MembershipRelease;
+            IrNode? accounting = null;
+            for (int f = 0; f < program.FunctionCount(); f += 1)
+            {
+                IrFunction function = program.FunctionAt(f);
+                for (int n = 0; n < function.NodeCount(); n += 1)
+                {
+                    if (function.NodeAt(n).Kind == selected)
+                    {
+                        accounting = function.NodeAt(n);
+                    }
+                }
+            }
+            Check(accounting is not null, "lowering omitted membership accounting");
+            if (defect < 4)
+            {
+                if (defect % 2 == 0)
+                {
+                    accounting!.Destroy();
+                }
+                else
+                {
+                    IrNode duplicate = new(accounting!.Function!, selected, origin: accounting.Origin);
+                    accounting.Parent!.AddChild(duplicate);
+                    _ = new IrOperand(duplicate, accounting.OperandAt(0).Definition!);
+                }
+            }
+            else
+            {
+                IrNode body = accounting!.Parent!;
+                IrNode? anchor = null;
+                for (int index = 0; index < body.ChildCount(); index += 1)
+                {
+                    IrNode candidate = body.ChildAt(index);
+                    if (defect is 4 or 6 && candidate == accounting.OperandAt(0).Definition
+                        || defect == 5 && candidate.Kind == IrKind.Store
+                        || defect == 7 && candidate.Kind == IrKind.Unref
+                            && candidate.Origin == body.Origin)
+                    {
+                        anchor = candidate;
+                    }
+                }
+                Check(anchor is not null, "membership phase control lacks its anchor");
+                body.RemoveChild(accounting);
+                body.InsertAfter(anchor!, accounting);
+            }
+            program.ValidateStructure();
+            Refuses(program.ValidateOperations, "malformed membership count or order accepted");
+            compilation.Destroy();
+        }
+    }
+
+    private static void CheckReceiverSimplification()
+    {
+        const string text = """
+            value class Box {
+                func Box(self) {}
+                pub func show(self) { print("live") }
+                pub func keep(self)->Box { return self }
+            }
+            func main() { let box=Box(); box.show(); let other=box.keep() }
+            """;
+        Compilation compilation = new();
+        SourceFile source = new(compilation, "receiver.ly",
+            System.Text.Encoding.UTF8.GetBytes(text));
+        Check(source.Parse(false) is null && compilation.Check(false) is null
+            && compilation.LowerIr() is null, "receiver fixture failed lowering");
+        SemanticSymbol nominal = source.SyntaxRoot()!.ChildAt(0).DeclaredSymbol!;
+        IrFunction show = nominal.MemberScope!.LookupMember("show")!.IrBody!;
+        IrFunction keep = nominal.MemberScope.LookupMember("keep")!.IrBody!;
+        IrProgram program = show.Program!;
+        Check(show.ObservesReceiver && !keep.ObservesReceiver,
+            "receiver escape classification is incorrect");
+        IrNode? receiver = null;
+        for (int n = 0; n < show.NodeCount(); n += 1)
+        {
+            IrNode node = show.NodeAt(n);
+            if (node.Kind == IrKind.Local && node.Symbol == show.Declaration!.FunctionScope!.ParameterAt(0))
+            {
+                receiver = node;
+            }
+        }
+        Check(receiver is not null, "observing method lost its receiver slot");
+        IrNode badRelease = new(show, IrKind.Unref, origin: show.Body!.Origin);
+        show.Body.AddChild(badRelease);
+        _ = new IrOperand(badRelease, receiver!);
+        program.ValidateStructure();
+        Refuses(program.ValidateOperations, "borrowed receiver cleanup accepted");
+        badRelease.Destroy();
+        keep.ObservesReceiver = true;
+        Refuses(program.ValidateOperations, "escaping receiver marked borrowed");
+        keep.ObservesReceiver = false;
+        show.ObservesReceiver = false;
+        Refuses(program.ValidateOperations, "call missing receiver ownership accepted");
+        show.ObservesReceiver = true;
+        program.ValidateStructure();
+        program.ValidateOperations();
+        program.ValidateExecution();
+        compilation.Destroy();
+    }
+
     private static void CheckPublication()
     {
         Compilation compilation = new();
@@ -830,6 +966,8 @@ internal static class IrModelProbe
         CheckExecution();
         CheckConstantPayloads();
         CheckPublication();
+        CheckMembershipAccounting();
+        CheckReceiverSimplification();
         CheckNullableOperations();
         Compilation compilation = new();
         SourceFile source = new(compilation, "probe.ly", Array.Empty<byte>());

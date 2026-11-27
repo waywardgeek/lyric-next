@@ -10,6 +10,8 @@ These contracts precede implementation; their presence is not a passing result.
 """
 from pathlib import Path
 import sys
+import subprocess
+import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ch10'))
 from tuples import main
@@ -162,13 +164,29 @@ RUNTIME_CASES = [
     }''', None),
 ]
 
+def unchecked_unwrap_contract(compiler):
+    # Invalid unsafe input is inspected, NEVER executed. Valid unsafe programs
+    # below establish unchanged behavior on inputs satisfying safe preconditions.
+    with tempfile.TemporaryDirectory(prefix='lyric-unsafe-unwrap-') as directory:
+        for name, source, unused in RUNTIME_CASES:
+            path = Path(directory) / (name + '.ly')
+            path.write_text(source)
+            result = subprocess.run(
+                compiler + ['--emit-c', '--unsafe', str(path)],
+                capture_output=True, timeout=30)
+            if (result.returncode != 0 or result.stderr
+                    or b'LYR013: null handle unwrap' in result.stdout):
+                print('FAIL unsafe unwrap-check omission', name)
+                return 1
+    print('3/3 unsafe unwrap-check omission cases passed (not executed)')
+    return 0
+
+
 if __name__ == '__main__':
     safe = main(CASES, NEGATIVE_CASES, 'nullable-handle',
                 runtime_cases=RUNTIME_CASES,
                 runtime_diagnostic=b'LYR013: null handle unwrap')
-    # Unsafe mode does not remove the defined null check. Do not run invalid
-    # dangling-handle negatives under unsafe; only this specified failure.
-    unsafe = main((), (), 'nullable-handle-unsafe',
-                  runtime_cases=RUNTIME_CASES, emission_options=('--unsafe',),
-                  runtime_diagnostic=b'LYR013: null handle unwrap')
-    raise SystemExit(0 if safe == 0 and unsafe == 0 else 1)
+    omitted = unchecked_unwrap_contract(sys.argv[1:])
+    unsafe = main(CASES, (), 'nullable-handle-unsafe-valid',
+                  emission_options=('--unsafe',))
+    raise SystemExit(0 if safe == 0 and omitted == 0 and unsafe == 0 else 1)

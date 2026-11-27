@@ -113,7 +113,9 @@ internal sealed partial class SemanticScope
     internal partial System.Collections.Generic.IEnumerable<SemanticSymbol> Methods();
     // Strong membership. Nominal members share a qualified namespace; other
     // declarations refuse an already-visible lexical name before mutation.
-    internal partial void AddSymbol(SemanticSymbol symbol);
+    // Construction supplies the prospective declaration because scope attachment
+    // precedes declaration attachment. Hidden fragments do not occupy source names.
+    internal partial void AddSymbol(SemanticSymbol symbol, SyntaxNode? declaration);
     internal partial void RemoveSymbol(SemanticSymbol symbol);
 }
 
@@ -149,6 +151,23 @@ internal sealed partial class SemanticSymbol
     internal partial void Destroy();
     // Queries authoritative syntax/member relationships; no duplicate hook state.
     internal partial bool IsFinalHook();
+    // A policy-selected teardown body is owned and checked like a function,
+    // but is never an ordinary source-callable member.
+    internal partial bool IsDestructorFragment();
+    // Protects contributed fields containing handles against outside writes.
+    // This access policy alone does not suppress ordinary counted ownership.
+    internal partial bool IsManagedLink();
+    // Only scalar fields with this relationship's participant view are nonowning
+    // structural slots. Unrelated payloads and aggregate backing remain owners.
+    internal partial bool IsManagedHandle();
+    // Derives the designated operation from contributed declaration syntax.
+    internal partial RelationshipOperation RelationshipOperationKind();
+    // Participant value parameters of this trusted relationship are borrowed.
+    // Derive the contract from endpoint identity, never concrete class equality.
+    internal partial bool BorrowsParticipantParameter(SemanticSymbol? parameter);
+    // Scalar participant locals borrow within this function's relationship.
+    // Explicit concrete annotations drop the participant view and remain owning.
+    internal partial bool BorrowsParticipantLocal(SemanticSymbol? local);
     // Lifetime policy comes from the class declaration, not copied state.
     internal partial bool IsCountedClass();
     // Valid checked classes have at most one hook. Returns its existing symbol.

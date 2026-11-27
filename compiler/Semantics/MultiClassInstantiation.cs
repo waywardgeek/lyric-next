@@ -6,7 +6,8 @@ namespace Lyric;
 internal sealed partial class MultiClassInstantiation
 {
     internal partial MultiClassInstantiation(SemanticSymbol template,
-        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels)
+        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels,
+        RelationshipPolicy policy)
     {
         SemanticAnalysis? analysis = template.Scope?.Analysis;
         if (template.Destroyed || template.Kind != SymbolKind.Interface
@@ -16,6 +17,32 @@ internal sealed partial class MultiClassInstantiation
         {
             throw new InvalidOperationException("Invalid multi-class template or binding arity.");
         }
+        int parents = 0;
+        int children = 0;
+        for (int index = 0; index < classes.Count; index += 1)
+        {
+            ParticipantRole role = template.ParticipantRoleAt(index);
+            if (role == ParticipantRole.Parent)
+            {
+                parents += 1;
+            }
+            if (role == ParticipantRole.Child)
+            {
+                children += 1;
+                if (policy == RelationshipPolicy.Owns && classes[index].IsCountedClass())
+                {
+                    throw new InvalidOperationException("An owning relationship requires ordinary children.");
+                }
+            }
+        }
+        bool relationship = parents != 0 || children != 0;
+        if (policy is not (RelationshipPolicy.None or RelationshipPolicy.Owns or RelationshipPolicy.Refs)
+            || (relationship && (parents != 1 || children != 1 || classes.Count != 2))
+            || relationship != (policy != RelationshipPolicy.None))
+        {
+            throw new InvalidOperationException("Relationship roles and binding policy do not match.");
+        }
+        Policy = policy;
         for (int index = 0; index < classes.Count; index += 1)
         {
             SemanticSymbol concreteClass = classes[index];
@@ -42,7 +69,7 @@ internal sealed partial class MultiClassInstantiation
                 }
             }
         }
-        if (analysis.FindMultiClassInstantiation(template, classes, labels) is not null)
+        if (analysis.FindMultiClassInstantiation(template, classes, labels, policy) is not null)
         {
             throw new InvalidOperationException("Duplicate multi-class instantiation.");
         }
@@ -63,9 +90,10 @@ internal sealed partial class MultiClassInstantiation
     }
 
     internal partial bool Matches(SemanticSymbol template,
-        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels)
+        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels,
+        RelationshipPolicy policy)
     {
-        if (Destroyed || Template != template || classes.Count != Participants.Count
+        if (Destroyed || Template != template || Policy != policy || classes.Count != Participants.Count
             || labels.Count != Participants.Count)
         {
             return false;
@@ -263,11 +291,12 @@ internal sealed partial class ParticipantBinding
 internal sealed partial class SemanticAnalysis
 {
     internal partial MultiClassInstantiation? FindMultiClassInstantiation(
-        SemanticSymbol template, IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels)
+        SemanticSymbol template, IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels,
+        RelationshipPolicy policy)
     {
         foreach (MultiClassInstantiation instantiation in MultiClassInstantiations)
         {
-            if (instantiation.Matches(template, classes, labels))
+            if (instantiation.Matches(template, classes, labels, policy))
             {
                 return instantiation;
             }
@@ -314,6 +343,41 @@ internal sealed partial class SemanticSymbol
             }
         }
         return 0;
+    }
+
+    internal partial ParticipantRole ParticipantRoleAt(int position)
+    {
+        if (Kind != SymbolKind.Interface || Declaration is null || position < 0)
+        {
+            return ParticipantRole.None;
+        }
+        for (int index = 0; index < Declaration.ChildCount(); index += 1)
+        {
+            SyntaxNode parameters = Declaration.ChildAt(index);
+            if (parameters.Kind != SyntaxKind.TypeParameters || position >= parameters.ChildCount())
+            {
+                continue;
+            }
+            SyntaxNode parameter = parameters.ChildAt(position);
+            for (int child = 0; child < parameter.ChildCount(); child += 1)
+            {
+                SyntaxNode modifier = parameter.ChildAt(child);
+                if (modifier.Kind != SyntaxKind.Modifier)
+                {
+                    continue;
+                }
+                string text = modifier.Source!.SourceText(modifier.TextOffset, modifier.TextLength);
+                if (text == "parent")
+                {
+                    return ParticipantRole.Parent;
+                }
+                if (text == "child")
+                {
+                    return ParticipantRole.Child;
+                }
+            }
+        }
+        return ParticipantRole.None;
     }
 
     internal partial ParticipantBinding? FindParticipantLabel(string label)

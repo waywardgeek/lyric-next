@@ -13,7 +13,7 @@ namespace Lyric;
 // cleanup reconstruction. All emission maps are transient; the analysis owns IR.
 internal sealed partial class Compilation
 {
-    internal partial Diagnostic? EmitC(TextWriter output, bool structureOfArrays)
+    internal partial Diagnostic? EmitC(TextWriter output, bool structureOfArrays, bool debugChecks)
     {
         if (Analysis is null || Analysis.Destroyed)
         {
@@ -24,10 +24,10 @@ internal sealed partial class Compilation
         {
             return loweringFailure;
         }
-        return EmitIrC(output, structureOfArrays);
+        return EmitIrC(output, structureOfArrays, debugChecks);
     }
 
-    internal partial Diagnostic? EmitIrC(TextWriter output, bool structureOfArrays)
+    internal partial Diagnostic? EmitIrC(TextWriter output, bool structureOfArrays, bool debugChecks)
     {
         if (Analysis?.Ir is not IrProgram program || Analysis.Destroyed)
         {
@@ -429,6 +429,7 @@ internal sealed partial class Compilation
                     or IrKind.Borrow or IrKind.SelectIndex
                     or IrKind.ArrayReserve or IrKind.ArrayResize or IrKind.ArrayTruncate or IrKind.ArrayPush
                     or IrKind.SelectField or IrKind.AddressOf or IrKind.Ref or IrKind.Unref
+                    or IrKind.MembershipRetain or IrKind.MembershipRelease
                     or IrKind.NewObject or IrKind.DestroyObject or IrKind.ReclaimObject))
                 {
                     throw new InvalidOperationException($"Unsupported validated IR operation: {node.Kind}.");
@@ -472,7 +473,7 @@ internal sealed partial class Compilation
                     // A place saves a handle, not an interior pointer. Every use
                     // resolves current class storage through that saved handle.
                     Line($"uint64_t {name};");
-                    values.Add(node, FieldStorage(node.Symbol!, name));
+                    values.Add(node, FieldStorage(node.Symbol!, name, Location(node.Origin!)));
                     continue;
                 }
                 if (node.Kind is IrKind.Local or IrKind.Borrow)
@@ -546,9 +547,27 @@ internal sealed partial class Compilation
                 if (node.Kind == IrKind.ReclaimObject)
                 {
                     string owner = Name(node.Symbol!);
-                    Line($"(({owner}_slot *){owner}_slots.data)[{Operand(0)}].state = {owner}_free_state;");
-                    Line($"(({owner}_slot *){owner}_slots.data)[{Operand(0)}].next_free = {owner}_free;");
-                    Line($"{owner}_free = {Operand(0)};");
+                    string slotIndex = Operand(0);
+                    if (debugChecks)
+                    {
+                        // User cleanup is complete. Resolve again because allocation
+                        // may have moved metadata, then retire the identity forever.
+                        slotIndex = labels[node] + "_slot";
+                        Line($"uint64_t {slotIndex} = {owner}_resolve({Operand(0)}, {Location(node.Origin!)}, \"LYR009: invalid object reclamation\");");
+                        if (node.Symbol!.IsCountedClass())
+                        {
+                            // Reselect metadata after all user cleanup: allocation
+                            // during a hook may have relocated the slots array.
+                            Line($"if ((({owner}_slot *){owner}_slots.data)[{slotIndex}].references != 1)");
+                            Line("{");
+                            Line($"    ly_array_failure({Location(node.Origin!)}, \"LYR009: unbalanced destruction references\");");
+                            Line("}");
+                        }
+                        Line($"(({owner}_slot *){owner}_slots.data)[{slotIndex}].state = {owner}_free_state;");
+                        Line($"((uint64_t *){owner}_identities.data)[{Operand(0)}] = UINT64_MAX;");
+                    }
+                    Line($"(({owner}_slot *){owner}_slots.data)[{slotIndex}].next_free = {owner}_free;");
+                    Line($"{owner}_free = {slotIndex};");
                     return;
                 }
                 if (node.Kind is IrKind.Borrow or IrKind.AddressOf)
@@ -685,6 +704,24 @@ internal sealed partial class Compilation
                     Line($"{values[node]} = {result};");
                     return;
                 }
+                if (node.Kind is IrKind.MembershipRetain or IrKind.MembershipRelease)
+                {
+                    SemanticSymbol childClass = node.OperandAt(0).Definition!.Type!.Class!;
+                    string className = Name(childClass);
+                    if (node.Kind == IrKind.MembershipRetain)
+                    {
+                        Line($"(void){className}_retain({Operand(0)}, {Location(node.Origin!)});");
+                    }
+                    else
+                    {
+                        // _release empties its input holder. The membership is
+                        // being released, not the operation's child parameter.
+                        string membership = labels[node] + "_membership";
+                        Line($"uint64_t {membership} = {Operand(0)};");
+                        Line($"{className}_release(&{membership}, {Location(node.Origin!)});");
+                    }
+                    return;
+                }
                 if (node.Kind == IrKind.Move)
                 {
                     Line($"{values[node]} = {Operand(0)};");
@@ -713,13 +750,13 @@ internal sealed partial class Compilation
                 }
                 else if (node.Kind is IrKind.WrapNullable or IrKind.UnwrapNullable)
                 {
-                    // IR has already sequenced the input and, for counted handles,
-                    // transferred its ownership. These operations never retain again.
+                    // IR has already sequenced the input and either transferred
+                    // ownership or preserved a borrowed observation. No retain here.
                     string handle = Operand(0);
-                    if (node.Kind == IrKind.UnwrapNullable)
+                    if (node.Kind == IrKind.UnwrapNullable && !unsafeMode)
                     {
-                        // A checked unwrap is a defined failure even in unsafe code;
-                        // never pass the empty sentinel to object storage access.
+                        // Safe execution checks this application precondition.
+                        // Unsafe execution trusts it; ownership/evaluation stay intact.
                         Line($"if ({handle} == UINT64_MAX) {{ ly_array_failure({Location(node.Origin!)}, \"LYR013: null handle unwrap\"); }}");
                     }
                     expression = handle;
@@ -1083,9 +1120,15 @@ internal sealed partial class Compilation
             fields.AddRange(owner.MemberScope!.Fields());
             return fields;
         }
-        string FieldStorage(SemanticSymbol field, string index)
+        string FieldStorage(SemanticSymbol field, string index, string? location = null)
         {
             string owner = Name(field.Scope!.Class!);
+            if (debugChecks && location is not null)
+            {
+                // Resolve on use, not only selection: intervening trusted calls
+                // can destroy an object or reuse its physical slot.
+                index = $"{owner}_resolve({index}, {location}, \"LYR009: invalid object access\")";
+            }
             if (structureOfArrays)
             {
                 return $"(({CType(field.Type!)} *){Name(field)}_storage.data)[{index}]";
@@ -1099,11 +1142,17 @@ internal sealed partial class Compilation
             Line($"static uint64_t {name}_next;");
             // Metadata is private allocator storage: moving it cannot invalidate
             // source field borrows. Both payload layouts share this free list.
-            Line($"enum {{ {name}_free_state, {name}_live_state, {name}_destroying_state }};");
+            if (debugChecks)
+            {
+                Line($"enum {{ {name}_free_state, {name}_live_state, {name}_destroying_state }};");
+            }
             Line($"typedef struct {name}_slot {{");
             indentation += 1;
             Line("uint64_t next_free;");
-            Line("unsigned char state;");
+            if (debugChecks)
+            {
+                Line("unsigned char state;");
+            }
             if (owner.IsCountedClass())
             {
                 Line("uint64_t references;");
@@ -1136,6 +1185,29 @@ internal sealed partial class Compilation
                 indentation -= 1;
                 Line($"}} {name}_record;");
                 Line($"static ly_array {name}_chunks;");
+            }
+            if (debugChecks)
+            {
+                // Identities never repeat, including after slot reuse. Tombstones
+                // intentionally consume debug memory until process exit. Exhaustion
+                // fails rather than wrapping and making a stale identity valid.
+                Line($"static ly_array {name}_identities;");
+                Line($"static uint64_t {name}_identity_next;");
+                Line($"static uint64_t {name}_resolve(uint64_t handle, const char *file, int line, int column, const char *message)");
+                Line("{");
+                indentation += 1;
+                Line($"if (handle >= {name}_identity_next)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, message);");
+                Line("}");
+                Line($"uint64_t index = ((uint64_t *){name}_identities.data)[handle];");
+                Line($"if (index == UINT64_MAX || index >= {name}_next || (({name}_slot *){name}_slots.data)[index].state == {name}_free_state)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, message);");
+                Line("}");
+                Line("return index;");
+                indentation -= 1;
+                Line("}");
             }
             Line($"static uint64_t {name}_allocate(const char *file, int line, int column)");
             Line("{");
@@ -1178,7 +1250,10 @@ internal sealed partial class Compilation
             Line($"{name}_next = index + 1;");
             indentation -= 1;
             Line("}");
-            Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_live_state;");
+            if (debugChecks)
+            {
+                Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_live_state;");
+            }
             if (owner.IsCountedClass())
             {
                 // Construction returns the first owning holder. Reused slots
@@ -1194,7 +1269,22 @@ internal sealed partial class Compilation
                     ? "UINT64_MAX" : $"({CType(field.Type!)}){{0}}";
                 Line($"{FieldStorage(field, "index")} = {empty};");
             }
-            Line("return index;");
+            if (debugChecks)
+            {
+                Line($"if ({name}_identity_next == UINT64_MAX)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, \"LYR007: debug object identity exhaustion\");");
+                Line("}");
+                Line($"uint64_t handle = {name}_identity_next;");
+                Line($"ly_class_reserve(&{name}_identities, handle + 1, sizeof(uint64_t), file, line, column);");
+                Line($"((uint64_t *){name}_identities.data)[handle] = index;");
+                Line($"{name}_identity_next = handle + 1;");
+                Line("return handle;");
+            }
+            else
+            {
+                Line("return index;");
+            }
             indentation -= 1;
             Line("}");
             Line($"static ly_unit {name}_destroy(uint64_t index, const char *file, int line, int column)");
@@ -1202,11 +1292,18 @@ internal sealed partial class Compilation
             indentation += 1;
             // This guard is defensive; static analysis must reject stale source
             // uses. Slot reuse does not make an old source handle valid again.
-            Line($"if (index >= {name}_next || (({name}_slot *){name}_slots.data)[index].state != {name}_live_state)");
-            Line("{");
-            Line("    ly_array_failure(file, line, column, \"LYR009: invalid object destruction\");");
-            Line("}");
-            Line($"(({name}_slot *){name}_slots.data)[index].state = {name}_destroying_state;");
+            if (debugChecks)
+            {
+                Line($"uint64_t slot_index = {name}_resolve(index, file, line, column, \"LYR009: invalid object destruction\");");
+                Line($"if ((({name}_slot *){name}_slots.data)[slot_index].state != {name}_live_state)");
+                Line("{");
+                Line("    ly_array_failure(file, line, column, \"LYR009: invalid object destruction\");");
+                Line("}");
+            }
+            if (debugChecks)
+            {
+                Line($"(({name}_slot *){name}_slots.data)[slot_index].state = {name}_destroying_state;");
+            }
             // The validated generated body alone owns hook/field/reclaim order.
             Line($"return {name}_destroy_body(index);");
             indentation -= 1;
@@ -1219,11 +1316,12 @@ internal sealed partial class Compilation
                 Line($"static inline uint64_t {name}_retain(uint64_t index, const char *file, int line, int column)");
                 Line("{");
                 indentation += 1;
-                Line($"if (index >= {name}_next || (({name}_slot *){name}_slots.data)[index].state != {name}_live_state)");
-                Line("{");
-                Line("    ly_array_failure(file, line, column, \"LYR009: invalid object retain\");");
-                Line("}");
-                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[index];");
+                if (debugChecks)
+                {
+                    Line($"uint64_t slot_index = {name}_resolve(index, file, line, column, \"LYR009: invalid object retain\");");
+                }
+                string metadataIndex = debugChecks ? "slot_index" : "index";
+                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[{metadataIndex}];");
                 Line("if (slot->references == UINT64_MAX)");
                 Line("{");
                 Line("    ly_array_failure(file, line, column, \"LYR012: object reference count overflow\");");
@@ -1240,19 +1338,26 @@ internal sealed partial class Compilation
                 Line("{");
                 Line("    return;");
                 Line("}");
-                Line($"if (index >= {name}_next || (({name}_slot *){name}_slots.data)[index].state != {name}_live_state)");
-                Line("{");
-                Line("    ly_array_failure(file, line, column, \"LYR009: invalid object release\");");
-                Line("}");
-                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[index];");
-                Line("if (slot->references == 0)");
-                Line("{");
-                Line("    ly_array_failure(file, line, column, \"LYR009: empty object reference count\");");
-                Line("}");
+                if (debugChecks)
+                {
+                    Line($"uint64_t slot_index = {name}_resolve(index, file, line, column, \"LYR009: invalid object release\");");
+                }
+                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[{metadataIndex}];");
+                if (debugChecks)
+                {
+                    Line("if (slot->references == 0)");
+                    Line("{");
+                    Line("    ly_array_failure(file, line, column, \"LYR009: empty object reference count\");");
+                    Line("}");
+                }
                 Line("*holder = UINT64_MAX;");
                 Line("slot->references -= 1;");
                 Line("if (slot->references == 0)");
                 Line("{");
+                // Restore the last reference only on the destruction path. It
+                // protects balanced temporary owners during final/fragment calls;
+                // ReclaimObject frees directly rather than releasing this hold.
+                Line("    slot->references = 1;");
                 // Destruction can call user code and relocate metadata. Never
                 // dereference slot again after crossing this boundary.
                 Line($"    (void){name}_destroy(index, file, line, column);");

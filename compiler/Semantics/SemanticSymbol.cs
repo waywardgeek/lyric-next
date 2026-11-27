@@ -66,7 +66,8 @@ internal sealed partial class SemanticScope
     {
         foreach (SemanticSymbol symbol in Symbols)
         {
-            if (symbol.Name == name && symbol.Specialization is null)
+            if (symbol.Name == name && symbol.Specialization is null
+                && !symbol.IsDestructorFragment())
             {
                 return symbol;
             }
@@ -74,14 +75,15 @@ internal sealed partial class SemanticScope
         return null;
     }
 
-    internal partial void AddSymbol(SemanticSymbol symbol)
+    internal partial void AddSymbol(SemanticSymbol symbol, SyntaxNode? declaration)
     {
         SemanticSymbol? existing = MemberOwner is null
             ? Lookup(symbol.Name)
             : LookupMember(symbol.Name);
         if (Destroyed || Analysis is null || Analysis.Destroyed || symbol.Destroyed
             || symbol.Scope is not null
-            || (symbol.Specialization is null && existing is not null)
+            || (symbol.Specialization is null && existing is not null
+                && declaration?.Kind != SyntaxKind.DestructorFragment)
             || (symbol.Specialization is not null
                 && (symbol.Specialization.Template?.Scope != this
                     || symbol.Specialization.Analysis != Analysis)))
@@ -128,6 +130,134 @@ internal sealed partial class SemanticSymbol
             }
         }
         return false;
+    }
+
+    internal partial bool BorrowsParticipantParameter(SemanticSymbol? parameter)
+    {
+        MultiClassInstantiation? instance = ContributingParticipant?.Instantiation;
+        return !Destroyed && instance is not null
+            && instance.Policy != RelationshipPolicy.None
+            && parameter is not null && !parameter.Destroyed
+            && parameter.Kind == SymbolKind.Parameter && !parameter.IsReference
+            && parameter.Scope == FunctionScope
+            && parameter.ParticipantView is ParticipantBinding participant
+            && participant.Instantiation == instance
+            && participant.AcceptsViewType(parameter.Type);
+    }
+
+    internal partial bool BorrowsParticipantLocal(SemanticSymbol? local)
+    {
+        MultiClassInstantiation? instance = ContributingParticipant?.Instantiation;
+        if (Destroyed || instance is null || instance.Policy == RelationshipPolicy.None
+            || local is null || local.Destroyed || local.Kind != SymbolKind.Local
+            || local.IsReference || local.ParticipantView is not ParticipantBinding participant
+            || participant.Instantiation != instance || !participant.AcceptsViewType(local.Type))
+        {
+            return false;
+        }
+        // Nested blocks retain a lexical path to the owning function. Stop at
+        // the first function boundary; a shared concrete class grants nothing.
+        for (SemanticScope? scope = local.Scope; scope is not null; scope = scope.Parent)
+        {
+            if (scope.Function is not null)
+            {
+                return scope.Function == this && scope == FunctionScope;
+            }
+        }
+        return false;
+    }
+
+    internal partial RelationshipOperation RelationshipOperationKind()
+    {
+        if (Kind != SymbolKind.Function || Declaration is null
+            || ContributingParticipant?.Instantiation?.Policy is null or RelationshipPolicy.None)
+        {
+            return RelationshipOperation.None;
+        }
+        for (int index = 0; index < Declaration.ChildCount(); index += 1)
+        {
+            SyntaxNode child = Declaration.ChildAt(index);
+            if (child.Kind != SyntaxKind.Modifier)
+            {
+                continue;
+            }
+            string modifier = child.Source!.SourceText(child.TextOffset, child.TextLength);
+            if (modifier == "add")
+            {
+                return RelationshipOperation.Add;
+            }
+            if (modifier == "remove")
+            {
+                return RelationshipOperation.Remove;
+            }
+        }
+        return RelationshipOperation.None;
+    }
+
+    internal partial bool IsManagedHandle()
+    {
+        // Protection covers all contributed handle fields, but only an actual
+        // participant slot borrows its value. An unrelated counted payload must
+        // retain on assignment and release on replacement and owner destruction.
+        return !Destroyed && Kind == SymbolKind.Field
+            && ContributingParticipant?.Instantiation is MultiClassInstantiation instance
+            && instance.Policy != RelationshipPolicy.None
+            && ParticipantView is ParticipantBinding participant
+            && participant.Instantiation == instance
+            && participant.AcceptsViewType(Type);
+    }
+
+    internal partial bool IsManagedLink()
+    {
+        if (Kind != SymbolKind.Field || Type is null
+            || ContributingParticipant?.Instantiation is not MultiClassInstantiation instance
+            || instance.Policy == RelationshipPolicy.None)
+        {
+            return false;
+        }
+        // Inspect stored values, not the objects they refer to. A class handle
+        // terminates traversal; array and aggregate wrappers cannot hide links.
+        System.Collections.Generic.Stack<SemanticType> pending = new();
+        System.Collections.Generic.HashSet<SemanticType> visited = new();
+        pending.Push(Type);
+        while (pending.Count != 0)
+        {
+            SemanticType current = pending.Pop();
+            if (!visited.Add(current))
+            {
+                continue;
+            }
+            if (current.Kind is SemanticTypeKind.Nominal or SemanticTypeKind.Nullable
+                && current.Class is not null)
+            {
+                return true;
+            }
+            if (current.Kind == SemanticTypeKind.Array)
+            {
+                pending.Push(current.Element!);
+            }
+            else if (current.Kind == SemanticTypeKind.Tuple)
+            {
+                for (int index = 0; index < current.ComponentCount(); index += 1)
+                {
+                    pending.Push(current.ComponentAt(index));
+                }
+            }
+            else if (current.Declaration?.Kind == SymbolKind.Struct)
+            {
+                foreach (SemanticSymbol field in current.Declaration.MemberScope!.Fields())
+                {
+                    pending.Push(field.Type!);
+                }
+            }
+        }
+        return false;
+    }
+
+    internal partial bool IsDestructorFragment()
+    {
+        return Kind == SymbolKind.Function
+            && Declaration?.Kind == SyntaxKind.DestructorFragment;
     }
 
     internal partial bool IsFinalHook()
@@ -217,9 +347,18 @@ internal sealed partial class SemanticSymbol
         {
             throw new InvalidOperationException("Invalid contributed member parents.");
         }
+        // Fragments have no source-level callable name. Only an instance-owned
+        // contribution may use this hidden-function admission; ordinary methods
+        // retain the normal duplicate-name contract.
+        bool fragment = declaration?.Kind == SyntaxKind.DestructorFragment;
+        if (fragment && (kind != SymbolKind.Function || multiClass is null
+            || multiClass.Policy == RelationshipPolicy.None))
+        {
+            throw new InvalidOperationException("A destructor fragment requires a relationship instance.");
+        }
         SemanticSymbol? existing = scope.MemberOwner is null
             ? scope.Lookup(name) : scope.LookupMember(name);
-        if (specialization is null && existing is not null)
+        if (specialization is null && existing is not null && !fragment)
         {
             throw new InvalidOperationException("Duplicate symbol.");
         }
@@ -236,7 +375,7 @@ internal sealed partial class SemanticSymbol
         specialization?.AddFunction(this);
         try
         {
-            scope.AddSymbol(this);
+            scope.AddSymbol(this, declaration);
             SetType(type);
             declaration?.AddDeclaredSymbol(this);
             multiClass?.AddContribution(this);

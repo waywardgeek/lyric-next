@@ -32,6 +32,7 @@ belong to this representation; `--soa` is not an inspection option.
 `functions` contains source functions, class methods, and generated destruction bodies.
 Each has `kind` (`Source` or `Destruction`), `name`, document-wide `symbolId`,
 `ownerClass` (null for top-level functions),
+`borrowedReceiver` (whether receiver ownership stays with the caller),
 `body` (a node ID), and a flat `nodes` array. Each node has:
 
 - `id`, `kind`, `role`, `result`, and `type` (null for no typed result).
@@ -51,6 +52,16 @@ persistent model identity. Model relationships use actual objects. Function iden
 is the selected semantic declaration, not the display name or a parameter signature.
 Calls select functions by symbolId, never by display name: different classes may
 have identically named methods. These output IDs do not add a compiler name table.
+
+Since Chapter 13, mandatory ownership simplification can infer an observing
+receiver contract for a counted method. It removes receiver ownership only when
+uses do not escape, and keeps ordinary caller holders live across the call with
+cleanup immediately afterward. Destructor self already has valid storage through
+cleanup; its redundant temporary retain/release pair is removed instead. Other
+arguments and membership reference counts retain their ordinary ownership rules.
+Identity-only reads can become nonowning Load operations when no intervening
+effect requires a holder. Unrecognized or effectful patterns are not optimized.
+The published receiver contract is checked again before emission.
 
 A function body begins with parameter Local or Borrow address definitions in declaration
 order. Local/Load/Store distinguish storage from value snapshots. Calls evaluate

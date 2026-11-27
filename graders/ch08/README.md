@@ -86,9 +86,11 @@ caller handles; generated invocation is not invisible to analysis.
 
 Runtime layout cases verify that fields remain usable during the hook, bare return
 continues teardown, and allocation during a hook does not leave stale backing or
-metadata pointers. Slots are marked destroying before the hook and become reusable
-only after it returns. Defensive invalid/reentrant destruction is fatal (LYR009);
-this guard is not a substitute for static rejection or a generation-based handle.
+metadata pointers. Slots become reusable only after generated cleanup completes.
+As of Chapter 13, `--emit-c --debug` additionally marks slots destroying before the
+hook and diagnoses invalid/reentrant destruction (LYR009). This debug-only guard
+is not a substitute for static rejection or a generation-based handle; production
+output omits the lifecycle tag and invariant assertions.
 
 ## Owned-field cleanup check
 

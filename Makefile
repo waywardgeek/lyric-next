@@ -47,6 +47,10 @@ spin11: release
 spin12: release
 	"$(PYTHON)" tools/spin12.py "$(DOTNET)"
 
+.PHONY: spin13
+spin13: release
+	"$(PYTHON)" tools/spin13.py "$(DOTNET)"
+
 # These are the public retained graders, not a second test implementation.
 # Stop immediately if a build or any grader fails.
 test:
@@ -83,10 +87,17 @@ test:
 		"$(PYTHON)" "$(GRADERS)/ch11/typeof.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch11/matchtype.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch03/recognition.py" --fixtures "$(GRADERS)/ch12/multi-class-syntax.json" -- "$(DOTNET)" "$$assembly"; \
-		"$(PYTHON)" "$(GRADERS)/ch12/multi_class.py" "$(DOTNET)" "$$assembly"; \
-		"$(PYTHON)" "$(GRADERS)/ch12/object_fields.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/multi_class_migration.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/object_fields_migration.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch12/nullable_handles.py" "$(DOTNET)" "$$assembly"; \
-		"$(PYTHON)" "$(GRADERS)/ch12/list_refusals.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/list_refusals.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/debug_mode.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/debug_identity.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/relationships.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/relationships.py" --runtime-debug "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/participant_ir.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch13/participant_aggregates.py" --runtime-debug "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch03/recognition.py" --fixtures "$(GRADERS)/ch13/relationship-syntax.json" -- "$(DOTNET)" "$$assembly"; \
 	done
 
 # Explicit one-time setup; ordinary grammar checks do not install dependencies.

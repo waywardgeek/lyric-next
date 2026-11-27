@@ -50,6 +50,21 @@ The student also executed the walkthrough and supplementary lifecycle checks;
 Bill subsequently reviewed and accepted Chapter 2 and confirmed running `make spin02`.
 See [Chapter 2 development notes](notes/ch02-development.md) for evidence limits.
 
+## Chapter 13 reference status
+
+[Maintained relationships and generated teardown](chapter-13.md) passes the corrected
+cumulative Debug/Release target. The five PEG suites and scripted `spin13`
+walkthrough passed at the earlier author milestone; they were not rerun after the
+code-review corrections. The single code and text reviews are incorporated.
+See [author verification](notes/ch13-author-verification.md) for exact evidence.
+Fresh isolated reconstruction passed every required cumulative Debug/Release
+check, all five PEG suites, and spin13 in both layouts. The 306 public input files
+were independently hash-verified; the student is stopped without a passing rerun.
+See [reconstruction evidence](notes/ch13-student-acceptance.md). Bill has accepted Chapter 13 and the `spin13` walkthrough and authorized a local commit. Pushing remains Bill's responsibility.
+Chapter 13 is scalar-participant scoped; the [Chapter 14 patch plan](notes/ch14-starting-plan.md)
+carries aggregate borrowing, distinct AoS/SoA handles, and the remaining safety
+closure work. Completed single-threaded memory safety is not claimed here.
+
 ## Agreed next increments
 
 See [the next-increment roadmap](roadmap.md) for the approved Chapter 8 scope and the interfaces → multi-class interfaces → relationships dependency spine. It supersedes the broad sketch below where more specific.
@@ -95,7 +110,20 @@ patches were supplied. Bill has accepted the Chapter 12 text and `spin12` walkth
 and [student status](notes/ch12-student-status.md). Chapter 12 requires explicit
 link removal; automatic relationship-aware destruction is not implemented.
 
-## Provisional construction sequence
+## Future chapters
+
+The [current ordered plan](roadmap.md#future-chapter-sequence--current-planning-order)
+now covers Chapter 14 safety closure; tagged unions and matching; generators;
+reusable graph composition; modules and Result/Status; standard-library
+relationships and Sym; generic classes demonstrated by Dict; floating-point
+values and operations; practical I/O and formatting; and guided self-hosting. Later chapter numbers remain provisional.
+Edition 1 and its C# compiler remain maintainable foundations during the Lyric
+reconstruction: add or revise chapters when concrete gaps emerge, rather than
+rush self-hosting through architectural workarounds. Variadics are deferred.
+
+## Earlier broad construction sketch
+
+The ordered future plan above supersedes this historical high-level sketch.
 
 This is the requested planning sketch, not a fixed chapter contract. Chapters 0 through 12 have been drafted. Each later increment will be agreed with Bill, pair-programmed with independent graders, then taught from demonstrated experience; experiments may change the sequence.
 

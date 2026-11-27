@@ -97,6 +97,54 @@ internal static class MultiClassModelProbe
             Check(analysis.Destroyed && global.Destroyed && nominal.Destroyed,
                 "compilation retirement left model owners live");
         }
+        // Policy is a binding value; roles remain ordered endpoint occurrences.
+        // Refused ownership must not reserve labels or publish an instance.
+        foreach (bool counted in new[] { false, true })
+        {
+            Compilation compilation = new();
+            string childDeclaration = counted ? "value class Child {}" : "class Child {}";
+            SourceFile source = new(compilation, "relationship-policy.ly", Encoding.UTF8.GetBytes(
+                "interface Link<child C,parent P> {\nclass C {}\nclass P {}\n}\n"
+                + childDeclaration + "\nclass Parent {}"));
+            Check(source.Lex() is null && source.Parse(false) is null, "relationship parse failed");
+            SemanticAnalysis analysis = new(compilation);
+            SemanticScope global = new(analysis, null);
+            SemanticSymbol template = new(global, source.SyntaxRoot()!.ChildAt(0),
+                "Link", SymbolKind.Interface, null, false);
+            SemanticSymbol child = new(global, source.SyntaxRoot()!.ChildAt(1),
+                "Child", SymbolKind.Class, null, false);
+            SemanticSymbol parent = new(global, source.SyntaxRoot()!.ChildAt(2),
+                "Parent", SymbolKind.Class, null, false);
+            _ = new SemanticScope(child);
+            _ = new SemanticScope(parent);
+            SemanticSymbol[] classes = { child, parent };
+            string?[] labels = { "parent", "children" };
+            Check(template.ParticipantRoleAt(0) == ParticipantRole.Child
+                && template.ParticipantRoleAt(1) == ParticipantRole.Parent,
+                "roles inferred from conventional order rather than declaration");
+            Refuses(() => _ = new MultiClassInstantiation(template, classes, labels),
+                "relationship admitted without policy");
+            if (counted)
+            {
+                Refuses(() => _ = new MultiClassInstantiation(template, classes, labels,
+                    RelationshipPolicy.Owns), "counted child admitted to owns");
+            }
+            Check(child.FindParticipantLabel("parent") is null
+                && parent.FindParticipantLabel("children") is null,
+                "refused policy reserved endpoint labels");
+            RelationshipPolicy policy = counted ? RelationshipPolicy.Refs : RelationshipPolicy.Owns;
+            MultiClassInstantiation instance = new(template, classes, labels, policy);
+            Check(instance.Policy == policy && instance.Matches(template, classes, labels, policy),
+                "policy omitted from binding identity");
+            Check(!instance.Matches(template, classes, labels, RelationshipPolicy.None),
+                "relationship matched an ordinary specialization");
+            instance.Destroy();
+            Check(!child.Destroyed && !parent.Destroyed
+                && child.FindParticipantLabel("parent") is null
+                && parent.FindParticipantLabel("children") is null,
+                "relationship retirement destroyed endpoint classes or retained labels");
+            compilation.Destroy();
+        }
         foreach (string retirement in new[] { "instance", "endpoint", "class", "template", "analysis", "source", "syntax", "contribution", "scope" })
         {
             Compilation compilation = new();

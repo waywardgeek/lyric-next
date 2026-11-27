@@ -77,7 +77,7 @@ internal sealed partial class ParticipantBinding
             || symbol.ContributingParticipant is not null
             || symbol.Scope?.Class != ConcreteClass
             || symbol.Kind is not (SymbolKind.Function or SymbolKind.Field)
-            || FindMember(symbol.Name) is not null)
+            || (!symbol.IsDestructorFragment() && FindMember(symbol.Name) is not null))
         {
             throw new InvalidOperationException("Invalid participant contribution.");
         }
@@ -102,7 +102,7 @@ internal sealed partial class ParticipantBinding
     {
         foreach (SemanticSymbol member in Members)
         {
-            if (member.Name == name)
+            if (member.Name == name && !member.IsDestructorFragment())
             {
                 return member;
             }

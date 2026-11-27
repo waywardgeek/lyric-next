@@ -22,6 +22,8 @@ internal enum SyntaxKind
     Cast,
     Class,
     CleanupTemplate,
+    // Policy-selected relationship teardown; never an ordinary callable method.
+    DestructorFragment,
     Closure,
     ConditionBinding,
     Continue,
@@ -78,6 +80,8 @@ internal enum SyntaxKind
     PatternTuple,
     Patterns,
     Postfix,
+    // Validation/preparation boundary before relationship structural publication.
+    Prepare,
     Record,
     Relation,
     RelationBinding,

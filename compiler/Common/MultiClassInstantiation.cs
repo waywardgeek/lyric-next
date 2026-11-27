@@ -2,6 +2,24 @@ using System.Collections.Generic;
 
 namespace Lyric;
 
+// Immutable specialization values, not runtime dispatch or model relationships.
+internal enum RelationshipPolicy
+{
+    None,
+    Owns,
+    Refs,
+}
+
+// Value-like designation of the accounting boundary in a contributed function.
+internal enum RelationshipOperation { None, Add, Remove }
+
+internal enum ParticipantRole
+{
+    None,
+    Parent,
+    Child,
+}
+
 // One explicit compile-time multi-class binding. Analysis and interface template
 // strongly own it. Its ordered endpoint occurrences preserve roles even when
 // several participants bind the same class. Labels are lookup placement values,
@@ -11,6 +29,7 @@ internal sealed partial class MultiClassInstantiation
     internal SemanticAnalysis? Analysis;
     internal SemanticSymbol? Template;
     internal bool Destroyed;
+    internal readonly RelationshipPolicy Policy;
     private readonly List<ParticipantBinding> Participants = new();
     // Source and instantiation jointly own copied nodes. Tree edges remain weak.
     private readonly List<SyntaxNode> Nodes = new();
@@ -33,9 +52,11 @@ internal sealed partial class MultiClassInstantiation
     // Refusal leaves existing model memberships untouched; partial construction
     // failure destroys only this candidate and its newly attached occurrences.
     internal partial MultiClassInstantiation(SemanticSymbol template,
-        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels);
+        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels,
+        RelationshipPolicy policy = RelationshipPolicy.None);
     internal partial bool Matches(SemanticSymbol template,
-        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels);
+        IReadOnlyList<SemanticSymbol> classes, IReadOnlyList<string?> labels,
+        RelationshipPolicy policy = RelationshipPolicy.None);
     internal partial int ParticipantCount();
     internal partial ParticipantBinding ParticipantAt(int index);
     internal partial void AddParticipant(ParticipantBinding participant,
@@ -78,7 +99,7 @@ internal sealed partial class SemanticAnalysis
     private readonly List<MultiClassInstantiation> MultiClassInstantiations = new();
     internal partial MultiClassInstantiation? FindMultiClassInstantiation(
         SemanticSymbol template, IReadOnlyList<SemanticSymbol> classes,
-        IReadOnlyList<string?> labels);
+        IReadOnlyList<string?> labels, RelationshipPolicy policy = RelationshipPolicy.None);
     internal partial void AddMultiClassInstantiation(MultiClassInstantiation instantiation);
     internal partial void RemoveMultiClassInstantiation(MultiClassInstantiation instantiation);
 }
@@ -90,6 +111,8 @@ internal sealed partial class SemanticSymbol
     private readonly List<MultiClassInstantiation> MultiClassInstantiations = new();
     private readonly List<ParticipantBinding> ParticipantBindings = new();
     internal partial int ParticipantArity();
+    // Reads the declared endpoint occurrence, never infers role from concrete type.
+    internal partial ParticipantRole ParticipantRoleAt(int position);
     internal partial ParticipantBinding? FindParticipantLabel(string label);
     internal partial void AddMultiClassInstantiation(MultiClassInstantiation instantiation);
     internal partial void RemoveMultiClassInstantiation(MultiClassInstantiation instantiation);

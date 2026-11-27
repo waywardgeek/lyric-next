@@ -1,0 +1,32 @@
+[
+  {
+    "id": "relationship-full-owning-list",
+    "source": "interface DoublyLinkedList<parent P, child C> {\n    class P {\n        first: C?\n        last: C?\n\n        pub add func append(self, child: C) {\n            prepare {\n                assert(child.parent == null)\n            }\n            child.parent = self\n            child.previous = self.last\n            child.next = null\n            if self.last != null {\n                self.last!.next = child\n            } else {\n                self.first = child\n            }\n            self.last = child\n        }\n\n        pub remove func remove(self, child: C) {\n            prepare {\n                assert(child.parent == self)\n            }\n            if child.previous != null {\n                child.previous!.next = child.next\n            } else {\n                self.first = child.next\n            }\n            if child.next != null {\n                child.next!.previous = child.previous\n            } else {\n                self.last = child.previous\n            }\n            child.parent = null\n            child.previous = null\n            child.next = null\n        }\n\n        partial owns destroy(self) {\n            while self.first != null {\n                self.first!.destroy()\n            }\n        }\n\n        partial refs destroy(self) {\n            while self.first != null {\n                self.remove(self.first!)\n            }\n        }\n    }\n    class C {\n        parent: P?\n        previous: C?\n        next: C?\n\n        partial owns destroy(self) {\n            if self.parent != null {\n                self.parent!.remove(self)\n            }\n        }\n\n        partial refs destroy(self) {\n            if self.parent != null {\n                self.parent!.remove(self)\n            }\n        }\n    }\n}\n\nclass Graph {\n    func Graph(self) {}\n    final func finish(self) {\n        assert(self.nodes.first != null)\n        print(\"G\")\n    }\n}\nclass Node {\n    func Node(self) {}\n    final func finish(self) {\n        assert(self.graph.parent != null)\n        print(\"N\")\n    }\n}\nimpl DoublyLinkedList<Graph:nodes, Node:graph> owns {}\n",
+    "accept": true
+  },
+  {
+    "id": "relationship-role-names-contextual",
+    "source": "interface Pair<parent P,child C> { class C { parent:P?; child:C? } }",
+    "accept": true
+  },
+  {
+    "id": "relationship-partial-outside-participant",
+    "source": "class Node { partial owns destroy(self) {} }",
+    "accept": false
+  },
+  {
+    "id": "relationship-partial-missing-policy",
+    "source": "interface Pair<parent P,child C> { class P { partial destroy(self) {} } }",
+    "accept": false
+  },
+  {
+    "id": "relationship-partial-wrong-name",
+    "source": "interface Pair<parent P,child C> { class P { partial owns cleanup(self) {} } }",
+    "accept": false
+  },
+  {
+    "id": "relationship-role-outside-interface",
+    "source": "func f<parent P>() {}",
+    "accept": false
+  }
+]
