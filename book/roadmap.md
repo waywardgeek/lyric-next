@@ -58,13 +58,13 @@ wrappers. Preserve every participant and endpoint-role mapping in binding and
 specialization identity. Type interning does not merge specializations that differ
 in declaration, concrete arguments, selected implementation or participant roles.
 
-## Relationship prerequisites and the graph
+## Chapter 13 — Maintained relationships and generated teardown (design)
 
-Place nullable references, Result/Status/propagation, and iteration/generators deliberately before the relationship features that require them. These may take separate chapters; do not compress them to preserve provisional chapter numbers.
+Chapter 12 is accepted. Chapter 13 targets single-threaded relationship memory safety, conditional on correct compiler/runtime and trusted relationship implementations. The standard library supplies core relationship algorithms; arbitrary add/remove correctness is not proved by the compiler. See [the agreed syntax, boundaries, and open questions](notes/ch13-development.md). No Chapter 13 implementation or verification is claimed.
 
-Return to a directed graph with three strong relationships: Graph:nodes to Node:graph, Node:outgoing to Edge:source, and Node:incoming to Edge:target. Both roles form binding identity, including self-loops. Relationship declarations provide maintained storage, two-way operations and ownership; introduce basic generated detach-and-cascade destruction in the same increment, not a leaking interim graph. Final hooks witness required ordering and exactly-once destruction. Later increments can improve representations and generic algorithms while preserving the behavioral tests.
+Use explicit parent/child participants, managed contributed object links, owns/refs on the implementation, designated add/remove operations with prepare blocks, and partial owns destroy(self) / partial refs destroy(self) fragments. owns accepts ordinary children only; each refs membership to a counted value retains once. All code in the relationship interface is privileged to maintain its managed links, without disabling ordinary lifetime/type checks. Finalization comes first; detach from all parents before cleaning up children; fragment order within each phase is unspecified; ordinary field cleanup follows, and free is last. Representation-specific teardown fragments supersede the requirement for a safe iterator in generated destruction. Explicit safe generators remain relevant to application iteration, not a mandatory teardown prerequisite. Nullable handles already exist. Invalid attachment/removal checks fail before mutation; Result/Status is not a prerequisite for this increment.
 
-Chapter 8's local cleanup (final, owned value fields, slot reclamation) is not yet relationship-aware structural destruction. Do not add a manual structural-destructor facility or reference-counted graph workaround merely for a chapter example.
+Demonstrate Graph:nodes owning Node:graph, Node:outgoing owning Edge:source, and Node:incoming owning Edge:target, with complete role identity including self-loops. Exercise cross-relationship cascades, multiple owners, counted and non-owning memberships, and partial construction. Do not promise full ordinary-link safety while leaving unrestricted persistent ordinary references as a bypass. Chapter 13 rejects unmanaged persistent ordinary links, including hiding them in containers/aggregates; ordinary counted fields remain permitted. Update contracts and retained tests explicitly when closing Chapter 12's temporary allowance.
 
 ## Performance storage after bootstrap
 

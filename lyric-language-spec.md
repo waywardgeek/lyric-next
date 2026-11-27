@@ -1346,8 +1346,8 @@ relation DoublyLinked Room:guests refs [Guest:room]
 ```
 
 - The hint, such as `ArrayList`, chooses representation.
-- `owns` means parent destruction cascades to its children.
-- `refs` means parent destruction only unlinks the relationship.
+- `owns` applies only to ordinary children and means parent destruction cascades to them. An owns binding with a value-class child is rejected.
+- `refs` means parent destruction removes membership. For an ordinary child this is non-owning. For a value-class child each membership contributes exactly one counted reference; removal releases it and may trigger destruction at zero.
 - Brackets mean multiple children.
 - Labels name roles on each participating class.
 
@@ -1495,7 +1495,7 @@ Ordinary code cannot call `destroy()` on a value-class instance. It releases ref
 
 The modifier does not require deep-copy assignment or immutable contents. Value-like vectors, matrices, and symbols need not record each holder as a parent merely for memory reclamation. Their chosen sharing/copy operations must still be documented.
 
-A direct owning relation cannot forcibly cascade-delete a retained value-class child. A container holding values retains/releases them; that operation is not reinterpreted as explicit destruction. How relation-library APIs expose counted value collections should follow this distinction, without silently selecting a different lifetime policy.
+There is no owning relationship with a value-class child: such an owns binding is rejected. A refs relationship to a value object contributes exactly one retain per membership. Removing that membership releases exactly once; destruction occurs when the count reaches zero, never by forcing deletion of a retained value. Structural backlinks and sibling links do not each add counts. Ordinary locals, results and unrelated fields retain their usual counted semantics.
 
 ### Generated releases are observable lifetime operations
 
@@ -1507,15 +1507,15 @@ Both have generated cleanup and may have a final hook. Neither changes lifetime 
 
 ### Generated structural destruction
 
-Application programmers do not write structural destructors. The compiler generates them from fields and relations. The destruction order is:
+Application classes do not write structural destructors. Relationship implementations contribute policy-selected `partial owns destroy(self)` and `partial refs destroy(self)` fragments in their participant blocks; the compiler composes these with field cleanup. These fragments are trusted representation algorithms, not independently callable final hooks. Chapter 13's agreed design is not yet implemented. The destruction order is:
 
 1. If construction completed successfully, call the object's `final` hook.
-2. Remove the object from **all** parent relations, owning and weak, through the two-way remove operations. Those operations also clear the object's parent backlinks.
-3. Destroy the object's strongly owned children.
-4. Detach weak child relationships without destroying those children.
-5. Release remaining fields and reclaim the object's storage.
+2. Run all **detach-from-parents** fragments, in any order within this phase. These are declared in child participant blocks and remove the object from all owning and non-owning parent memberships through two-way removal.
+3. Run all **cleanup-children** fragments, in any order within this phase. These are declared in parent participant blocks. Ordinary owned children are destroyed; non-owning memberships are detached; refs memberships to counted children release their counts rather than forcibly destroying retained values.
+4. Release remaining ordinary fields.
+5. Free the object's storage last.
 
-Failed construction uses steps 2–5 and skips its own final hook. Parent code invoking a child's destruction must not detach that child first merely to simplify iteration: the child's final hook precedes the child's own structural teardown.
+Phase 2 must complete before phase 3 starts, including when one concrete class fills both roles. Each fragment reads current membership: earlier fragments or recursive cascades may already have removed members. No fragment frees the receiver or cancels destruction. Failed construction uses steps 2–5 and skips its own final hook. Parent code invoking a child's destruction must not detach that child first merely to simplify iteration: the child's final hook precedes the child's own structural teardown.
 
 ```lyric
 class Connection {
@@ -1620,7 +1620,7 @@ This is valid if graph remains valid. Reacquisition navigates maintained relatio
 
 ### Persistent references are a separate obligation
 
-Local invalidation does not clear a stale pointer hidden in an unrelated object's field. Persistent component references therefore require maintained relations. Value-like counted references follow the counted lifetime rules.
+Local invalidation does not clear a stale pointer hidden in an unrelated object's field. Persistent ordinary-object references therefore require maintained relations; unmanaged ordinary-object fields are rejected in the Chapter 13 safe subset. Containers and aggregates cannot hide such persistent references to bypass the rule. Ordinary counted fields remain permitted under counted lifetime rules. This closes Chapter 12's explicit temporary allowance; its historical implementation evidence is not a promise to preserve that unsafe allowance.
 
 Arrays of borrowed object references are not automatically forbidden. If they are local, their elements can participate in invalidation as a group. If they escape or persist, their references need maintained links or appropriate reference counting. Distinguish lifetime obligations from a proliferation of collection types.
 
@@ -1938,18 +1938,57 @@ impl ArrayList<Team:roster, Player:team> owns { }
 
 A relation is the convenient spelling for the corresponding labeled, ownership-bearing binding. Its shape must satisfy the relation rules. A relation that names an unknown or malformed hint is an error, not a silently omitted declaration.
 
-Cleanup templates use the following explicit spelling:
+Relationship cleanup now uses partial destructor fragments inside explicitly declared participant roles:
 
 ```lyric
-interface ExampleRelation<P, C> {
-    destructor owns P { ... }
-    destructor owns C { ... }
-    destructor refs P { ... }
-    destructor refs C { ... }
+interface DoublyLinkedList<parent P, child C> {
+    class P {
+        first: C?
+        last: C?
+
+        partial owns destroy(self) {
+            while self.first != null {
+                self.first!.destroy()
+            }
+        }
+
+        partial refs destroy(self) {
+            while self.first != null {
+                self.remove(self.first!)
+            }
+        }
+    }
+    class C {
+        parent: P?
+        previous: C?
+        next: C?
+
+        partial owns destroy(self) {
+            if self.parent != null {
+                self.parent!.remove(self)
+            }
+        }
+
+        partial refs destroy(self) {
+            if self.parent != null {
+                self.parent!.remove(self)
+            }
+        }
+    }
 }
 ```
 
-The ellipses indicate omitted library implementation, not executable syntax. The modifier selects the matching pair. Application classes do not copy these blocks into handwritten destructors. The old bare `destructor P` shorthand should be either documented as `owns` or rejected consistently; it is not needed in new examples.
+This is agreed Chapter 13 syntax, not implemented grammar. The excerpt omits add/remove methods. The implementation modifier selects the owns or refs fragment at specialization, without a runtime policy branch. owns requires an ordinary child. refs supports ordinary or counted children; its removal operation releases one membership count only for counted children. Both participants supply policy-selected fragments, even when their bodies coincide. The older `destructor owns P` / `destructor refs C` template spelling is superseded.
+
+The child-block fragment detaches from parents; the parent-block fragment cleans up children. Section 11 defines their phase order. Fragments return unit, are callable only by generated destruction, and expose their actual effects to analysis. They are trusted library algorithms: the compiler does not prove arbitrary structural correctness. The standard library supplies the core relationship types.
+
+All object-reference fields contributed by an explicitly parent/child relationship interface are managed links, without per-field annotations. They begin detached under compiler initialization; ordinary application code cannot write them or obtain a writable reference that bypasses the restriction. All code in the declaring multi-class relationship interface is privileged to maintain its managed links, including its helpers; privilege is tied to the selected relationship binding, not arbitrary application code. This privilege does not disable type, initialization, or lifetime checks. This does not suppress ordinary ownership of locals, arguments, results, or unrelated fields. A general multi-class generic without relationship roles does not acquire this policy implicitly.
+
+Attachment uses `[pub] add func name(self, child: C)` and removal uses `[pub] remove func name(self, child: C)`, returning unit, with a leading `prepare { ... }` block. Preparation checks preconditions and may prepare storage, but changes no logical membership. Its locals remain available in the structural body. Invalid membership is a checked fatal failure before mutation, not a Chapter 13 Result prerequisite. The structural body has no normal early return or recoverable propagation. Interface helpers share managed-link privilege. Correct sequencing while structure is temporarily inconsistent belongs to the trusted implementation contract; transitive lifetime effects remain visible to checking.
+
+For a refs membership to a counted child, the compiler retains once after successful preparation and before structural publication in add; it releases once after all structural updates in remove. Refused operations change neither links nor membership counts. No source manual ref/unref is introduced. refs to ordinary children adds no retain. Structural backlink/sibling fields do not each retain endpoints. owns accepts only ordinary children and uses cascading destruction. Full-operation local cleanup still follows normal ownership rules and must not access invalidated endpoints.
+
+Representation-specific fragments replace the earlier requirement that generated teardown use a safe iterator. A linked-list fragment reacquires first after each destruction; it keeps no successor across cascades. An array fragment that scans for non-null children requires removal to clear stable slots; swap-removal needs a different traversal to avoid skipping moved elements. Application safe generators remain a separate explicitly selected contract, not an automatic property of these fragments. See [the Chapter 13 design record](book/notes/ch13-development.md) for open contracts and verification plans.
 
 ### Composition, defaults, and static requirements
 
