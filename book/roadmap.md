@@ -72,9 +72,10 @@ After completing and accepting Chapter 13, use this dependency order. Only Chapt
 14 has a fixed number; later topics may split into chapters when development earns
 that boundary. This supersedes the older broad sketch in the book index.
 
-1. **Chapter 14: patches and single-threaded safety closure.** Aggregate participant
-   borrowing, layout-specific handles, nonnullable contributed construction, and
-   the focused lifetime/ownership audit described below.
+1. **Chapter 14: single-threaded safety closure.** Ordinary containers own counted
+   elements, including values read from participant links; layout-specific handles
+   and the focused lifetime/ownership audit support the safety boundary. Mandatory
+   relationship construction is deferred beyond this book.
 2. **Enums, tagged unions, and pattern matching.** Implement active-variant storage,
    construction, discriminant checking, exhaustive matching, payload binding,
    copying/moving and destruction of only the active payload. Include generic
@@ -135,9 +136,9 @@ compacting allocator are not automatic prerequisites.
 
 ## Chapter 14 — Bounded patch chapter and safety closure
 
-Start from the accepted Chapter 13 endpoint and the [starting plan](notes/ch14-starting-plan.md). Implement aggregate participant borrowing and the distinct reference representations: AoS C pointers with NULL; SoA default u32 indices with null zero, slot zero unused, and indices 1 through 2^32 - 1. Resolve nonnullable contributed-field construction without bypassing relationship maintenance. Nonnullable fields must be initialized before the constructor returns; cleanup-safe empty bits do not satisfy that rule.
+The [Chapter 14 draft](chapter-14.md) starts from the accepted Chapter 13 endpoint and the [starting plan](notes/ch14-starting-plan.md). Ordinary containers own their counted elements; scalar participant borrowing does not propagate into containers. Production AoS uses C pointers with NULL; production SoA uses u32 indices with null zero, slot zero unused, and indices 1 through 2^32 - 1. Nonnullable value fields must be initialized before the constructor returns; cleanup-safe empty bits do not satisfy that rule. Mandatory relationship construction remains unsupported and is deferred beyond this book.
 
-Close or explicitly reject remaining unsafe paths, and verify lifetime effects across calls, ownership boundaries, cleanup and cascades before claiming conditional single-threaded memory safety. The claim assumes a correct compiler/runtime and correct trusted relationship implementations, excludes unsafe/foreign contract violations, and promises neither leak freedom nor concurrency safety. The accepted gap in raw borrowed-address debug detection is not a substitute for ordinary safe-language protection. This is planned work, not authorization to start Chapter 14 before Chapter 13 completion.
+Close or explicitly reject remaining unsafe paths, and verify lifetime effects across calls, ownership boundaries, cleanup and cascades before claiming conditional single-threaded memory safety. The claim assumes a correct compiler/runtime and correct trusted relationship implementations, excludes unsafe/foreign contract violations, and promises neither leak freedom nor concurrency safety. The accepted gap in raw borrowed-address debug detection is not a substitute for ordinary safe-language protection. The author audit, post-migration cumulative Debug/Release checks, and scripted walkthrough have passed. Both independent reviews and fresh isolated reconstruction are complete. Bill has approved the prose and `spin14`; commit permission remains separate. See the [reconstruction receipt](notes/ch14-student-acceptance.md).
 
 ## After Chapter 14 — traversal, then later I/O and formatting
 
@@ -230,3 +231,16 @@ This planning decision does not authorize starting that reconstruction now.
 Ordinary C-heap array payloads are permitted for the bootstrap and do not block self-hosting. They are not the intended final allocation strategy. The specification’s field-specific payload heaps, append-at-end fast allocation with roughly 50% heap growth, two-index hole headers, alignment, generated compaction, bounded array counts, and selectable object-reference widths are planned upgrades needed for the benchmark-winning design. Measure representative applications rather than infer a gain from layout alone.
 
 This work must reuse storage-effect checking: field-heap relocation can invalidate payload borrows across multiple owners, while descriptor borrows depend on whether their own storage moves. Compaction moves values without artificial retain/release or finalization. Source syntax, width limits/units, and hole policies must be settled before implementing the compact allocator. Capacity queries return u64; independent copies have capacity equal to length recursively, while references observe original capacity. Empty arrays may reserve capacity; resize(0) explicitly releases their block and resets capacity. The bootstrap implements that contract through the ordinary capacity query and resize cleanup path; verification is recorded separately from this future allocator roadmap. Preserve lazy zeroed allocation opportunities: reserve must not eagerly initialize spare capacity. Do not expand the current Chapter 8 bootstrap slice to implement this allocator.
+
+## Future version: mandatory relationships
+
+Outside this book: a mandatory parent exists throughout the child's live lifetime.
+The intended child constructor receives the parent and calls its attachment
+function before returning, establishing both sides rather than assigning a
+backlink alone. Removal and parent-teardown policy still need design; no policy
+restriction or implementation is implied by this plan. Chapter 14 retains
+protected-write and definite-initialization rejection for unsupported construction.
+
+Bill's motivation includes speed: a genuine mandatory-parent guarantee can avoid
+null checks when accessing that parent. This is a design opportunity, not a
+measured performance result; the lifetime guarantee must justify removing checks.

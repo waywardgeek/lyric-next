@@ -164,22 +164,6 @@ internal sealed partial class Compilation
             }
             return null;
         }
-        // Chapter 13 carries participant views only on scalar handles. Do not
-        // silently turn those borrowed values into owning aggregate elements.
-        // An explicit concrete local drops the view and remains an ordinary owner.
-        void RequireAggregateElementView(SyntaxNode origin, ParticipantBinding? view,
-            bool annotation = false)
-        {
-            if (view?.Instantiation is not MultiClassInstantiation instance
-                || instance.Policy == RelationshipPolicy.None)
-            {
-                return;
-            }
-            if (annotation || checkingFunction?.ContributingParticipant?.Instantiation == instance)
-            {
-                Fail(origin, "LYC304", "Participant aggregate elements are not supported in this chapter; use scalar participant values or explicit concrete owning values.");
-            }
-        }
         void CheckSignature(SemanticSymbol function)
         {
             if (function.Declaration is null || completedSignatures.Contains(function))
@@ -5018,7 +5002,6 @@ internal sealed partial class Compilation
                 SemanticSymbol owner = WritableRoot(target, scope);
                 protectedArrays.Push(owner);
                 SemanticType supplied = CheckExpression(node.ChildAt(1), scope, selected);
-                RequireAggregateElementView(node.ChildAt(1), node.ChildAt(1).Fact!.ParticipantView);
                 RequireType(node.ChildAt(1), supplied, selected);
                 protectedArrays.Pop();
                 return;
@@ -5225,7 +5208,6 @@ internal sealed partial class Compilation
                 {
                     SyntaxNode component = node.ChildAt(i);
                     components.Add(ReadType(component, scope, allowStructs));
-                    RequireAggregateElementView(component, TypeView(component, scope), annotation: true);
                 }
                 SemanticType tuple = analysis.TupleType(components);
                 RequireTupleSlice(node, tuple);
@@ -5234,8 +5216,6 @@ internal sealed partial class Compilation
             if (node.Kind == SyntaxKind.ArrayType && node.ChildCount() == 1)
             {
                 SemanticType element = ReadType(node.ChildAt(0), scope, allowStructs);
-                RequireAggregateElementView(node.ChildAt(0),
-                    TypeView(node.ChildAt(0), scope), annotation: true);
                 if (element.ArrayDepth == 0 && element != analysis.ScalarType(ScalarKind.Bool)
                     && !SemanticTypes.IsInteger(element) && element.Class is null
                     && !(allowStructs && (element.Kind == SemanticTypeKind.Tuple
@@ -6206,7 +6186,6 @@ internal sealed partial class Compilation
                         && expectedType.ComponentCount() == node.ChildCount();
                     for (int i = 0; i < node.ChildCount(); i += 1)
                     {
-                        RequireAggregateElementView(node.ChildAt(i), node.ChildAt(i).Fact!.ParticipantView);
                         SemanticType actual = node.ChildAt(i).Fact!.Type;
                         SemanticType component = contextualTuple ? expectedType!.ComponentAt(i) : actual;
                         RequireType(node.ChildAt(i), actual, component);
@@ -6246,7 +6225,6 @@ internal sealed partial class Compilation
                     for (int i = 0; i < node.ChildCount(); i += 1)
                     {
                         SyntaxNode element = node.ChildAt(i);
-                        RequireAggregateElementView(element, element.Fact!.ParticipantView);
                         if (!SemanticTypes.CanWiden(element.Fact!.Type, elementType))
                         {
                             Fail(element, "LYC304", $"Expected {SemanticTypes.Name(elementType)}, got {SemanticTypes.Name(element.Fact.Type)}.");
@@ -6658,10 +6636,6 @@ internal sealed partial class Compilation
                         SemanticType argumentType = operation == ArrayOperation.Push
                             ? SemanticTypes.ElementOf(arrayType) : analysis.ScalarType(ScalarKind.U64);
                         SemanticType supplied = CheckExpression(node.ChildAt(1), scope, argumentType);
-                        if (operation == ArrayOperation.Push)
-                        {
-                            RequireAggregateElementView(node.ChildAt(1), node.ChildAt(1).Fact!.ParticipantView);
-                        }
                         RequireType(node.ChildAt(1), supplied, argumentType);
                         if (nested)
                         {

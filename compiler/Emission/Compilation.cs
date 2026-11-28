@@ -330,6 +330,15 @@ internal sealed partial class Compilation
                     return (ly_unit){0};
                 }
                 """);
+            if (!structureOfArrays && !debugChecks)
+            {
+                // Nominal pointers can cross class/tuple declaration order without
+                // exposing definitions early or erasing types through void pointers.
+                foreach (SemanticSymbol owner in classes)
+                {
+                    Line($"typedef struct {Name(owner)}_record {Name(owner)}_record;");
+                }
+            }
             AggregateLayouts();
             AggregatePrototypes();
             ArithmeticHelpers();
@@ -352,7 +361,7 @@ internal sealed partial class Compilation
             }
             foreach (SemanticSymbol classSymbol in classes)
             {
-                Line($"static ly_unit {Name(classSymbol)}_destroy_body(uint64_t index);");
+                Line($"static ly_unit {Name(classSymbol)}_destroy_body({HandleType(classSymbol)} index);");
             }
             foreach (SemanticSymbol classSymbol in classes)
             {
@@ -368,7 +377,7 @@ internal sealed partial class Compilation
             AggregateHelpers();
             foreach (SemanticSymbol classSymbol in classes)
             {
-                Line($"static ly_unit {Name(classSymbol)}_destroy_body(uint64_t index)");
+                Line($"static ly_unit {Name(classSymbol)}_destroy_body({HandleType(classSymbol)} index)");
                 EmitIr(classSymbol.IrDestruction!);
             }
             foreach (SemanticSymbol function in functions)
@@ -472,7 +481,7 @@ internal sealed partial class Compilation
                 {
                     // A place saves a handle, not an interior pointer. Every use
                     // resolves current class storage through that saved handle.
-                    Line($"uint64_t {name};");
+                    Line($"{HandleType(node.Symbol!.Scope!.Class!)} {name};");
                     values.Add(node, FieldStorage(node.Symbol!, name, Location(node.Origin!)));
                     continue;
                 }
@@ -535,7 +544,7 @@ internal sealed partial class Compilation
                     else if ((Counted(node.Type!) || node.Type!.Kind == SemanticTypeKind.Nullable)
                         && !parameters.Contains(node))
                     {
-                        Line($"{values[node]} = UINT64_MAX;");
+                        Line($"{values[node]} = {EmptyHandle()};");
                     }
                     return;
                 }
@@ -566,7 +575,7 @@ internal sealed partial class Compilation
                         Line($"(({owner}_slot *){owner}_slots.data)[{slotIndex}].state = {owner}_free_state;");
                         Line($"((uint64_t *){owner}_identities.data)[{Operand(0)}] = UINT64_MAX;");
                     }
-                    Line($"(({owner}_slot *){owner}_slots.data)[{slotIndex}].next_free = {owner}_free;");
+                    Line($"{MetadataStorage(owner, slotIndex, "next_free")} = {owner}_free;");
                     Line($"{owner}_free = {slotIndex};");
                     return;
                 }
@@ -717,7 +726,7 @@ internal sealed partial class Compilation
                         // _release empties its input holder. The membership is
                         // being released, not the operation's child parameter.
                         string membership = labels[node] + "_membership";
-                        Line($"uint64_t {membership} = {Operand(0)};");
+                        Line($"{HandleType(childClass)} {membership} = {Operand(0)};");
                         Line($"{className}_release(&{membership}, {Location(node.Origin!)});");
                     }
                     return;
@@ -746,7 +755,7 @@ internal sealed partial class Compilation
                 }
                 else if (node.Kind == IrKind.NullHandle)
                 {
-                    expression = "UINT64_MAX";
+                    expression = EmptyHandle();
                 }
                 else if (node.Kind is IrKind.WrapNullable or IrKind.UnwrapNullable)
                 {
@@ -757,7 +766,7 @@ internal sealed partial class Compilation
                     {
                         // Safe execution checks this application precondition.
                         // Unsafe execution trusts it; ownership/evaluation stay intact.
-                        Line($"if ({handle} == UINT64_MAX) {{ ly_array_failure({Location(node.Origin!)}, \"LYR013: null handle unwrap\"); }}");
+                        Line($"if ({handle} == {EmptyHandle()}) {{ ly_array_failure({Location(node.Origin!)}, \"LYR013: null handle unwrap\"); }}");
                     }
                     expression = handle;
                 }
@@ -1083,6 +1092,24 @@ internal sealed partial class Compilation
                 Line("};");
             }
         }
+        // Source types and ownership stay authoritative in IR. These queries only
+        // select the physical object representation for the emitted C program.
+        string HandleType(SemanticSymbol owner)
+        {
+            if (debugChecks)
+            {
+                return "uint64_t";
+            }
+            return structureOfArrays ? "uint32_t" : $"{Name(owner)}_record *";
+        }
+        string EmptyHandle()
+        {
+            if (debugChecks)
+            {
+                return "UINT64_MAX";
+            }
+            return structureOfArrays ? "UINT32_C(0)" : "NULL";
+        }
         string CType(SemanticType type)
         {
             if (Aggregate(type))
@@ -1095,7 +1122,7 @@ internal sealed partial class Compilation
             }
             if (type.Class is not null)
             {
-                return "uint64_t";
+                return HandleType(type.Class);
             }
             return type.Scalar switch
             {
@@ -1133,34 +1160,64 @@ internal sealed partial class Compilation
             {
                 return $"(({CType(field.Type!)} *){Name(field)}_storage.data)[{index}]";
             }
+            if (!debugChecks)
+            {
+                return $"({index})->{Name(field)}";
+            }
             return $"(({owner}_record **){owner}_chunks.data)[{index} / 64][{index} % 64].{Name(field)}";
+        }
+        // Production SoA keeps compiler-generated fields in parallel arrays too.
+        // Debug uses its separate identity-to-slot representation intentionally.
+        string MetadataStorage(string owner, string index, string field)
+        {
+            if (structureOfArrays && !debugChecks)
+            {
+                string element = field == "next_free" ? "uint32_t" : "uint64_t";
+                return $"(({element} *){owner}_{field}.data)[{index}]";
+            }
+            if (!debugChecks)
+            {
+                return $"({index})->{field}";
+            }
+            return $"(({owner}_slot *){owner}_slots.data)[{index}].{field}";
         }
         void ClassStorage(SemanticSymbol owner)
         {
             string name = Name(owner);
             List<SemanticSymbol> fields = Fields(owner);
-            Line($"static uint64_t {name}_next;");
-            // Metadata is private allocator storage: moving it cannot invalidate
-            // source field borrows. Both payload layouts share this free list.
+            // The high-water mark must represent one past the largest handle.
+            // Keep it wide and check the limit before converting to a handle.
+            Line($"static uint64_t {name}_next = {(structureOfArrays && !debugChecks ? "1" : "0")};");
+            // Production AoS embeds metadata; SoA stores each metadata field in
+            // its own array. Debug slots are private movable allocator storage.
+            // All modes reuse reclaimed objects before extending their high water.
             if (debugChecks)
             {
                 Line($"enum {{ {name}_free_state, {name}_live_state, {name}_destroying_state }};");
             }
-            Line($"typedef struct {name}_slot {{");
-            indentation += 1;
-            Line("uint64_t next_free;");
-            if (debugChecks)
+            if (structureOfArrays && !debugChecks)
             {
+                Line($"static ly_array {name}_next_free;");
+                if (owner.IsCountedClass())
+                {
+                    Line($"static ly_array {name}_references;");
+                }
+            }
+            else if (debugChecks)
+            {
+                Line($"typedef struct {name}_slot {{");
+                indentation += 1;
+                Line("uint64_t next_free;");
                 Line("unsigned char state;");
+                if (owner.IsCountedClass())
+                {
+                    Line("uint64_t references;");
+                }
+                indentation -= 1;
+                Line($"}} {name}_slot;");
+                Line($"static ly_array {name}_slots;");
             }
-            if (owner.IsCountedClass())
-            {
-                Line("uint64_t references;");
-            }
-            indentation -= 1;
-            Line($"}} {name}_slot;");
-            Line($"static ly_array {name}_slots;");
-            Line($"static uint64_t {name}_free = UINT64_MAX;");
+            Line($"static {HandleType(owner)} {name}_free = {EmptyHandle()};");
             if (structureOfArrays)
             {
                 foreach (SemanticSymbol field in fields)
@@ -1172,9 +1229,19 @@ internal sealed partial class Compilation
             {
                 // The directory can move, but each separately allocated fixed
                 // chunk remains at its original address for its entire lifetime.
-                Line($"typedef struct {name}_record {{");
+                Line(debugChecks
+                    ? $"typedef struct {name}_record {{"
+                    : $"struct {name}_record {{");
                 indentation += 1;
-                if (fields.Count == 0)
+                if (!debugChecks)
+                {
+                    Line($"{name}_record *next_free;");
+                    if (owner.IsCountedClass())
+                    {
+                        Line("uint64_t references;");
+                    }
+                }
+                if (fields.Count == 0 && debugChecks)
                 {
                     Line("unsigned char unused;");
                 }
@@ -1183,7 +1250,7 @@ internal sealed partial class Compilation
                     Line($"{CType(field.Type!)} {Name(field)};");
                 }
                 indentation -= 1;
-                Line($"}} {name}_record;");
+                Line(debugChecks ? $"}} {name}_record;" : "};");
                 Line($"static ly_array {name}_chunks;");
             }
             if (debugChecks)
@@ -1209,26 +1276,45 @@ internal sealed partial class Compilation
                 indentation -= 1;
                 Line("}");
             }
-            Line($"static uint64_t {name}_allocate(const char *file, int line, int column)");
+            Line($"static {HandleType(owner)} {name}_allocate(const char *file, int line, int column)");
             Line("{");
             indentation += 1;
             Line("uint64_t index;");
-            Line($"if ({name}_free != UINT64_MAX)");
+            if (!structureOfArrays && !debugChecks)
+            {
+                Line($"{name}_record *handle;");
+            }
+            Line($"if ({name}_free != {EmptyHandle()})");
             Line("{");
             indentation += 1;
-            Line($"index = {name}_free;");
-            Line($"{name}_free = (({name}_slot *){name}_slots.data)[index].next_free;");
+            string allocated = !structureOfArrays && !debugChecks ? "handle" : "index";
+            Line($"{allocated} = {name}_free;");
+            Line($"{name}_free = {MetadataStorage(name, allocated, "next_free")};");
             indentation -= 1;
             Line("}");
             Line("else");
             Line("{");
             indentation += 1;
-            Line($"if ({name}_next == UINT64_MAX)");
+            string exhausted = structureOfArrays && !debugChecks
+                ? $"{name}_next > UINT32_MAX"
+                : $"{name}_next == UINT64_MAX";
+            Line($"if ({exhausted})");
             Line("{");
             Line("    ly_array_failure(file, line, column, \"LYR007: class allocation size overflow\");");
             Line("}");
             Line($"index = {name}_next;");
-            Line($"ly_class_reserve(&{name}_slots, index + 1, sizeof({name}_slot), file, line, column);");
+            if (structureOfArrays && !debugChecks)
+            {
+                Line($"ly_class_reserve(&{name}_next_free, index + 1, sizeof(uint32_t), file, line, column);");
+                if (owner.IsCountedClass())
+                {
+                    Line($"ly_class_reserve(&{name}_references, index + 1, sizeof(uint64_t), file, line, column);");
+                }
+            }
+            else if (debugChecks)
+            {
+                Line($"ly_class_reserve(&{name}_slots, index + 1, sizeof({name}_slot), file, line, column);");
+            }
             if (structureOfArrays)
             {
                 foreach (SemanticSymbol field in fields)
@@ -1247,6 +1333,10 @@ internal sealed partial class Compilation
                 indentation -= 1;
                 Line("}");
             }
+            if (!structureOfArrays && !debugChecks)
+            {
+                Line($"handle = &(({name}_record **){name}_chunks.data)[index / 64][index % 64];");
+            }
             Line($"{name}_next = index + 1;");
             indentation -= 1;
             Line("}");
@@ -1258,7 +1348,7 @@ internal sealed partial class Compilation
             {
                 // Construction returns the first owning holder. Reused slots
                 // start a new count rather than inheriting their old occupancy.
-                Line($"(({name}_slot *){name}_slots.data)[index].references = 1;");
+                Line($"{MetadataStorage(name, allocated, "references")} = 1;");
             }
             foreach (SemanticSymbol field in fields)
             {
@@ -1266,8 +1356,8 @@ internal sealed partial class Compilation
                 // The first owning store may release this slot, so handles must
                 // start with the current empty sentinel, including reused slots.
                 string empty = field.Type!.ArrayDepth == 0 && field.Type.Class is not null
-                    ? "UINT64_MAX" : $"({CType(field.Type!)}){{0}}";
-                Line($"{FieldStorage(field, "index")} = {empty};");
+                    ? EmptyHandle() : $"({CType(field.Type!)}){{0}}";
+                Line($"{FieldStorage(field, allocated)} = {empty};");
             }
             if (debugChecks)
             {
@@ -1283,11 +1373,11 @@ internal sealed partial class Compilation
             }
             else
             {
-                Line("return index;");
+                Line($"return ({HandleType(owner)}){allocated};");
             }
             indentation -= 1;
             Line("}");
-            Line($"static ly_unit {name}_destroy(uint64_t index, const char *file, int line, int column)");
+            Line($"static ly_unit {name}_destroy({HandleType(owner)} index, const char *file, int line, int column)");
             Line("{");
             indentation += 1;
             // This guard is defensive; static analysis must reject stale source
@@ -1310,10 +1400,10 @@ internal sealed partial class Compilation
             Line("}");
             if (owner.IsCountedClass())
             {
-                // UINT64_MAX is reserved by allocation. It denotes an empty
-                // backend holder or a source null. Nonnullable retain stays strict;
-                // nullable copy checks the sentinel before invoking it.
-                Line($"static inline uint64_t {name}_retain(uint64_t index, const char *file, int line, int column)");
+                // Empty bits depend on the physical handle format. Nonnullable
+                // retain requires a live handle; nullable copy skips empty handles.
+                // Source definite initialization is independent of these bits.
+                Line($"static inline {HandleType(owner)} {name}_retain({HandleType(owner)} index, const char *file, int line, int column)");
                 Line("{");
                 indentation += 1;
                 if (debugChecks)
@@ -1321,20 +1411,28 @@ internal sealed partial class Compilation
                     Line($"uint64_t slot_index = {name}_resolve(index, file, line, column, \"LYR009: invalid object retain\");");
                 }
                 string metadataIndex = debugChecks ? "slot_index" : "index";
-                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[{metadataIndex}];");
-                Line("if (slot->references == UINT64_MAX)");
+                string count = !debugChecks ? "*references" : "slot->references";
+                if (!debugChecks)
+                {
+                    Line($"uint64_t *references = &{MetadataStorage(name, metadataIndex, "references")};");
+                }
+                else
+                {
+                    Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[{metadataIndex}];");
+                }
+                Line($"if ({count} == UINT64_MAX)");
                 Line("{");
                 Line("    ly_array_failure(file, line, column, \"LYR012: object reference count overflow\");");
                 Line("}");
-                Line("slot->references += 1;");
+                Line($"{count} += 1;");
                 Line("return index;");
                 indentation -= 1;
                 Line("}");
-                Line($"static inline void {name}_release(uint64_t *holder, const char *file, int line, int column)");
+                Line($"static inline void {name}_release({HandleType(owner)} *holder, const char *file, int line, int column)");
                 Line("{");
                 indentation += 1;
-                Line("uint64_t index = *holder;");
-                Line("if (index == UINT64_MAX)");
+                Line($"{HandleType(owner)} index = *holder;");
+                Line($"if (index == {EmptyHandle()})");
                 Line("{");
                 Line("    return;");
                 Line("}");
@@ -1342,24 +1440,31 @@ internal sealed partial class Compilation
                 {
                     Line($"uint64_t slot_index = {name}_resolve(index, file, line, column, \"LYR009: invalid object release\");");
                 }
-                Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[{metadataIndex}];");
+                if (!debugChecks)
+                {
+                    Line($"uint64_t *references = &{MetadataStorage(name, metadataIndex, "references")};");
+                }
+                else
+                {
+                    Line($"{name}_slot *slot = &(({name}_slot *){name}_slots.data)[{metadataIndex}];");
+                }
                 if (debugChecks)
                 {
-                    Line("if (slot->references == 0)");
+                    Line($"if ({count} == 0)");
                     Line("{");
                     Line("    ly_array_failure(file, line, column, \"LYR009: empty object reference count\");");
                     Line("}");
                 }
-                Line("*holder = UINT64_MAX;");
-                Line("slot->references -= 1;");
-                Line("if (slot->references == 0)");
+                Line($"*holder = {EmptyHandle()};");
+                Line($"{count} -= 1;");
+                Line($"if ({count} == 0)");
                 Line("{");
                 // Restore the last reference only on the destruction path. It
                 // protects balanced temporary owners during final/fragment calls;
                 // ReclaimObject frees directly rather than releasing this hold.
-                Line("    slot->references = 1;");
-                // Destruction can call user code and relocate metadata. Never
-                // dereference slot again after crossing this boundary.
+                Line($"    {count} = 1;");
+                // Destruction can call user code and relocate SoA/debug metadata.
+                // Never dereference the saved count pointer after this boundary.
                 Line($"    (void){name}_destroy(index, file, line, column);");
                 Line("}");
                 indentation -= 1;
@@ -1385,7 +1490,7 @@ internal sealed partial class Compilation
                     }
                     else
                     {
-                        uint64_t *elements = array->data;
+                        {{HandleType(owner)}} *elements = array->data;
                         for (uint64_t i = 0; i < array->length; i += 1)
                         {
                             {{name}}_release(&elements[i], file, line, column);
@@ -1398,7 +1503,7 @@ internal sealed partial class Compilation
                 static ly_array {{name}}_array_copy(ly_array source, unsigned depth, bool nullable,
                     const char *file, int line, int column)
                 {
-                    size_t stride = depth > 1 ? sizeof(ly_array) : sizeof(uint64_t);
+                    size_t stride = depth > 1 ? sizeof(ly_array) : sizeof({{HandleType(owner)}});
                     ly_array result = ly_array_new(source.length, stride, file, line, column);
                     if (depth > 1)
                     {
@@ -1412,14 +1517,14 @@ internal sealed partial class Compilation
                     }
                     else
                     {
-                        uint64_t *from = source.data;
-                        uint64_t *to = result.data;
+                        {{HandleType(owner)}} *from = source.data;
+                        {{HandleType(owner)}} *to = result.data;
                         for (uint64_t i = 0; i < source.length; i += 1)
                         {
                             // Null has no reference to retain. Nonnullable arrays retain
                             // their strict invalid-empty-holder check.
-                            to[i] = nullable && from[i] == UINT64_MAX
-                                ? UINT64_MAX
+                            to[i] = nullable && from[i] == {{EmptyHandle()}}
+                                ? {{EmptyHandle()}}
                                 : {{name}}_retain(from[i], file, line, column);
                             result.length += 1;
                         }
@@ -1556,7 +1661,7 @@ internal sealed partial class Compilation
                 {
                     // The value is an already sequenced IR holder, never a source
                     // expression. Null owns no reference and must not be retained.
-                    return $"(({value}) == UINT64_MAX ? UINT64_MAX : {retained})";
+                    return $"(({value}) == {EmptyHandle()} ? {EmptyHandle()} : {retained})";
                 }
                 return retained;
             }
@@ -1590,7 +1695,7 @@ internal sealed partial class Compilation
             }
             else if (Counted(type) || type.Kind == SemanticTypeKind.Nullable)
             {
-                Line($"{name} = UINT64_MAX;");
+                Line($"{name} = {EmptyHandle()};");
             }
             else if (type.ArrayDepth > 0)
             {
@@ -1926,10 +2031,10 @@ internal sealed partial class Compilation
                         Line("{");
                         indentation += 1;
                         // Publish the length only after initializing the complete element.
-                        // Null uses the handle sentinel, including inside tuples;
-                        // C zero is not the nullable default. Reused slots are dirty.
+                        // Use the format's null value, including inside tuples.
+                        // Debug null is not zero, and reused slots are dirty.
                         string initial = elementType.Kind == SemanticTypeKind.Nullable
-                            ? "UINT64_MAX"
+                            ? EmptyHandle()
                             : Aggregate(elementType)
                                 ? $"{aggregateNames[elementType]}_empty()"
                                 : $"({element}){{0}}";

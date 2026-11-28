@@ -51,6 +51,10 @@ spin12: release
 spin13: release
 	"$(PYTHON)" tools/spin13.py "$(DOTNET)"
 
+.PHONY: spin14
+spin14: release
+	"$(PYTHON)" tools/spin14.py "$(DOTNET)"
+
 # These are the public retained graders, not a second test implementation.
 # Stop immediately if a build or any grader fails.
 test:
@@ -72,7 +76,7 @@ test:
 		"$(PYTHON)" "$(GRADERS)/ch08/run.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch08/check.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch08/layout.py" "$(DOTNET)" "$$assembly"; \
-		"$(PYTHON)" "$(GRADERS)/ch08/allocation.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/allocation.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch08/ownership.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch09/ir.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch09/ownership.py" "$(DOTNET)" "$$assembly"; \
@@ -91,12 +95,20 @@ test:
 		"$(PYTHON)" "$(GRADERS)/ch13/object_fields_migration.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch12/nullable_handles.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch13/list_refusals.py" "$(DOTNET)" "$$assembly"; \
-		"$(PYTHON)" "$(GRADERS)/ch13/debug_mode.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/debug_mode.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch13/debug_identity.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch13/relationships.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch13/relationships.py" --runtime-debug "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch13/participant_ir.py" "$(DOTNET)" "$$assembly"; \
-		"$(PYTHON)" "$(GRADERS)/ch13/participant_aggregates.py" --runtime-debug "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/aggregate_participants.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/aggregate_participants.py" --soa "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/aggregate_participants.py" --runtime-debug "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/aggregate_participants.py" --soa --runtime-debug "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/safety_calls.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/safety_initialization.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/safety_access.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/safety_boundaries.py" "$(DOTNET)" "$$assembly"; \
+		"$(PYTHON)" "$(GRADERS)/ch14/handles.py" "$(DOTNET)" "$$assembly"; \
 		"$(PYTHON)" "$(GRADERS)/ch03/recognition.py" --fixtures "$(GRADERS)/ch13/relationship-syntax.json" -- "$(DOTNET)" "$$assembly"; \
 	done
 

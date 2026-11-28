@@ -68,7 +68,7 @@ whose connection exists mainly in my head. Here, ownership and teardown become
 part of the relationship's contract.
 
 We are not finishing every part of Lyric's memory-safety story in this chapter.
-This increment supports scalar participant handles; aggregate participant borrowing
+This increment supports scalar participant handles; participant aggregate ownership
 and the remaining single-threaded safety work belong to the next patch chapter.
 But we are making one of its most important pieces work.
 
@@ -420,14 +420,15 @@ aggregate. Application-side containers remain ordinary owners too. The public
 controls remove the child's attachment while keeping an ordinary aggregate owner,
 and require finalization only when that owner leaves scope.
 
-The next patch chapter will extend participant identity through aggregates and
-replace these temporary rejection contracts with borrowed-element behavior.
-The observed current aggregate defect was extra references and delayed
-finalization, not a demonstrated use-after-free. Chapter 13 deliberately makes
+Chapter 14 replaces these temporary rejection contracts with ordinary owning
+container behavior. Copying a borrowed participant observation into a container
+acquires ownership; delayed finalization until container cleanup is correct, not
+a defect. Scalar participant borrowing does not propagate into aggregate elements. Chapter 13 deliberately makes
 no completed single-threaded memory-safety claim; that closure belongs to
 Chapter 14. That patch chapter also plans distinct production handles—C pointers
 with `NULL` for AoS, and 32-bit indices with reserved null slot zero for SoA—and
-resolution of nonnullable relationship construction. Those are future changes,
+explicit rejection of unsupported mandatory relationship construction, which is
+deferred beyond this book. Those are later boundaries,
 not this chapter's representation or acceptance requirements. Its focused lifetime,
 ownership, teardown, and access-boundary audit must precede the broader safety
 milestone.
@@ -665,5 +666,5 @@ to run known-invalid memory accesses. This example demonstrates the counted
 reference policy; the retained suite separately covers ordinary owning cascades.
 
 The author running this walkthrough does not replace your human acceptance.
-Aggregate participant borrowing and the layout-specific pointer/u32 representation
-change remain Chapter 14 work, not hidden requirements of this walkthrough.
+Ordinary ownership for participant-containing aggregates and the layout-specific
+pointer/u32 representation change belong to Chapter 14, not hidden requirements of this walkthrough.

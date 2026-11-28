@@ -62,8 +62,10 @@ check, all five PEG suites, and spin13 in both layouts. The 306 public input fil
 were independently hash-verified; the student is stopped without a passing rerun.
 See [reconstruction evidence](notes/ch13-student-acceptance.md). Bill has accepted Chapter 13 and the `spin13` walkthrough and authorized a local commit. Pushing remains Bill's responsibility.
 Chapter 13 is scalar-participant scoped; the [Chapter 14 patch plan](notes/ch14-starting-plan.md)
-carries aggregate borrowing, distinct AoS/SoA handles, and the remaining safety
-closure work. Completed single-threaded memory safety is not claimed here.
+records ordinary owning containers, distinct AoS/SoA handles, and safety closure.
+The [accepted Chapter 14](chapter-14.md) has passed the author audit, post-migration
+cumulative Debug/Release checks, and scripted walkthrough. Both independent reviews
+and fresh isolated reconstruction are complete. Bill has approved the prose and `spin14`; commit permission remains separate. See the [reconstruction receipt](notes/ch14-student-acceptance.md).
 
 ## Agreed next increments
 

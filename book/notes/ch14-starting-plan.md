@@ -1,8 +1,11 @@
 # Chapter 14 starting plan — bounded patch chapter and single-threaded safety closure
 
-Status: planned, not implemented or verified. Bill requested this record while
-Chapter 13 was still in progress. Start from the actual accepted Chapter 13
-endpoint; inspect its final notes, code, graders and receipts before acting.
+Status: Chapter14 personal implementation is active. Ordinary container ownership
+and the bounded author safety audit passed cumulative Debug/Release job4007;
+see `ch14-safety-audit-verification.md`. This is not full Chapter14 acceptance.
+Production handle migration has passed focused checks and post-migration cumulative
+Debug/Release verification4086. See current development notes.
+The original planning rationale below is retained.
 Worktree: `/Users/bill/projects/lyric-next`. Do not resume abandoned reconstruction
 or alter `/Users/bill/projects/lyric`, archived attempts, private state or scratch.
 
@@ -34,52 +37,47 @@ The tasks below distinguish demonstrated defects from audit obligations. If a
 concrete blocker requires substantial redesign or a larger chapter, bring the
 example and tradeoff to Bill; do not silently expand scope or assert completion.
 
-## 1. Aggregate participant borrowing — demonstrated ownership gap
+## 1. Ordinary container ownership of participant handles
 
-Current scalar participant parameters, locals, field reads and nullable
-conversions borrow within their own maintained relationship. Owning application
-boundaries acquire ownership. Ordinary unrelated counted values remain owners.
+Bill clarified the rule during the first Chapter14 slice: generated structural
+links do not individually count; relationship management accounts for attachment.
+A copy into ordinary user storage DOES count. Ordinary arrays and tuples own their
+counted elements, including when constructed inside relationship maintenance from
+borrowed participant observations. Each occupied element contributes its ordinary
+reference, even when several elements identify the same object. Scalar participant
+locals/arguments inside maintenance retain their existing borrowed contract.
 
-Three diagnostic experiments (jobs3499/3500) demonstrated extra ownership:
-relationship helper saves the first counted child in `(self.first!, self.first!)`,
-removes `saved.0`, then prints `after`. Child finalization is delayed: actual
-`liveafterNdone`, intended borrowed-participant timing `liveNafterdone`.
-Array `[self.first!, self.first!]`/`saved[0]` and explicit `(C,C)` annotation have
-the same result. No saved handle is read after removal. These demonstrate extra
-references/delayed finalization, NOT a use-after-free defect. The harness stopped
-at each mismatch; do not claim both C optimization levels passed.
+Earlier experiments jobs3499/3500 produced `liveafterNdone` after removing a child
+held in a container. That is correct ordinary ownership, not a compiler defect.
+The proposed per-element borrowing machinery and mixed-view rejection are rejected.
+No runtime ownership tags or new participant-view model are required for this rule.
 
-At this record, Chapter 13's explicit unsupported-path rejection is planned but
-NOT implemented. Inspect the final endpoint to establish its real restriction.
+Lift Chapter13's temporary aggregate restrictions, preserving canonical typing,
+ordinary copy/drop, protected-link access and lifetime checks. Test tuple/array
+literals, annotations, nesting, push, assignment, copies, helper arguments/results,
+application copies and mixed sources. Acquiring ordinary ownership must remain
+explicit in neutral IR through its existing Ref/Move operations, not invented by
+the C emitter. Retain scalar relationship accounting and unrelated-owner controls.
+Do not execute invalid lifetime cases.
 
-Required upgrade:
-- Preserve endpoint/relationship identity for relevant aggregate elements through
-  annotations, inference, construction, nested values, copying, selection,
-  destructuring, assignment, parameters and returns. Use actual semantic identity,
-  not matching concrete class names; two roles may use the same class.
-- Separate aggregate storage ownership from element ownership. Arrays still free
-  their backing storage; unrelated counted elements still retain/release. Mixed
-  aggregates must not gain a blanket no-counting exemption.
-- Establish ordinary ownership when borrowed participant elements cross an owning
-  application boundary. Preserve explicit concrete-view semantics and ordinary
-  application containers; do not silently turn every instance of a class into a
-  participant borrow.
-- Coordinate checking, ownership IR, cleanup, both validator directions and C
-  emission. Do not fix only emitted C or add a second ownership authority.
-- Retain tests for tuple/array/nested/mixed cases, writable aliases and helper
-  boundaries, copying/replacement and exactly-once finalization. Preserve unrelated
-  counted-local and owning-return controls. Invalid lifetime cases are compile-only.
-
-Relevant starting points: `Semantics/SemanticSymbol.cs` participant queries,
-`IR/Model.cs` storage/value borrowing queries, `IR/Lowering.cs` aggregate transfer
-and cleanup, semantic participant views, IR validators and aggregate emitters.
+Relevant starting points: `Semantics/Check.cs` temporary restriction;
+`IR/Lowering.cs` Transfer, NewArray/NewTuple and assignment; public Chapter14
+aggregate contracts. Chapter13's historical grader remains intact; cumulative
+Chapter14 checking must use the agreed successor contract instead.
 
 ## 2. Distinct AoS/SoA reference representations — agreed upgrade
 
-Current production output uses integer indices and `UINT64_MAX` empty/null for
-BOTH layouts. Slot zero can currently be live. Neither queued redesign is done.
+At the accepted Chapter13 starting point, production output used integer indices
+and `UINT64_MAX` empty/null for both layouts; slot zero could be live. The formats
+below are now implemented with focused and cumulative verification4086.
 
-- AoS references become actual C object pointers; null is C `NULL`.
+- AoS references become actual C object pointers; null is C `NULL`. Production
+  records hold their own count (counted classes only) and next-free pointer. Keep
+  stable chunks; do not reconstruct a slot index from an object address.
+- SoA metadata follows SoA too: a separate next-free array and, for counted
+  classes, a separate reference-count array. The free-list head is one per-class
+  scalar. No production array of metadata structs. Counts retain64-bit width;
+  next-free entries use the32-bit index format below.
 - SoA references default to `u32` indices; null is `0u32`. Reserve/waste slot zero,
   allocate from index1, permit indices1 through `2^32 - 1`. Capacity is an upper
   representation bound, not a promise the machine can allocate that many objects.
@@ -103,20 +101,20 @@ Rationale is simpler/faster common null checks and reference representation;
 performance improvement is expected, not measured. No benchmark claim without
 measurement and explicit safe/unsafe/debug mode identification.
 
-## 3. Nonnullable contributed-field construction — unresolved path
+## 3. Mandatory relationships — deferred beyond this book
 
-Rule settled: initialize every nonnullable field on every returning constructor
-path. Generated cleanup-safe empty storage is unreadable until a valid write.
+Bill clarified the use case and explicitly deferred implementation to a future
+version. A mandatory parent exists throughout the child's live lifetime. The
+future child constructor receives the parent and calls the parent's attachment
+function before returning; initialization alone is not the complete contract.
+Removal and parent teardown semantics remain future design, including policy
+choices; no owns-only restriction was agreed.
 
-Current concrete constructor writes to protected contributed links fail LYC308;
-leaving them unwritten fails LYC328. This is a construction-permission conflict,
-not difficulty with definite-initialization analysis. Find a concrete legitimate
-relationship-controlled construction example, then provide the smallest path that
-preserves relationship invariants. Do not grant arbitrary application writes,
-invent a framework without a use case, or substitute a nullable-only language rule.
-Retain missing-init, early-read, branch/return/fallthrough and null/type negatives.
-If support remains intentionally excluded, make rejection and claim boundaries
-explicit rather than calling rejected functionality implemented.
+Current direct protected-link initialization fails LYC308; omitting the required
+field fails LYC328. Retain both compile-only refusal controls without adding a
+partial-self exemption or calling rejection support. Ordinary permitted
+nonnullable contributed value-field initialization stays supported. This is no
+longer an unfinished implementation obligation for Chapter 14.
 
 ## 4. Focused safety closure audit — obligations, not established bugs
 
@@ -190,5 +188,5 @@ unsafe/lifetime probes merely to demand controlled failure.
   unresolved restrictions plainly. No formal proof, leak-freedom or concurrency
   claim. A passing debug probe is not a substitute for safe source admission.
 
-This plan does not start Chapter14, authorize workers/commits/pushes/installation,
-or waive the remaining Chapter13 completion process.
+Chapter13 is accepted and committed. Bill authorized personal Chapter14 work;
+this plan does not authorize workers, commits, pushes or installation.
